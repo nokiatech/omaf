@@ -80,10 +80,10 @@ Note: the input file need to have GOPs of a fixed length.
 \Player\VideoPlayback\Windows\Monitor_Sample\x64\Release\Monitor_sample.exe (input file/stream is hardcoded in the source.cpp, search for // Start playback)
 
 ## License:
-Please see **[LICENSE.TXT](https://github.com/nokiatech/omaf/blob/master/LICENSE.TXT)** file for the terms of use of the contents of this repository.
+Please see **[LICENSE.TXT](https://github.com/nokiatech/omaf/blob/master/LICENSE.txt)** file for the terms of use of the contents of this repository.
 
 For more information, please contact: <omaf@nokia.com>
 
-### **Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). **
+### Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies).
 ### **All rights reserved.** 
 
