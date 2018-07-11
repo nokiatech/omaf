@@ -1,0 +1,109 @@
+
+/** 
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+#include "common/utils.h"
+
+namespace VDD
+{
+    namespace CommandLine
+    {
+        template <typename T>
+        OptionallyReference<T>::OptionallyReference(Optional<T>& aResult)
+            : mResultOptional(&aResult)
+            , mIsRequired(Parse::IsOptional)
+        {
+            // nothing
+        }
+
+        template <typename T>
+        OptionallyReference<T>::OptionallyReference(T& aResult)
+            : mResult(&aResult)
+            , mIsRequired(Parse::IsRequired)
+        {
+            // nothing
+        }
+
+        template <typename T>
+        OptionallyReference<T>::OptionallyReference(T& aResult, const T& aDefaultValue)
+            : mResult(&aResult)
+            , mIsRequired(Parse::IsOptional)
+        {
+            *mResult = aDefaultValue;
+        }
+
+        template <typename T>
+        void OptionallyReference<T>::set(const T& aValue) const
+        {
+            if (mResultOptional)
+            {
+                *mResultOptional = aValue;
+            }
+            else
+            {
+                *mResult = aValue;
+            }
+        }
+
+        template <typename T>
+        Parse::IsRequiredType OptionallyReference<T>::isRequired() const
+        {
+            return mIsRequired;
+        }
+
+        template <typename T>
+        Enum<T>::Enum(OptionallyReference<T> aResult,
+                      std::vector<std::string>&& aOptions)
+            : Parse("(" + Utils::joinStrings(aOptions, " | ") +  ")", aResult.isRequired())
+            , mResult(aResult)
+            , mOptions(aOptions)
+        {
+            // nothing
+        }
+
+        template <typename T>
+        ParseResult Enum<T>::parse(Arguments aArguments) const
+        {
+            bool found = false;
+            for (size_t n = 0; n < mOptions.size() && !found; ++n)
+            {
+                found = Utils::lowercaseString(aArguments[0]) == Utils::lowercaseString(mOptions[n]);
+                if (found)
+                {
+                    mResult.set(T(n));
+                }
+            }
+            if (found)
+            {
+                return ParseResult::OK();
+            }
+            else
+            {
+                std::string options;
+                for (auto& option : mOptions)
+                {
+                    if (options.size())
+                    {
+                        options += ", ";
+                    }
+                    options += option;
+                }
+                return ParseResult(ParseResult::Fail(), "No valid option found. Valid options: " + options);
+            }
+        }
+    }
+}
+
+// Local Variables:
+// mode: c++
+// End:

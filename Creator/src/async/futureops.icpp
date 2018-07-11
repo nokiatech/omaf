@@ -1,0 +1,210 @@
+
+/** 
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+namespace VDD
+{
+    using namespace FutureTMP;
+
+    template <typename T, typename Map>
+    auto mapFuture(const Future<T>& aFuture, Map aMap) -> Future<decltype(aMap(T()))>
+    {
+        // Using shared ptr due to that the promise gets capture as const inside the lambda
+        std::shared_ptr<Promise<decltype(aMap(T()))>> promise(new Promise<decltype(aMap(T()))>);
+        aFuture.then([=](const T& aValue)
+                             {
+                                 promise->set(aMap(aValue));
+                             });
+        return *promise;
+    }
+
+    template <typename T>
+    T waitFuture(const Future<T>& aFuture)
+    {
+        std::mutex mutex;
+        std::condition_variable cond;
+        Optional<T> value;
+
+        aFuture.then(
+            [&](const T& aValue)
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                value = aValue;
+                cond.notify_one();
+            });
+
+        std::unique_lock<std::mutex> lock(mutex);
+        cond.wait(lock, [&]()
+                  {
+                      return !!value;
+                  });
+
+        return *value;
+    }
+
+    namespace FutureTMP
+    {
+        // Same as std::tuple_cat, but the second argument is a value that is converted to 1-tuple first
+        template <typename Tuple, typename AppendType>
+        auto tupleAppend(Tuple tuple, AppendType append) -> decltype(std::tuple_cat(tuple, std::make_tuple(append)))
+        {
+            return std::tuple_cat(tuple, std::make_tuple(append));
+        }
+
+        /** CollectValue: for given tuple of futures and a shared pointer to tuple of storage space,
+         * arrange each future to return a value to the matching entry in the storage */
+        template <typename InputFuture, typename StoreTuple, size_t N>
+        struct CollectValue
+        {
+            static void operate(const InputFuture& aInputFuture,
+                                const std::shared_ptr<StoreTuple>& aStore,
+                                const std::function<void()>& aGotValue)
+            {
+                CollectValue<InputFuture, StoreTuple, N - 1>
+                    ::operate(aInputFuture, aStore, aGotValue);
+
+                std::get<N - 1>(aInputFuture)
+                    .then([=](const typename std::remove_reference<decltype(std::get<N - 1>(*aStore))>::type& aValue)
+                                 {
+                                     std::get<N - 1>(*aStore) = aValue;
+                                     aGotValue();
+                                 });
+            }
+        };
+
+        // the base case: do nothing
+        template <typename InputFuture, typename StoreTuple>
+        struct CollectValue<InputFuture, StoreTuple, 0>
+        {
+            static void operate(const InputFuture&,
+                                const std::shared_ptr<StoreTuple>&,
+                                const std::function<void()>&)
+            {
+                // nothing
+            }
+        };
+
+        template <typename Type> Type initialValue(const Future<Type>)
+        {
+            return Type();
+        }
+
+        // Given an N-tuple of futures, convert it to a tuple with the futures replaced with some
+        // initial values (using initialValue)
+        template <typename Tuple, size_t N>
+        struct ConvertTuple
+        {
+            typedef decltype(tupleAppend(std::declval<typename ConvertTuple<Tuple, N - 1>::return_type>(),
+                                         initialValue(std::get<N - 1>(std::declval<Tuple>())))) return_type;
+        };
+
+        // base case: empty tuple
+        template <typename Tuple>
+        struct ConvertTuple<Tuple, 0>
+        {
+            typedef std::tuple<> return_type;
+        };
+
+        template <typename T>
+        std::shared_ptr<T> makeShared(const T& aValue)
+        {
+            return std::shared_ptr<T>(new T(aValue));
+        }
+    }
+
+    template <class ... Types>
+    auto whenAll(Types ... args)
+        -> Future<typename ConvertTuple<std::tuple<Types...>, std::tuple_size<std::tuple<Types...>>::value>::return_type>
+    {
+        typedef typename ConvertTuple<std::tuple<Types...>, std::tuple_size<std::tuple<Types...>>::value>::return_type type;
+
+        // Input futures as a tuple
+        auto inputTuple = std::make_tuple(args ...);
+
+        // A tuple containing initial values
+        auto values = std::make_tuple(initialValue(args) ...);
+
+        // A tuple for storing the results from activating futures
+        auto store = makeShared(values);
+
+        // Counter for keeping track how many results we still need to wait for
+        std::shared_ptr<std::atomic<size_t>> counter(new std::atomic<size_t>(std::tuple_size<std::tuple<Types...>>::value));
+
+        // A future for the final result (a single tuple). Put inside a std::shared_ptr, as it needs
+        // to be non-const inside the lambda function
+        auto result = makeShared(Promise<type>());
+
+        // For all tuple values, arrange them to set the appropriate field of the result tuple and
+        // decrement the counter indicating how many results we still need to wait
+        CollectValue<decltype(inputTuple), decltype(values), std::tuple_size<decltype(values)>::value>
+            ::operate(inputTuple, store,
+                      [=]()
+                      {
+                          if (--*counter == 0)
+                          {
+                              result->set(*store);
+                          }
+                      });
+
+        return *result;
+    }
+
+    template <typename Container>
+    Future<std::vector<typename Container::value_type::type>> whenAllOfContainer(const Container& aContainer)
+    {
+        typedef typename Container::value_type::type type;
+
+        struct State
+        {
+            std::mutex mutex;
+            std::vector<typename Container::value_type::type> result;
+            Promise<std::vector<typename Container::value_type::type>> promise;
+            size_t remaining;
+
+            State(size_t aResultSize)
+                : result(aResultSize)
+                , remaining(aResultSize)
+            {
+                // nothing
+            }
+        };
+
+        // might the operations on this shared pointer require a lock? would be difficult due to the
+        // copying done by the C++ lambda mechanism..
+        std::shared_ptr<State> state { new State(aContainer.size()) };
+
+        size_t index = 0;
+        for (auto& future : aContainer)
+        {
+            future.then([index, state](const type& aValue)
+                        {
+                            state->result[index] = aValue;
+                            std::unique_lock<std::mutex> lock(state->mutex);
+                            --state->remaining;
+                            if (state->remaining == 0)
+                            {
+                                lock.unlock();
+                                state->promise.set(state->result);
+                            }
+                        });
+            ++index;
+        }
+
+        return state->promise;
+    }
+}
+
+// Local Variables:
+// mode: c++
+// End:
+

@@ -1,0 +1,73 @@
+
+/** 
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+#include "common/utils.h"
+
+namespace VDD
+{
+    /* Add the given tag (inheriting from MetaTag) to this Meta */
+    template <typename T>
+    void Meta::attachTag(const T& aTag)
+    {
+        auto value = Utils::static_cast_unique_ptr<MetaTag>(Utils::make_unique<T>(aTag));
+        for (auto& tag : mTags)
+        {
+            auto* ptr = dynamic_cast<T*>(tag.get());
+            if (ptr)
+            {
+                tag = std::move(value);
+                return;
+            }
+        }
+        mTags.push_back(std::move(value));
+    }
+
+    /* is the tag T attached? If so, return it. */
+    template <typename T>
+    Optional<T> Meta::findTag() const
+    {
+        for (auto& tag : mTags)
+        {
+            auto* ptr = dynamic_cast<T*>(tag.get());
+            if (ptr)
+            {
+                return { *ptr };
+            }
+        }
+        return {};
+    }
+
+    template <typename Value>
+    ValueTag<Value>::ValueTag(Value aValue)
+        : mValue(aValue)
+    {
+        // nothing
+    }
+
+    template <typename Value>
+    Value ValueTag<Value>::get() const
+    {
+        return mValue;
+    }
+
+    template <typename Value>
+    MetaTag* ValueTag<Value>::clone() const
+    {
+        return new ValueTag<Value>(mValue);
+    }
+}
+
+// Local Variables:
+// mode: c++
+// End:

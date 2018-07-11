@@ -1,0 +1,58 @@
+
+# ------ license start marker -----
+#
+# This file is part of Nokia OMAF implementation
+#
+# Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+#
+# Contact: omaf@nokia.com
+#
+# This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+# subsidiaries. All rights are reserved.
+#
+# Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+# written consent of Nokia.
+#
+#
+# ------ license end marker -----
+
+# ClangFormat configuration file
+###############################################################################
+# Style options guide: http://clang.llvm.org/docs/ClangFormatStyleOptions.html
+# Interactive guide: https://clangformat.com/
+# Google style guide: https://google.github.io/styleguide/cppguide.html
+# Visual Studio clang-format plugin: http://llvm.org/builds/
+# Visual Studio Code extension: "Clang-Format"
+# Command line tool: part of LLVM/Clang (LLVM/bin/clang-format.exe)
+###############################################################################
+
+BasedOnStyle: Google
+Language: Cpp
+Standard: Cpp11
+AccessModifierOffset: -4
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: false
+AlignEscapedNewlinesLeft: true
+AlignOperands: true
+AlignTrailingComments: true
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakAfterReturnType: None
+BinPackParameters: false
+BreakBeforeBraces: Allman
+BreakConstructorInitializers: BeforeComma
+ColumnLimit: 120
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
+Cpp11BracedListStyle: true
+IndentCaseLabels: false
+IndentWidth: 4
+PenaltyReturnTypeOnItsOwnLine: 100
+SpaceAfterCStyleCast: true
+TabWidth: 4
+MaxEmptyLinesToKeep: 2
+NamespaceIndentation: All
+ReflowComments: true
+UseTab: Never

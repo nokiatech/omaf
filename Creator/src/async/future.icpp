@@ -1,0 +1,108 @@
+
+/** 
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+#include <condition_variable>
+
+namespace VDD
+{
+    template <typename T>
+    Future<T>::Future()
+        : mState(new PromiseState<T>())
+    {
+        // nothing
+    }
+
+    template <typename T>
+    Future<T>::Future(const Future<T>& aOther)
+        : mState(aOther.mState)
+    {
+        // nothing
+    }
+
+    template <typename T>
+    Future<T>::~Future() = default;
+
+    template <typename T>
+    PromiseState<T>& Future<T>::state() const
+    {
+        return *mState;
+    }
+
+    template <typename T>
+    FutureCallbackKey Future<T>::then(const FutureCallback<T>& aCallback) const
+    {
+        std::unique_lock<std::mutex> lock(Future<T>::state().mutex);
+        FutureCallbackKey key = 0;
+        if (Future<T>::state().value)
+        {
+            lock.unlock();
+            aCallback(*Future<T>::state().value);
+        }
+        else
+        {
+            key = ++Future<T>::state().callbackKeyCounter;
+            Future<T>::state().callbacks.insert({ key, aCallback });
+        }
+        return key;
+    }
+
+    template <typename T>
+    void Future<T>::removeCallback(FutureCallbackKey aCallbackKey) const
+    {
+        std::unique_lock<std::mutex> lock(Future<T>::state().mutex);
+        Future<T>::state().callbacks.erase(aCallbackKey);
+    }
+
+    template <typename T>
+    const Future<T>& Future<T>::getFuture() const
+    {
+        return *this;
+    }
+
+    template <typename T>
+    Promise<T>::Promise()
+    {
+        // nothing
+    }
+
+    template <typename T>
+    Promise<T>::Promise(const T& aValue)
+        : Future<T>()
+    {
+        Future<T>::state().value = aValue;
+    }
+
+    template <typename T>
+    void Promise<T>::set(const T& aValue)
+    {
+        std::unique_lock<std::mutex> lock(Future<T>::state().mutex);
+        if (Future<T>::state().value)
+        {
+            throw PromiseAlreadySet();
+        }
+        Future<T>::state().value = aValue;
+        auto callbacks = std::move(Future<T>::state().callbacks);
+        Future<T>::state().callbacks.clear();
+        lock.unlock();
+        const auto& value = *Future<T>::state().value;
+        for (auto callback : callbacks)
+        {
+            callback.second(value);
+        }
+    }
+}
+
+// Local Variables:
+// mode: c++
+// End:

@@ -1,0 +1,111 @@
+
+/** 
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+#include <cstring>
+#include "bitparser.h"
+
+namespace VDD {
+    template <typename Iterator>
+    BitParser<Iterator>::BitParser(Iterator begin, Iterator end)
+        : mAt(begin)
+        , mEnd(end)
+        , mCurBit(sizeof(*begin) * 8 - 1)
+        , mPrematureEod(false)
+    {
+        // nothing
+    }
+
+    template <typename Iterator>
+    uint8_t BitParser<Iterator>::read1()
+    {
+        if (eod())
+        {
+            mPrematureEod = true;
+            return 0;
+        }
+        else
+        {
+            uint8_t v = (*mAt >> mCurBit) & 1;
+            if (!mCurBit)
+            {
+                mCurBit = sizeof(*mAt) * 8 - 1;
+                ++mAt;
+            }
+            else
+            {
+                --mCurBit;
+            }
+            return v;
+        }
+    }
+
+    template <typename Iterator>
+    uint32_t BitParser<Iterator>::readn(uint8_t n)
+    {
+        uint32_t v = 0;
+        for (uint8_t c = 0; c < n; ++c)
+        {
+            v |= unsigned(read1()) << (n - c - 1);
+        }
+        return v;
+    }
+
+    template <typename Iterator>
+    int32_t BitParser<Iterator>::readnSigned(uint8_t n)
+    {
+        uint32_t v = readn(n);
+        // Bit-extend negative numbers
+        if (v & (1u << (n - 1)))
+        {
+            v |= ~0u << n;
+        }
+        return int32_t(v);
+    }
+
+    template <typename Iterator>
+    float BitParser<Iterator>::readFloat()
+    {
+        uint32_t v = readn(32);
+        float f;
+        std::memcpy(reinterpret_cast<char*>(&f), reinterpret_cast<char*>(&v), sizeof(v));
+        return f;
+    }
+
+    template <typename Iterator>
+    bool BitParser<Iterator>::eod() const
+    {
+        return mAt == mEnd;
+    }
+
+    template <typename Iterator>
+    bool BitParser<Iterator>::prematureEod() const
+    {
+        return mPrematureEod;
+    }
+
+    template <typename Iterator>
+    void BitParser<Iterator>::byteAlign()
+    {
+        while (mCurBit != (sizeof(*mAt) * 8 - 1))
+        {
+            read1();
+        }
+    }
+
+    template <typename Iterator>
+    BitParser<Iterator>::~BitParser()
+    {
+        // nothing
+    }
+}

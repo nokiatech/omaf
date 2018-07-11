@@ -1,0 +1,249 @@
+
+/** 
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+#include <limits>
+#include <utility>
+#include <sstream>
+
+#include <streamsegmenter/rational.hpp>
+
+/* #included from config.h */
+
+namespace VDD
+{
+    template <typename T>
+    std::function<T(const ConfigValue& aNode)> readGeneric(std::string aTypeName)
+    {
+        return [=](const ConfigValue& aNode)
+        {
+            if (!aNode.valid())
+            {
+                throw ConfigKeyNotFound(aNode.getPath());
+            }
+            else if (aNode->isString())
+            {
+                std::istringstream stream(aNode->asString());
+                T value;
+                stream >> value;
+                if (!stream)
+                {
+                    throw ConfigValueTypeMismatches(aTypeName, aNode);
+                }
+                return value;
+            }
+            else
+            {
+                throw ConfigValueTypeMismatches(Json::intValue, aNode);
+            }
+        };
+    }
+
+    template <typename T>
+    std::function<T(const ConfigValue& aNode)> readIntegral(std::string aTypeName)
+    {
+        return [=](const ConfigValue& aNode)
+        {
+            if (!aNode.valid())
+            {
+                throw ConfigKeyNotFound(aNode.getPath());
+            }
+            else if (aNode->isConvertibleTo(Json::intValue))
+            {
+                std::istringstream stream(aNode->asString());
+                typedef signed long long Signed;
+                Signed value;
+                if (stream >> value)
+                {
+                    if (value < static_cast<Signed>(std::numeric_limits<T>::min()) ||
+                        value > static_cast<Signed>(std::numeric_limits<T>::max()))
+                    {
+                        throw ConfigValueTypeMismatches(aTypeName, aNode);
+                    }
+                    else
+                    {
+                        return T(value);
+                    }
+                }
+                else
+                {
+                    throw ConfigValueTypeMismatches(aTypeName, aNode);
+                }
+            }
+            else
+            {
+                throw ConfigValueTypeMismatches(Json::intValue, aNode);
+            }
+        };
+    }
+
+    template <typename T, typename U>
+    std::function<std::pair<T, U>(const ConfigValue& aNode)> readPair(std::string aTypeName, char aSeparator)
+    {
+        return [=](const ConfigValue& aNode)
+        {
+            if (!aNode.valid())
+            {
+                throw ConfigKeyNotFound(aNode.getPath());
+            }
+            else if (aNode->isString())
+            {
+                std::istringstream stream(aNode->asString());
+                T left;
+                stream >> left;
+                if (!stream)
+                {
+                    throw ConfigValueTypeMismatches(aTypeName, aNode);
+                }
+
+                char ch;
+                if (!stream.get(ch))
+                {
+                    throw ConfigValueTypeMismatches(aTypeName, aNode);
+                }
+                else if (ch != aSeparator)
+                {
+                    throw ConfigValueTypeMismatches(aTypeName, aNode);
+                }
+                else
+                {
+                    U right;
+                    stream >> right;
+
+                    if (!stream)
+                    {
+                        throw ConfigValueTypeMismatches(aTypeName, aNode);
+                    }
+
+                    return std::make_pair(left, right);
+                }
+            }
+            else
+            {
+                throw ConfigValueTypeMismatches(Json::intValue, aNode);
+            }
+        };
+    }
+
+    template <typename Read>
+    auto readList(std::string aTypeName, Read aReader) -> std::function<std::list<decltype(aReader({}))>(const ConfigValue& aNode)>
+    {
+        return [=](const ConfigValue& aNode)
+        {
+            (void) aTypeName; // not used for now
+            std::list<decltype(aReader({}))> r;
+            for (const ConfigValue& value: aNode.childValues())
+            {
+                r.push_back(aReader(value));
+            }
+            return r;
+        };
+    }
+
+    template <typename Read>
+    auto readSet(std::string aTypeName, Read aReader) -> std::function<std::set<decltype(aReader({}))>(const ConfigValue& aNode)>
+    {
+        return [=](const ConfigValue& aNode)
+        {
+            (void) aTypeName; // not used for now
+            std::set<decltype(aReader({}))> r;
+            for (const ConfigValue& value: aNode.childValues())
+            {
+                auto x = aReader(value);
+                if (r.count(x))
+                {
+                    throw ConfigValueInvalid("Duplicate values are not permitted", aNode);
+                }
+                else
+                {
+                    r.insert(x);
+                }
+            }
+            return r;
+        };
+    }
+
+    template <typename Read>
+    auto readVector(std::string aTypeName, Read aReader) -> std::function<std::vector<decltype(aReader({}))>(const ConfigValue& aNode)>
+    {
+        return [=](const ConfigValue& aNode)
+        {
+            (void) aTypeName; // not used for now
+            std::vector<decltype(aReader({}))> r;
+            for (const ConfigValue& value: aNode.childValues())
+            {
+                r.push_back(aReader(value));
+            }
+            return r;
+        };
+    }
+
+    template <typename Read>
+    auto readOptional(std::string aTypeName, Read aReader) -> std::function<Optional<decltype(aReader({}))>(const ConfigValue& aNode)>
+    {
+        return [=](const ConfigValue& aNode)
+        {
+            (void) aTypeName; // not used for now, but could be used for better error message
+            if (aNode.valid())
+            {
+                return Optional<decltype(aReader({}))>(aReader(aNode));
+            }
+            else
+            {
+                return Optional<decltype(aReader({}))>();
+            }
+        };
+    }
+
+    template <typename Read>
+    auto optionWithDefault(const ConfigValueBase& aConfig, std::string aPath, std::string aName, Read aReader, decltype(aReader({})) aDefault) -> decltype(aReader({}))
+    {
+        return
+            *VDD::coalesce(readOptional(aName, aReader)(aConfig.tryTraverse(configPathOfString(aPath))),
+                           Optional<decltype(aReader({}))>(aDefault));
+    }
+
+    template <typename Reader, typename Container>
+    auto readFieldFallback(const Container& aFallbacks, std::string aFieldName, Reader aReader) -> decltype(aReader(ConfigValue()))
+    {
+        assert(aFallbacks.size());
+
+        auto lastIt = aFallbacks.end();
+        --lastIt;
+        for (auto it = aFallbacks.begin(); it != aFallbacks.end(); ++it)
+        {
+            auto& config = *it;
+            bool last = it == lastIt;
+            if (last)
+            {
+                return aReader(config[aFieldName]);
+            }
+            else
+            {
+                try
+                {
+                    return aReader(config[aFieldName]);
+                }
+                catch (ConfigError&)
+                {
+                    // fall back to the next option
+                }
+            }
+        }
+        throw ConfigKeyNotFound(lastIt->getPath());
+    }
+}
+
+// Local Variables:
+// mode: c++
+// End:

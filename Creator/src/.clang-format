@@ -1,0 +1,49 @@
+
+# ------ license start marker -----
+#
+# This file is part of Nokia OMAF implementation
+#
+# Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+#
+# Contact: omaf@nokia.com
+#
+# This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+# subsidiaries. All rights are reserved.
+#
+# Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+# written consent of Nokia.
+#
+#
+# ------ license end marker -----
+
+# ClangFormat configuration file 
+###############################################################################
+# Style options guide: http://clang.llvm.org/docs/ClangFormatStyleOptions.html
+# Interactive guide: https://clangformat.com/
+# Google style guide: https://google.github.io/styleguide/cppguide.html
+# Visual Studio clang-format plugin: http://llvm.org/builds/
+# Visual Studio Code extension: "Clang-Format"
+# Command line tool: part of LLVM/Clang (LLVM/bin/clang-format.exe)
+###############################################################################
+
+BasedOnStyle: Google
+Language: Cpp
+Standard: Cpp11
+AccessModifierOffset: -4
+AlignAfterOpenBracket: Align
+AlignEscapedNewlinesLeft: true
+AlignOperands: true
+AlignTrailingComments: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+BreakBeforeBraces: Allman
+ColumnLimit: 100
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+IndentCaseLabels: false
+IndentWidth: 4
+TabWidth: 4
+MaxEmptyLinesToKeep: 2
+NamespaceIndentation: All
+UseTab: Never

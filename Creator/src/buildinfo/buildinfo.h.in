@@ -1,0 +1,26 @@
+
+/** 
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+namespace BuildInfo
+{
+
+static const char* Version = "@OMAF_CREATOR_VERSION@";
+static const char* Time = "@BUILD_TIMESTAMP@";
+static const int VersionMajor = @OMAF_CREATOR_VERSION_MAJOR@;
+static const int VersionMinor = @OMAF_CREATOR_VERSION_MINOR@;
+static const int VersionRevision = @OMAF_CREATOR_VERSION_REVISION@;
+
+}
+
+#define OMAF_CREATOR_BUILD_VERSION "@OMAF_CREATOR_VERSION@"

@@ -1,0 +1,211 @@
+
+/** 
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+#ifndef STREAMSEGMENTER_OPTIONAL_ICC
+#define STREAMSEGMENTER_OPTIONAL_ICC
+
+namespace StreamSegmenter
+{
+    namespace Utils
+    {
+#include "optional.hpp"
+
+        template <typename T>
+        Optional<T>::Optional()
+        {
+            // nothing
+        }
+
+        template <typename T>
+        Optional<T>::Optional(NoneType)
+        {
+            // nothing
+        }
+
+        template <typename T>
+        Optional<T>::~Optional()
+        {
+            // nothing
+        }
+
+        template <typename T>
+        bool Optional<T>::operator==(const Optional<T>& other) const
+        {
+            bool a = !!mValue.get();
+            bool b = !!other.mValue.get();
+            return (!a && !b) || (a && b && *mValue == *other.mValue);
+        }
+
+        template <typename T>
+        bool Optional<T>::operator!=(const Optional<T>& other) const
+        {
+            return !(*this == other);
+        }
+
+        template <typename T>
+        bool Optional<T>::operator<(const Optional<T>& other) const
+        {
+            bool a = !!mValue.get();
+            bool b = !!other.mValue.get();
+            return (a < b) ? true : (a > b) ? false : (!a && !b) ? false : (*mValue < *other.mValue);
+        }
+
+        template <typename T>
+        bool Optional<T>::operator>(const Optional<T>& other) const
+        {
+            bool a = !!mValue.get();
+            bool b = !!other.mValue.get();
+            return (a < b) ? false : (a > b) ? true : (!a && !b) ? false : (*mValue > *other.mValue);
+        }
+
+        template <typename T>
+        bool Optional<T>::operator<=(const Optional<T>& other) const
+        {
+            bool a = !!mValue.get();
+            bool b = !!other.mValue.get();
+            return (a < b) ? true : (a > b) ? false : (!a && !b) ? true : (*mValue <= *other.mValue);
+        }
+
+        template <typename T>
+        bool Optional<T>::operator>=(const Optional<T>& other) const
+        {
+            bool a = !!mValue.get();
+            bool b = !!other.mValue.get();
+            return (a < b) ? false : (a > b) ? true : (!a && !b) ? true : (*mValue >= *other.mValue);
+        }
+
+        template <typename T>
+        Optional<T>::Optional(const Optional<T>& other)
+            : mValue(other.mValue ? new T(*other.mValue) : nullptr)
+        {
+            // nothing
+        }
+
+        template <typename T>
+        Optional<T>::Optional(Optional<T>&& other)
+            : mValue(std::move(other.mValue))
+        {
+            // nothing
+        }
+
+        template <typename T>
+        Optional<T>& Optional<T>::operator=(const Optional<T>& other)
+        {
+            if (this != &other)
+            {
+                mValue.reset(other.mValue ? new T(*other.mValue) : nullptr);
+            }
+            return *this;
+        }
+
+        template <typename T>
+        Optional<T>& Optional<T>::operator=(Optional<T>&& other)
+        {
+            if (this != &other)
+            {
+                mValue = std::move(other.mValue);
+            }
+            return *this;
+        }
+
+        template <typename T>
+        Optional<T>::Optional(const T& other)
+        {
+            mValue.reset(new T(other));
+        }
+
+        template <typename T>
+        Optional<T>::Optional(T&& other)
+        {
+            mValue.reset(new T(std::move(other)));
+        }
+
+        template <typename T>
+        Optional<T>::operator bool() const
+        {
+            return !!mValue.get();
+        }
+
+        template <typename T>
+        T& Optional<T>::operator*()
+        {
+            return *mValue;
+        }
+
+        template <typename T>
+        const T& Optional<T>::operator*() const
+        {
+            return *mValue;
+        }
+
+        template <typename T>
+        T& Optional<T>::get()
+        {
+            return *mValue;
+        }
+
+        template <typename T>
+        const T& Optional<T>::get() const
+        {
+            return *mValue;
+        }
+
+        template <typename T>
+        T* Optional<T>::operator->()
+        {
+            return mValue.get();
+        }
+
+        template <typename T>
+        const T* Optional<T>::operator->() const
+        {
+            return mValue.get();
+        }
+
+        template <typename T>
+        Optional<T> makeOptional(const T& value)
+        {
+            return Optional<T>(value);
+        }
+
+        template <typename T>
+        Optional<T> makeOptional(T&& value)
+        {
+            return Optional<T>(std::move(value));
+        }
+
+        // base case
+        template <typename First>
+        First coalesce(First value)
+        {
+            return value;
+        }
+
+        // general case
+        template <typename First, typename... Rest>
+        First coalesce(First value, Rest... rest)
+        {
+            if (value)
+            {
+                return value;
+            }
+            else
+            {
+                return coalesce(rest...);
+            }
+        }
+    }
+}  // namespace StreamSegmenter::Utils
+
+#endif
