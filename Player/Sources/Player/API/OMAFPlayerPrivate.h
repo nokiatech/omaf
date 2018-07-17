@@ -20,7 +20,7 @@
 #include "NVRPlayer.h"
 #include "OMAFPlayer.h"
 
-#include "API/OMAFDatatypeConversions.h"
+#include "API/OMAFDataTypeConversions.h"
 
 
 namespace OMAF

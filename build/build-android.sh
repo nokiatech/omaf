@@ -108,7 +108,7 @@ configure() {
 }
 
 build() {
-    cmake --build . -- -j6 -O
+    cmake --build . -- -j6
 }
 
 configure_and_build() {
@@ -167,6 +167,6 @@ if [ "$BUILDPLAYER" == "YES" ]; then
     cp libdash.so $DSTDIR/$LIBDAHSFILENAME
 
     cd $ORIGDIR/../Player
-    ./build-android.sh ${BUILDTYPE,,} $ANDROIDSHORTVERSION clean
-    ./build-android.sh ${BUILDTYPE,,} $ANDROIDSHORTVERSION
+    bash ./build-android.sh ${BUILDTYPE,,} $ANDROIDSHORTVERSION clean
+    bash ./build-android.sh ${BUILDTYPE,,} $ANDROIDSHORTVERSION
 fi

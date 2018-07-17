@@ -45,7 +45,8 @@ In addition, a LibDASH fork is provided in a separate repository: [LibDASH](http
 
 ## Building source:
 Cmake-based build scripts are provided. 
-A CMake installation is required, minimum v 3.5. 
+A CMake installation is required, minimum v 3.5 and for android 3.6.3 is maximum and recommended
+* For Linux gcc 6+ is required
 * For Windows, Visual Studio 2015 or 2017 installation is expected
 * For Android player build, currently Linux build is best supported. Further, Android NDK must be installed in addition to Android SDK.
 * The Creator can be built on Linux, but the player does not support Linux.

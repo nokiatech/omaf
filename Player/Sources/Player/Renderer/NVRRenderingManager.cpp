@@ -20,7 +20,7 @@
 #include "Renderer/NVRCubeMapRenderer.h"
 #include "Renderer/NVRIdentityRenderer.h"
 
-#include "API/OMAFDatatypeConversions.h"
+#include "API/OMAFDataTypeConversions.h"
 
 #include "Foundation/NVRLogger.h"
 #include "Foundation/NVRFileSystem.h"

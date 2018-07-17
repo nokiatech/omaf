@@ -26,29 +26,20 @@ matrix:
             - g++-6
       env:
         - MATRIX_ENV="CC=gcc-6 && CXX=g++-6"
-    - addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-precise-3.6
-          packages:
-            - clang-3.6
-      env:
-        - MATRIX_ENV="CC=clang-3.6 && CXX=clang++-3.6"
     - env:
-        - PATH=/opt/cmake-3.7.2-Linux-x86_64/bin:$PATH
+        - PATH=/opt/cmake-3.6.3-Linux-x86_64/bin:$PATH
         - ANDROID_NDK=/opt/android-ndk-r14b
         - MATRIX_ENV=""
 
 # language environment overrides some of the user env values set in matrix so they are reapplied here
 before_install:
-  - eval $MATRIX_ENV
+  - eval "${MATRIX_ENV}"
   - pushd .
   - if [ ! -z "$ANDROID_NDK" ]; then mkdir -p /opt; fi 
   - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; wget https://dl.google.com/android/repository/android-ndk-r14b-linux-x86_64.zip; fi 
-  - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; wget https://cmake.org/files/v3.7/cmake-3.7.2-Linux-x86_64.tar.gz; fi
+  - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; wget  https://cmake.org/files/v3.6/cmake-3.6.3-Linux-x86_64.tar.gz; fi
   - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; unzip -q android-ndk-r14b-linux-x86_64.zip; fi
-  - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; tar zxf cmake-3.7.2-Linux-x86_64.tar.gz; fi
+  - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; tar zxf cmake-3.6.3-Linux-x86_64.tar.gz; fi
   - popd
   - export
   - cmake --version
@@ -66,7 +57,40 @@ install:
   - curl -o KHR/khrplatform.h https://www.khronos.org/registry/EGL/api/KHR/khrplatform.h
   - popd
 
-script:
+before_script:
+  - pushd .
   - cd build
-  - if [ -z "$ANDROID_NDK" ]; then ./build-linux.sh && ./build-linux.sh debug; fi
-  - if [ ! -z "$ANDROID_NDK" ]; then ./build-android.sh abiv7 && ./build-android.sh abiv8 && ./build-android.sh abiv7 debug && ./build-android.sh abiv8 debug; fi
+  - '[ -z "$ANDROID_NDK" ] && (
+      bash ./build-linux.sh && 
+      bash ./build-linux.sh debug
+    ) || [ ! -z "$ANDROID_NDK" ]'
+  - '[ ! -z "$ANDROID_NDK" ] && (
+      bash ./build-android.sh abiv7 debug &&
+      bash ./build-android.sh abiv8 debug &&
+      bash ./build-android.sh abiv7 &&
+      bash ./build-android.sh abiv8
+    ) || [ -z "$ANDROID_NDK" ]'
+  - popd
+
+script:
+  - '[ -z "$ANDROID_NDK" ] && ( 
+      [ -x Creator/bin/Linux/Debug/omafvi ] && 
+      [ -x Creator/bin/Linux/Release/omafvi ] && 
+      Creator/bin/Linux/Debug/omafvi --help && 
+      Creator/bin/Linux/Release/omafvi --help 
+    ) || [ ! -z "$ANDROID_NDK" ]'
+  - '[ ! -z "$ANDROID_NDK" ] && ( 
+      [ -f Player/Lib/Android/Release/armeabi-v7a/libdash.so ] && 
+      [ -f Player/Lib/Android/Release/armeabi-v7a/libmp4vr_shared.so ] && 
+      [ -f Player/Lib/Android/Release/armeabi-v7a/libOMAFPlayer.so ] && 
+      [ -f Player/Lib/Android/Release/arm64-v8a/libdash.so ] && 
+      [ -f Player/Lib/Android/Release/arm64-v8a/libmp4vr_shared.so ] && 
+      [ -f Player/Lib/Android/Release/arm64-v8a/libOMAFPlayer.so ] && 
+      [ -f Player/Lib/Android/Debug/armeabi-v7a/libdashd.so ] && 
+      [ -f Player/Lib/Android/Debug/armeabi-v7a/libmp4vr_shared.so ] && 
+      [ -f Player/Lib/Android/Debug/armeabi-v7a/libOMAFPlayerd.so ] && 
+      [ -f Player/Lib/Android/Debug/arm64-v8a/libdashd.so ] && 
+      [ -f Player/Lib/Android/Debug/arm64-v8a/libmp4vr_shared.so ] && 
+      [ -f Player/Lib/Android/Debug/arm64-v8a/libOMAFPlayerd.so ]
+    ) || [ -z "$ANDROID_NDK" ]'
+

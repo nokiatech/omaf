@@ -12,7 +12,7 @@
  * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
  * written consent of Nokia.
  */
-#include "API/OMAFDatatypeConversions.h"
+#include "API/OMAFDataTypeConversions.h"
 
 namespace OMAF
 {
