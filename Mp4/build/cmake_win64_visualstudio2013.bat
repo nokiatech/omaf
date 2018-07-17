@@ -1,4 +1,5 @@
 
+@echo off
 REM This file is part of Nokia OMAF implementation
 REM
 REM Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.

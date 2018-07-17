@@ -1,4 +1,5 @@
 
+@echo off
 REM This file is part of Nokia OMAF implementation
 REM
 REM Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
@@ -11,7 +12,6 @@ REM
 REM Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
 REM written consent of Nokia.
 
-@echo off
 SETLOCAL enableextensions enabledelayedexpansion
 set STARTTIME=%TIME%
 set ORIGCD=%CD%

@@ -12,7 +12,6 @@
  * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
  * written consent of Nokia.
  */
-
 #ifndef STEREOVIDEOBOX_HPP
 #define STEREOVIDEOBOX_HPP
 

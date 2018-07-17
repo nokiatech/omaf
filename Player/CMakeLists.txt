@@ -211,13 +211,13 @@ elseif (TARGET_OS_ANDROID)
 	# x86
 
 	set(DEBUG_API_FILES $<TARGET_FILE:OMAFPlayer>
-					"${CMAKE_SOURCE_DIR}/../MP4/lib/android/debug/${ANDROID_ABI}/libmp4vr_shared.so"
-					"${CMAKE_SOURCE_DIR}/../libdash/lib/android/debug/${ANDROID_ABI}/libdashd.so"
-		)
+		"${CMAKE_SOURCE_DIR}/../Mp4/lib/android/debug/${ANDROID_ABI}/libmp4vr_shared.so"
+		"${CMAKE_SOURCE_DIR}/../../libdash/lib/android/debug/${ANDROID_ABI}/libdashd.so"
+	)
 	set(RELEASE_API_FILES $<TARGET_FILE:OMAFPlayer>
-				  "${CMAKE_SOURCE_DIR}/../Mp4/lib/android/release/${ANDROID_ABI}/libmp4vr_shared.so"
-					"${CMAKE_SOURCE_DIR}/../libdash/lib/android/release/${ANDROID_ABI}/libdash.so"
-		)
+		"${CMAKE_SOURCE_DIR}/../Mp4/lib/android/release/${ANDROID_ABI}/libmp4vr_shared.so"
+		"${CMAKE_SOURCE_DIR}/../../libdash/lib/android/release/${ANDROID_ABI}/libdash.so"
+	)
 
 	#using a custom target here.
 	if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -229,9 +229,7 @@ elseif (TARGET_OS_ANDROID)
 		add_custom_target(api_install ALL
 		   COMMAND ${CMAKE_COMMAND} -E make_directory "${API_LIB}/Release/${ANDROID_ABI}"
 		   COMMAND ${CMAKE_COMMAND} -E copy ${RELEASE_API_FILES} "${API_LIB}/Release/${ANDROID_ABI}/"
-		   COMMAND ${CMAKE_COMMAND} -E make_directory "${INSTALLER_DIR}/Release/${ANDROID_ABI}/"
-		   COMMAND ${CMAKE_COMMAND} -E copy ${INSTALLER_API_FILES} "${INSTALLER_DIR}/Release/${ANDROID_ABI}/"
-		   COMMAND ${CMAKE_OBJCOPY} --strip-debug "${INSTALLER_DIR}/Release/${ANDROID_ABI}/$<TARGET_FILE_NAME:OMAFPlayer>"
+		   COMMAND ${CMAKE_OBJCOPY} --strip-debug "${API_LIB}/Release/${ANDROID_ABI}/$<TARGET_FILE_NAME:OMAFPlayer>"
 		   )
 	endif()
 

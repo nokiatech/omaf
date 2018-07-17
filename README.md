@@ -54,7 +54,8 @@ First clone the [LibDASH](https://github.com/nokia/libdash) to the root of your 
 Then clone this repository to the same place, i.e. root of your work area, so that the two projects are adjacent to each other.
 
 Then, in command line shell, go to OMAF/Build
-Execute either BuildCreator or BuildPlayer batch script. They will echo the detailed usage.
+Execute `build-visualstudio.bat` or some other build script depending on your platform. It will echo the detailed usage allowing to select which parts to compile. 
+
 The Creator binary should appear in /Creator/bin/{OS}/{Debug/Release}/
 
 The Player libraries should appear in /Player/Lib/{OS}/{Debug/Release}/

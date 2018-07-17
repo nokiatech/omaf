@@ -23,5 +23,11 @@ In addition, the recent versions need a common header, so download
 https://www.khronos.org/registry/EGL/api/KHR/khrplatform.h
 and place it under the KHR-folder.
 
+for example like this:
+
+curl -o gl/glext.h https://www.khronos.org/registry/OpenGL/api/GL/glext.h
+curl -o wgl/wglext.h https://www.khronos.org/registry/OpenGL/api/GL/wglext.h
+curl -o KHR/khrplatform.h https://www.khronos.org/registry/EGL/api/KHR/khrplatform.h
+
 For more information, see
 http://www.opengl.org/registry/
