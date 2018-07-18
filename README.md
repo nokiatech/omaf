@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/nokiatech/omaf.svg?branch=master)](https://travis-ci.org/nokiatech/omaf)
+
 # Omnidirectional MediA Format (OMAF)
 OMAF is a systems standard developed by the Moving Picture Experts Group (MPEG) for enabling standardized omnidirectional media applications, focusing on 360 video, images and audio. OMAF Creator/Player Engine is an implementation of OMAF standard in order to demonstrate its powerful features and capabilities, and to help achieving interoperability between OMAF implementations.
 
