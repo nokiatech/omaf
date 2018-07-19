@@ -156,11 +156,19 @@ if (TARGET_OS_WINDOWS)
 	# win32_x64
 	# win32_x86
 
-	file(INSTALL "${CMAKE_SOURCE_DIR}/../Mp4/lib/Windows/Release/mp4vr_shared.dll" DESTINATION "${API_LIB}/Debug/win32_x64")
-	file(INSTALL "${CMAKE_SOURCE_DIR}/../Mp4/lib/Windows/Release/mp4vr_shared.dll" DESTINATION "${API_LIB}/Release/win32_x64")
-	file(INSTALL "${CMAKE_SOURCE_DIR}/../../libdash/Lib/Windows/Debug/${VSVERSION}/dash.dll" DESTINATION "${API_LIB}/Debug/win32_x64")
-	file(INSTALL "${CMAKE_SOURCE_DIR}/../../libdash/Lib/Windows/Release/${VSVERSION}/dash.dll" DESTINATION "${API_LIB}/Release/win32_x64")
-
+	if (EXISTS "${CMAKE_SOURCE_DIR}/../Mp4/lib/Windows/Debug/")
+		file(INSTALL "${CMAKE_SOURCE_DIR}/../Mp4/lib/Windows/Debug/mp4vr_shared.dll" DESTINATION "${API_LIB}/Debug/win32_x64")
+	endif()
+	if (EXISTS "${CMAKE_SOURCE_DIR}/../Mp4/lib/Windows/Release/")
+		file(INSTALL "${CMAKE_SOURCE_DIR}/../Mp4/lib/Windows/Release/mp4vr_shared.dll" DESTINATION "${API_LIB}/Release/win32_x64")
+	endif()
+	if (EXISTS "${CMAKE_SOURCE_DIR}/../../libdash/Lib/Windows/Debug/${VSVERSION}/")
+		file(INSTALL "${CMAKE_SOURCE_DIR}/../../libdash/Lib/Windows/Debug/${VSVERSION}/dash.dll" DESTINATION "${API_LIB}/Debug/win32_x64")
+	endif()
+	if (EXISTS "${CMAKE_SOURCE_DIR}/../../libdash/Lib/Windows/Release/${VSVERSION}/")
+		file(INSTALL "${CMAKE_SOURCE_DIR}/../../libdash/Lib/Windows/Release/${VSVERSION}/dash.dll" DESTINATION "${API_LIB}/Release/win32_x64")
+	endif()
+	
 	set(SDK_INSTALL_SCRIPT "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/CopyBins.bat")
 
 	file(WRITE "${SDK_INSTALL_SCRIPT}" "@echo off\n")
