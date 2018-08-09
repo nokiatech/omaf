@@ -38,6 +38,7 @@ This repository contains the following items:
 * OMAF Player engine
 * OMAF Player sample application
 * OMAF MP4 reader and writer library, used by the Creator and Player.
+
 In addition, a LibDASH fork is provided in a separate repository: [LibDASH](https://github.com/nokia/libdash).
 
 ## Supported operating systems
