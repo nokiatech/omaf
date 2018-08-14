@@ -73,13 +73,8 @@ Note that with OpenGL, the max playback rate is restricted to 4k@30 fps.
 ### Convert a mono 360 mp4 to OMAF mp4:
 omafvi.exe -i file.mp4 -o omaf.mp4
 
-### Convert a top-bottom framepacked 360 mp4 to OMAF mp4:
-omafvi.exe -i file_TB.mp4 -o omaf.mp4
-
-### Convert a mono 360 mp4 to OMAF DASH stream:
-omafvi.exe -i file.mp4 -o omaf.mpd
-
-Note: the input file need to have GOPs of a fixed length.
+See the Wiki for other converting cases:
+https://github.com/nokiatech/omaf/wiki/Usage-instructions-for-OMAF-Creator
 
 ### Playback an OMAF file / DASH stream
 \Player\VideoPlayback\Windows\Monitor_Sample\x64\Release\Monitor_sample.exe (input file/stream is hardcoded in the source.cpp, search for // Start playback)
