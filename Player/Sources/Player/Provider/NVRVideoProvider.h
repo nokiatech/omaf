@@ -88,9 +88,7 @@ OMAF_NS_BEGIN
     }
 
     class ProviderBase;
-    class RTPProvider;
-    class HLSProvider;
-
+    
     class VideoProvider
     : public CoreProvider
     {
@@ -142,14 +140,6 @@ OMAF_NS_BEGIN
 
     private:
         ProviderBase* mProviderImpl;
-
-        // TODO: refactor HLS and RTP to have same provider base class
-#if OMAF_ENABLE_STREAM_VIDEO_PROVIDER
-        HLSProvider* mHLSProvider;
-#if OMAF_ENABLE_RTP_VIDEO_PROVIDER
-        RTPProvider* mRTPProvider;
-#endif // OMAF_ENABLE_STREAM_VIDEO_PROVIDER
-#endif // OMAF_ENABLE_RTP_VIDEO_PROVIDER
 
         // Used when there's no actual provider created
         CoreProviderSources mVideoSourcesEmpty;
