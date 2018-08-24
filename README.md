@@ -60,10 +60,10 @@ Then clone this repository to the same place, i.e. root of your work area, so th
 Then, in command line shell, go to OMAF/Build
 Execute `build-visualstudio.bat` or some other build script depending on your platform. It will echo the detailed usage allowing to select which parts to compile. 
 
-The Creator binary should appear in /Creator/bin/{OS}/{Debug/Release}/
+The Creator binary should appear in `/Creator/bin/{OS}/{Debug/Release}/`
 
-The Player libraries should appear in /Player/Lib/{OS}/{Debug/Release}/
-The Player sample application Visual Studio solution can be opened in \Player\VideoPlayback\Windows\Monitor_Sample
+The Player libraries should appear in `/Player/Lib/{OS}/{Debug/Release}/`
+The Player sample application Visual Studio solution can be opened in `\Player\VideoPlayback\Windows\Monitor_Sample`
 
 When compiling the player to Windows with the provided OpenGL-based sample player application, the OMAF Player engine need to be compiled with OpenGL enabled, and OpenGL extension headers need to be downloaded and placed under OpenGLExt directory, see [Khronos](http://www.opengl.org/registry/)
 The player engine as such supports Direct 3D too, and with a D3D player application it can be compiled to D3D without the OpenGL extension headers.
@@ -71,13 +71,14 @@ Note that with OpenGL, the max playback rate is restricted to 4k@30 fps.
 
 ## Usage:
 ### Convert a mono 360 mp4 to OMAF mp4:
-omafvi.exe -i file.mp4 -o omaf.mp4
+
+    omafvi.exe -i file.mp4 -o omaf.mp4
 
 See the Wiki for other converting cases:
 https://github.com/nokiatech/omaf/wiki/Usage-instructions-for-OMAF-Creator
 
 ### Playback an OMAF file / DASH stream
-\Player\VideoPlayback\Windows\Monitor_Sample\x64\Release\Monitor_sample.exe (input file/stream is hardcoded in the source.cpp, search for // Start playback)
+`\Player\VideoPlayback\Windows\Monitor_Sample\x64\Release\Monitor_sample.exe` (input file/stream is hardcoded in the `source.cpp`, search for // Start playback)
 
 ## License:
 Please see **[LICENSE.TXT](https://github.com/nokiatech/omaf/blob/master/LICENSE.txt)** file for the terms of use of the contents of this repository.
@@ -86,4 +87,3 @@ For more information, please contact: <omaf@nokia.com>
 
 ### Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies).
 ### **All rights reserved.** 
-
