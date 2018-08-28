@@ -2610,4 +2610,23 @@ namespace MP4VR
 
         return std::make_pair(initSegmentId, contextId);
     }
+
+    uint64_t MP4VRFileReaderImpl::readNalLength(char* buffer) const
+    {
+        uint64_t refNalLength = 0;
+        size_t i = 0;
+        refNalLength |= ((uint32_t)((uint8_t)(buffer[i++]))) << 24;
+        refNalLength |= (((uint32_t)((uint8_t)(buffer[i++]))) << 16) & 0x00ff0000;
+        refNalLength |= (((uint32_t)((uint8_t)(buffer[i++]))) << 8) & 0x0000ff00;
+        refNalLength |= ((uint32_t)((uint8_t)(buffer[i++]))) & 0x000000ff;
+        return refNalLength;
+    }
+
+    void MP4VRFileReaderImpl::writeNalLength(uint64_t length, char* buffer) const
+    {
+        buffer[0] = (char)((0xff000000 & length) >> 24);
+        buffer[1] = (char)((0x00ff0000 & length) >> 16);
+        buffer[2] = (char)((0x0000ff00 & length) >> 8);
+        buffer[3] = (char)((uint8_t)length);
+    }
 }  // namespace MP4VR

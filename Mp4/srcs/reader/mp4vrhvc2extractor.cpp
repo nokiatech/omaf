@@ -26,7 +26,7 @@ namespace Hvc2Extractor
         BitStream nalUnits(NalData);
         ExtNalHdr extNalHdr;
         uint32_t extractors = 0;
-
+        uint64_t inlineSizes = 0;
         std::size_t order_idx = 1;
 
         while (nalUnits.numBytesLeft() > 0)
@@ -79,7 +79,10 @@ namespace Hvc2Extractor
                         counter -= (lengthSizeMinus1 + 1);
                         sampleConstruct.data_length = nalUnits.readBits((lengthSizeMinus1 + 1) * 8);
                         counter -= (lengthSizeMinus1 + 1);
-                        extractionSize += sampleConstruct.data_length;
+                        if (sampleConstruct.data_length < UINT32_MAX)
+                        {
+                            extractionSize += sampleConstruct.data_length;
+                        }
                         extNalDat.sampleConstruct.push_back(sampleConstruct);
                         order_idx = order_idx + 1;
                         break;
@@ -93,7 +96,7 @@ namespace Hvc2Extractor
                         {
                             inlineConstruct.inline_data.push_back((uint8_t) nalUnits.readBits(8));
                         }
-                        extractionSize += inlineConstruct.data_length;
+                        inlineSizes += inlineConstruct.data_length;
                         extNalDat.inlineConstruct.push_back(inlineConstruct);
                         counter   = counter - inlineConstruct.data_length - 1;  // Bytes read in inline construct
                         order_idx = order_idx + 1;
@@ -105,6 +108,10 @@ namespace Hvc2Extractor
         }
         if (extractors)
         {
+            if (extractionSize > 0) //note that if constructor has UINT32_MAX as data_length, the extraction size is not incremented above, and it is hence 0 if all are UINT32_MAX
+            {
+                extractionSize += inlineSizes;
+            }
             return true;
         }
         else

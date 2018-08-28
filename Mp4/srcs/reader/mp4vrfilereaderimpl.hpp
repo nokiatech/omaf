@@ -729,6 +729,9 @@ namespace MP4VR
                                      uint8_t trackReference,
                                      uint64_t& refSampleLength,
                                      uint64_t& refDataOffset);
+
+        uint64_t readNalLength(char* buffer) const;
+        void writeNalLength(uint64_t length, char* buffer) const;
     };
 
     /**
