@@ -79,7 +79,7 @@ https://github.com/nokiatech/omaf/wiki/Usage-instructions-for-OMAF-Creator
 
 ### Playback an OMAF file / DASH stream
 `\Player\VideoPlayback\Windows\Monitor_Sample\x64\Release\Monitor_sample.exe` 
-<br/>You can specify the input name as a command line argument, e.g. `Monitor_sample.exe video.mp4` or `Monitor_sample.exe http://myserver.com/omaf/video.mpd`
+<br/>You can specify the input name as a command line argument, e.g. `Monitor_sample.exe storage://video.mp4` or `Monitor_sample.exe http://myserver.com/omaf/video.mpd`
 <br/>Default input file/stream is hardcoded in the `source.cpp`, search for `// Replace the path`
 
 ## License:
