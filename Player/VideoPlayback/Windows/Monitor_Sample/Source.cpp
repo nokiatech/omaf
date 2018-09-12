@@ -316,11 +316,23 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
     res = gAudio->initializeAudioWithDirectRouting();
     res = gAudio->setGain(0.4f);
 
+    // check if there was a filename (local or url) in the command line
+    size_t args = wcslen(pCmdLine);
+    if (args > 0 && args < 2047)
+    {
+        char *str = new char[2048];
+        wcstombs(str, pCmdLine, args);
+        str[args] = '\0';
+        res = gPlaybackControl->loadVideo(str);
+    }
+    else
+    {
+        //TODO Replace the path and filename with your own mp4 file
+        res = gPlaybackControl->loadVideo("storage://video.mp4");
+        // or DASH
+        //res = gPlaybackControl->loadVideo("http://localhost/video.mpd");
+    }
     // Start playback
-	//TODO Replace the path and filename with your own mp4 file
-    //res = gPlaybackControl->loadVideo("storage://c://omaf//video.mp4");
-    // or DASH
-    //res = gPlaybackControl->loadVideo("http://localhost/video.mpd");
     res = gPlaybackControl->play();
 
     //Create rendertargets.
