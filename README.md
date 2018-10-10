@@ -4,6 +4,7 @@
 OMAF is a systems standard developed by the Moving Picture Experts Group (MPEG) for enabling standardized omnidirectional media applications, focusing on 360 video, images and audio. OMAF Creator/Player Engine is an implementation of OMAF standard in order to demonstrate its powerful features and capabilities, and to help achieving interoperability between OMAF implementations.
 
 ## News:
+10-Oct-2018: New release expected later this week. Stay tuned!
 
 ## Features:
 Nokia OMAF Creator/Player implements a subset of current OMAF version 1 standard, including the following main features:
