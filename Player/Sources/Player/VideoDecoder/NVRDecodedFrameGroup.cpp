@@ -15,6 +15,7 @@
 #include "VideoDecoder/NVRDecodedFrameGroup.h"
 #include "VideoDecoder/NVRFrameCache.h"
 #include "Foundation/NVRLogger.h"
+#include "Graphics/NVRRenderBackend.h"
 
 OMAF_NS_BEGIN
 OMAF_LOG_ZONE(DecodedFrameGroup)
@@ -25,7 +26,15 @@ DecodedFrameGroup::DecodedFrameGroup(FrameCache* frameCache)
 : mFrameCache(frameCache)
 , mStagedFrame(OMAF_NULL)
 {
-
+    if (RenderBackend::getRendererType() == RendererType::OPENGL)
+    {
+        // Windows OpenGL has some perf issues; better not to discard old frames even though it may result in jerkiness and out of AV sync
+        mDiscardOldFrames = false;
+    }
+    else
+    {
+        mDiscardOldFrames = true;
+    }
 }
 
 DecodedFrameGroup::~DecodedFrameGroup()
@@ -73,7 +82,8 @@ bool_t DecodedFrameGroup::addFrame(DecoderFrame* frame)
 DecoderFrame* DecodedFrameGroup::findFrameWithPTS(uint64_t targetPTSUs)
 {
     Spinlock::ScopeLock lock(mFramesLock);
-    DecoderFrame* selectedFrame = findFrameWithPTSInternal(targetPTSUs, true);
+
+    DecoderFrame* selectedFrame = findFrameWithPTSInternal(targetPTSUs, mDiscardOldFrames);
 
 #if VERIFY_CACHE
     uint64_t pts = 0;

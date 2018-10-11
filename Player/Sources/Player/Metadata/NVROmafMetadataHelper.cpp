@@ -24,7 +24,8 @@ OMAF_NS_BEGIN
 namespace OmafMetadata
 {
 
-    static Region parseRegion(MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it, uint32_t aProjWidth, uint32_t aProjHeight, uint16_t aPackedWidth, uint16_t aPackedHeight, float64_t aOffsetX, float64_t aOffsetY)
+    static Region parseRegion(MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it, uint32_t aProjWidth, uint32_t aProjHeight, uint16_t aPackedWidth, uint16_t aPackedHeight, float64_t aOffsetX, float64_t aOffsetY, 
+        float64_t aProjWidthLon, float64_t aProjHeightLat, float64_t aProjOriginLon, float64_t aProjOriginLat)
     {
         Region region;
         // packed coordinates - note that the player has origin in bottom-left corner of the input rectangle; that is handled when setting the source, here we just map the structs
@@ -33,10 +34,10 @@ namespace OmafMetadata
         region.inputRect.w = (float32_t)(*it).region.rectangular.packedRegWidth / aPackedWidth;
         region.inputRect.h = (float32_t)(*it).region.rectangular.packedRegHeight / aPackedHeight;
         // projected coordinates
-        region.centerLongitude = ((float64_t)((*it).region.rectangular.projRegLeft + (*it).region.rectangular.projRegWidth / 2) / aProjWidth + aOffsetX) * 360.f - 180.f;   //TODO constituent impact here!
-        region.centerLatitude = 90.f - ((float64_t)((*it).region.rectangular.projRegTop + (*it).region.rectangular.projRegHeight / 2) / aProjHeight + aOffsetY) * 180.f;    //TODO constituent impact here!
-        region.spanLongitude = (float64_t)((*it).region.rectangular.projRegWidth) / aProjWidth * 360.f;
-        region.spanLatitude = (float64_t)((*it).region.rectangular.projRegHeight) / aProjHeight * 180.f;
+        region.centerLongitude = ((float64_t)((*it).region.rectangular.projRegLeft + (*it).region.rectangular.projRegWidth / 2) / aProjWidth) * aProjWidthLon - aProjOriginLon;
+        region.centerLatitude = aProjOriginLat - ((float64_t)((*it).region.rectangular.projRegTop + (*it).region.rectangular.projRegHeight / 2) / aProjHeight) * aProjHeightLat;
+        region.spanLongitude = (float64_t)((*it).region.rectangular.projRegWidth) / aProjWidth * aProjWidthLon;
+        region.spanLatitude = (float64_t)((*it).region.rectangular.projRegHeight) / aProjHeight * aProjHeightLat;
         return region;
     }
 
@@ -47,32 +48,41 @@ namespace OmafMetadata
         {
             float64_t offsetX = 0.f;
             float64_t offsetY = 0.f;
+            float64_t projAreaWidthLon = 360.f;
+            float64_t projAreaHeightLat = 180.f;
+            float64_t projOriginLon = 180.f;
+            float64_t projOriginLat = 90.f;
             uint32_t width = aRwpk.projPictureWidth;
             uint32_t height = aRwpk.projPictureHeight;
             if (aSourceDirection == SourceDirection::TOP_BOTTOM)
             {
                 height = aRwpk.projPictureHeight / 2;
+                projAreaHeightLat = 90.f;
             }
             else if (aSourceDirection == SourceDirection::LEFT_RIGHT)
             {
                 width = aRwpk.projPictureWidth / 2;
+                projAreaWidthLon = 180.f;
+                projOriginLon = 0.f;
             }
             for (MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it = aRwpk.regions.begin(); it != aRwpk.regions.end(); ++it)
             {
                 if ((*it).region.rectangular.transformType != 0)
                 {
                     // transformations for equirect not support atm
-                    return Error::FILE_NOT_SUPPORTED;
+                    //return Error::FILE_NOT_SUPPORTED;
                 }
-                aRegionPacking.add(parseRegion(it, width, height, aRwpk.packedPictureWidth, aRwpk.packedPictureHeight, offsetX, offsetY));
+                aRegionPacking.add(parseRegion(it, width, height, aRwpk.packedPictureWidth, aRwpk.packedPictureHeight, offsetX, offsetY, projAreaWidthLon, projAreaHeightLat, projOriginLon, projOriginLat));
             }
             if (aSourceDirection == SourceDirection::TOP_BOTTOM)
             {
                 offsetY = 0.5;
+                projOriginLat = 0.f;
             }
             else if (aSourceDirection == SourceDirection::LEFT_RIGHT)
             {
                 offsetX = 0.5;
+                projOriginLon = 180.f;
             }
             for (MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it = aRwpk.regions.begin(); it != aRwpk.regions.end(); ++it)
             {
@@ -81,7 +91,7 @@ namespace OmafMetadata
                     // transformations for equirect not support atm
                     return Error::FILE_NOT_SUPPORTED;
                 }
-                aRegionPacking.add(parseRegion(it, width, height, aRwpk.packedPictureWidth, aRwpk.packedPictureHeight, offsetX, offsetY));
+                aRegionPacking.add(parseRegion(it, width, height, aRwpk.packedPictureWidth, aRwpk.packedPictureHeight, offsetX, offsetY, projAreaWidthLon, projAreaHeightLat, projOriginLon, projOriginLat));
             }
         }
         else
@@ -91,9 +101,9 @@ namespace OmafMetadata
                 if ((*it).region.rectangular.transformType != 0)
                 {
                     // transformations for equirect not support atm
-                    return Error::FILE_NOT_SUPPORTED;
+                    //return Error::FILE_NOT_SUPPORTED;
                 }
-                aRegionPacking.add(parseRegion(it, aRwpk.projPictureWidth, aRwpk.projPictureHeight, aRwpk.packedPictureWidth, aRwpk.packedPictureHeight, 0.f, 0.f));
+                aRegionPacking.add(parseRegion(it, aRwpk.projPictureWidth, aRwpk.projPictureHeight, aRwpk.packedPictureWidth, aRwpk.packedPictureHeight, 0.f, 0.f, 360.f, 180.f, 180.f, 90.f));
             }
         }
         return Error::OK;
@@ -185,13 +195,13 @@ namespace OmafMetadata
     }
 
     /*
-     *  Map cubemap regions from packed to projected domain.
-     *  The projected domain should match with OMAF default cubemap layout.
-     *  Packed domain is the actual video content from decoder's output.
-     *  Note! This currently supports only cubemap to cubemap mapping; other mappings would require changes up to the renderer level too. Regions must fit to a single face.
-     *  Note2: Framepacked stereo must have the same packing for both channels, with or without constituent picture matching flag set
-     */
-    Error::Enum parseOmafCubemapFaceInfo(const MP4VR::RegionWisePackingProperty& aRwpk, SourceDirection::Enum aSourceDirection, uint32_t& aFaceOrderBits, uint32_t& aFaceOrientationBits)
+    *  Map cubemap regions from packed to projected domain.
+    *  The projected domain should match with OMAF default cubemap layout.
+    *  Packed domain is the actual video content from decoder's output.
+    *  The output from this function is then our internal cubemap layout.
+    *  Note: Framepacked stereo must have the same packing for both channels, with or without constituent picture matching flag set
+    */
+    Error::Enum parseOmafCubemapRegions(const MP4VR::RegionWisePackingProperty& aRwpk, SourceDirection::Enum aSourceDirection, VRCubeMap& aTiledCubeMap)
     {
         uint32_t projectedPictureWidth = aRwpk.projPictureWidth;
         uint32_t projectedPictureHeight = aRwpk.projPictureHeight;
@@ -224,9 +234,8 @@ namespace OmafMetadata
             }
         }
 
-        char_t faceOrder[6];
-        int8_t omafFaceOrientations[6];
-        size_t faceCount = 0;
+        float32_t faceWidth = aRwpk.projPictureWidth / 3;
+        float32_t faceHeight = aRwpk.projPictureHeight / 2;
         // OMAF face order:
         // L F R
         // D B U (all rotated)
@@ -238,93 +247,142 @@ namespace OmafMetadata
             if ((*it).region.rectangular.projRegTop >= projectedPictureHeight ||
                 (*it).region.rectangular.projRegLeft >= projectedPictureWidth)
             {
-                // ignore, is probably stereo region for the other channel, but as noted above we don't support such case, but 
+                // ignore, is probably stereo region for the other channel, but as noted above we don't support such case
                 continue;
             }
-            if ((*it).region.rectangular.projRegWidth > projectedPictureWidth/3 ||
-                (*it).region.rectangular.projRegHeight > projectedPictureHeight/2)
-            {
-                // the region is larger than a face in projected picture
-                return Error::NOT_SUPPORTED;
-            }
-            // first, find what is the packed face
-            int32_t p = findPositionInCube((*it).region.rectangular.packedRegTop, (*it).region.rectangular.packedRegLeft, projectedPictureHeight, projectedPictureWidth);
-            omafFaceOrientations[p] = (*it).region.rectangular.transformType;
+            VRCubeMapFaceSection tile;
 
-            // then, find the projected face, and do the mapping between them
-            switch (findPositionInCube((*it).region.rectangular.projRegTop, (*it).region.rectangular.projRegLeft, projectedPictureHeight, projectedPictureWidth))
-            {
-                case 0:
-                {
-                    // left
-                    faceOrder[p] = 'L';
-                    break;
-                }
-                case 1:
-                {
-                    // front
-                    faceOrder[p] = 'F';
-                    break;
-                }
-                case 2:
-                {
-                    // right
-                    faceOrder[p] = 'R';
-                    break;
-                }
-                case 3:
-                {
-                    // down
-                    faceOrder[p] = 'D';
-                    break;
-                }
-                case 4:
-                {
-                    // back
-                    faceOrder[p] = 'B';
-                    break;
-                }
-                default:
-                {
-                    // up
-                    faceOrder[p] = 'U';
-                    break;
-                }
-            }
-        }
+            // packed face coordinates
+            tile.sourceX = (float32_t)(*it).region.rectangular.packedRegLeft / aRwpk.packedPictureWidth;
+            tile.sourceY = (float32_t)(*it).region.rectangular.packedRegTop / aRwpk.packedPictureHeight;
+            tile.sourceWidth = (float32_t)(*it).region.rectangular.packedRegWidth / aRwpk.packedPictureWidth;
+            tile.sourceHeight = (float32_t)(*it).region.rectangular.packedRegHeight / aRwpk.packedPictureHeight;
 
-
-        aFaceOrderBits = 0;
-        //0 - front 1 - left 2 - back 3 - right 4 - top 5 - bottom
-        const char_t defaultOrder[NUM_FACES] = { 'F', 'L', 'B', 'R', 'U', 'D' };
-
-        for (int i = 0; i < 6; ++i)
-        {
-            const char_t c = faceOrder[i];
-            bool_t found = false;
-            for (int j = 0; j < NUM_FACES; ++j)
+            int32_t facesTop = 0;
+            int32_t facesLeft = 0;
+            char_t face;
+            int32_t position = findPositionInCube((*it).region.rectangular.projRegTop, (*it).region.rectangular.projRegLeft, projectedPictureHeight, projectedPictureWidth);
+            int32_t faceIndex = 0;
+            // position follows the OMAF order L F R D B U
+            // faceIndex, i.e. output, follows internal order: 0 - front 1 - left 2 - back 3 - right 4 - top 5 - bottom
+            switch (position)
             {
-                if (defaultOrder[j] == c)
-                {
-                    aFaceOrderBits |= (j << (i*BITS_FOR_FACE_ORDER)); //3 bits to present 0-5
-                    found = true;
-                    break;
-                }
-            }
-            if (!found)
+            case 0:
             {
-                aFaceOrderBits = DEFAULT_FACE_ORDER; //RLUDFB
+                // left
+                face = 'L';
+                facesTop = 0;
+                facesLeft = 0;
+                faceIndex = 1;
                 break;
             }
-        }
+            case 1:
+            {
+                // front
+                face = 'F';
+                facesTop = 0;
+                facesLeft = 1;
+                faceIndex = 0;
+                break;
+            }
+            case 2:
+            {
+                // right
+                face = 'R';
+                facesTop = 0;
+                facesLeft = 2;
+                faceIndex = 3;
+                break;
+            }
+            case 3:
+            {
+                // down
+                face = 'D';
+                facesTop = 1;
+                facesLeft = 0;
+                faceIndex = 5;
+                break;
+            }
+            case 4:
+            {
+                // back
+                face = 'B';
+                facesTop = 1;
+                facesLeft = 1;
+                faceIndex = 2;
+                break;
+            }
+            default:
+            {
+                // up
+                face = 'U';
+                facesTop = 1;
+                facesLeft = 2;
+                faceIndex = 4;
+                break;
+            }
+            }
 
-        aFaceOrientationBits = 0;
-        for (int i = 0; i < 6; ++i)
-        {
-            int faceOrientation = convertCustomOmafTransformToOmaf(omafFaceOrientations[i], faceOrder[i]);
-            aFaceOrientationBits |= (faceOrientation << BITS_FOR_FACE_ORIENTATION * i);
+            // target coordinates within a face - Note: this maps to OMAF cubemap, which is still different than our internal cubemap, as OMAF rotates DBU, but we don't
+            tile.originX = (float32_t)(*it).region.rectangular.projRegLeft / faceWidth - facesLeft;
+            tile.originY = (float32_t)(*it).region.rectangular.projRegTop / faceHeight - facesTop;
+            if (position == 3 || position == 5)
+            {
+                if (tile.originX == 0.f)
+                {
+                    if (tile.originY == 0.f)
+                    {
+                        tile.originX = 0.5f;
+                    }
+                    else
+                    {
+                        tile.originY = 0.f;
+                    }
+                }
+                else if (tile.originY == 0.f)
+                {
+                    tile.originY = 0.5f;
+                }
+                else
+                {
+                    tile.originX = 0.f;
+                }
+            }
+            else if (position == 4)
+            {
+                if (tile.originX == 0.f)
+                {
+                    if (tile.originY == 0.f)
+                    {
+                        tile.originY = 0.5f;
+                    }
+                    else
+                    {
+                        tile.originX = 0.5f;
+                    }
+                }
+                else if (tile.originY == 0.f)
+                {
+                    tile.originX = 0.f;
+                }
+                else
+                {
+                    tile.originY = 0.f;
+                }
+            }
+            tile.originWidth = (float32_t)(*it).region.rectangular.projRegWidth / faceWidth;
+            tile.originHeight = (float32_t)(*it).region.rectangular.projRegHeight / faceHeight;
+
+            //TODO is this correct mapping?
+            tile.sourceOrientation = (CubeFaceSectionOrientation::Enum)convertCustomOmafTransformToOmaf((*it).region.rectangular.transformType, face);
+
+            aTiledCubeMap.cubeFaces[position].faceIndex = faceIndex;
+            aTiledCubeMap.cubeFaces[position].sections[aTiledCubeMap.cubeFaces[position].numCoordinates++] = tile;
         }
+        aTiledCubeMap.cubeNumFaces = 6;
+
         return Error::OK;
     }
+
 }
 OMAF_NS_END

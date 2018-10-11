@@ -353,7 +353,7 @@ for %%p in (WINDOWS ANDROID) do (
                                 if '!doit!'=='YES' (
                                     %DEBUG_COMMAND% rd /S /Q !BUILD_PATH_%%a_%%t!
                                 )
-                                %DEBUG_COMMAND% rd /S /Q ..\Lib\!PLATFORM!\!BUILD_TYPE_%%t!!%%a_ABI!
+                                %DEBUG_COMMAND% rd /S /Q .\Lib\!PLATFORM!\!BUILD_TYPE_%%t!!%%a_ABI!
                             )
                         )
                     )

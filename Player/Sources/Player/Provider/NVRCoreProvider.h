@@ -20,6 +20,7 @@
 #include "OMAFPlayerDataTypes.h"
 
 #include "Media/NVRMediaInformation.h"
+#include "Core/Foundation/NVRSemaphore.h"
 
 OMAF_NS_BEGIN
     class AudioInputBuffer;
@@ -65,6 +66,19 @@ OMAF_NS_BEGIN
         virtual const CoreProviderSources& getSources() = 0;
 
         virtual Error::Enum setAudioInputBuffer(AudioInputBuffer *inputBuffer) = 0;
+
+        /**
+         * Signal to provider that it is used by someone, so that internal resources should not be changed until the usage has stopped.
+         *
+         * NOTE: enter() will block until the last user has left the area. 
+         *
+         * Currently only one thread can enter the area at the same time, because there is no use-case where that would be needed. 
+         * If more fine grained locking is necessary, read and write locks should be separated and more sophisticated system should
+         * be added where getting write-lock would have higher priority in waiting queue (to prevent write lock from starving) 
+         * than read-locks and allowing to get multiple read-locks at the same time.
+         */
+        virtual void enter() = 0;
+        virtual void leave() = 0;
     };
 OMAF_NS_END
 

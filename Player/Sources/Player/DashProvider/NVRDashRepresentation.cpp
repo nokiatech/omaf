@@ -312,9 +312,9 @@ OMAF_NS_BEGIN
     }
 
     // VAS version - starts new representation and assumes you are late => try to fast forward
-    Error::Enum DashRepresentation::startDownloadWithOverride(uint64_t overridePTSUs, uint32_t overrideSegmentId)
+    Error::Enum DashRepresentation::startDownloadWithOverride(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode)
     {
-        mStreamMode = VideoStreamMode::ENHANCEMENT_FAST_FORWARD;
+        mStreamMode = aMode;
         if (mDownloading)
         {
             return Error::OK;
@@ -421,9 +421,6 @@ OMAF_NS_BEGIN
             mDownloading = false;
         }
 
-        //TODO: we need to properly handle concurrency issues.  (if mParserMutex is LOCKED when we call destroyDownloadThread, when it has just called onSegmentDownloaded... we deadlock, badly.)
-        //This should be "semi" safe.... (ie. not safe at all)
-        //(semi safe, means the destroyDownloadThread returns when the thread is actually stopped.....)
         mSegmentStream->stopDownload();
 
         mSeekToUsWhenDLComplete = OMAF_UINT64_MAX;
@@ -452,9 +449,7 @@ OMAF_NS_BEGIN
             mDownloading = false;
         }
 
-        //TODO: we need to properly handle concurrency issues.  (if mParserMutex is LOCKED when we call destroyDownloadThread, when it has just called onSegmentDownloaded... we deadlock, badly.)
-        //This should be "semi" safe.... (ie. not safe at all)
-        //(semi safe, means the destroyDownloadThread returns when the thread is actually stopped.....)
+        OMAF_LOG_V("stopDownloadAsync of %s", getId());
         mSegmentStream->stopDownloadAsync();
 
         return Error::OK;
@@ -498,7 +493,7 @@ OMAF_NS_BEGIN
         }
 
         mDownloadSubSegment = true;
-        return startDownloadWithOverride(targetPtsUs, overrideSegmentId);
+        return startDownloadWithOverride(targetPtsUs, overrideSegmentId, VideoStreamMode::ENHANCEMENT_NORMAL);
     }
 
     bool_t DashRepresentation::isBuffering()
@@ -562,7 +557,8 @@ OMAF_NS_BEGIN
             }
             {
                 Spinlock::ScopeLock lock(mLock);
-                Error::Enum result = handleInputSegment(segment);
+                bool_t readyForReading = false;
+                Error::Enum result = handleInputSegment(segment, readyForReading);
 
                 if (result != Error::OK && result != Error::OK_SKIPPED)
                 {
@@ -588,7 +584,14 @@ OMAF_NS_BEGIN
                     {
                         loadVideoMetadata();
                     }
-                    mVideoStreams[0]->setVideoSources(getParserInstance()->getVideoSources());
+                    if (readyForReading)
+                    {
+                        mVideoStreams[0]->setVideoSources(getParserInstance()->getVideoSources());
+                    }
+                    else
+                    {
+                        mVideoStreams[0]->clearVideoSources();
+                    }
                     mVideoStreams[0]->setMode(mStreamMode);
                 }
             }
@@ -603,7 +606,8 @@ OMAF_NS_BEGIN
                 // we've now received the first segment, assume we've been initialized by now - is there a risk if we haven't?
                 mInitialized = true;
             }
-            Error::Enum result = handleInputSegment(segment);
+            bool_t readyForReading = false;
+            Error::Enum result = handleInputSegment(segment, readyForReading);
 
             if (result != Error::OK)
             {
@@ -652,8 +656,9 @@ OMAF_NS_BEGIN
         }
     }
 
-    Error::Enum DashRepresentation::handleInputSegment(DashSegment* aSegment)
+    Error::Enum DashRepresentation::handleInputSegment(DashSegment* aSegment, bool_t& aReadyForReading)
     {
+        aReadyForReading = true;
         if (mAssociatedToRepresentation == OMAF_NULL)
         {
             return getParserInstance()->addSegment(aSegment, mAudioStreams, mVideoStreams);
@@ -826,7 +831,7 @@ OMAF_NS_BEGIN
             }
             else
             {
-                metadataParser.setVideoMetadata(mBasicSourceInfo, config);
+                metadataParser.setVideoMetadata(mBasicSourceInfo, sourceId, config);
             }
         }
         else if (sourceType == SourceType::CUBEMAP)
@@ -836,7 +841,7 @@ OMAF_NS_BEGIN
             config.height = mHeight;
             config.width = mWidth;
 
-            metadataParser.setVideoMetadata(mBasicSourceInfo, config);
+            metadataParser.setVideoMetadata(mBasicSourceInfo, sourceId, config);
         }
 
         mMetadataCreated = true;
@@ -874,7 +879,8 @@ OMAF_NS_BEGIN
         MetadataParser& metadataParser = getParserInstance()->getMetadataParser();
         if (metadataParser.forceVideoTo(aPosition) && mVideoStreams.getSize() > 0)
         {
-            mVideoStreams[0]->setVideoSources(getParserInstance()->getVideoSources());
+            uint32_t segmentIndex = 0;
+            mVideoStreams[0]->setVideoSources(getParserInstance()->getVideoSources(), getParserInstance()->getReadPositionUs(mVideoStreams, segmentIndex));
         }
         // if no videostreams exist yet, the new source is set when creating a stream
     }
@@ -938,6 +944,7 @@ OMAF_NS_BEGIN
 
     uint32_t DashRepresentation::getLastSegmentId()
     {
+        OMAF_LOG_V("getLastSegmentId of %s is %d", getId(), mLastSegmentId);
         return mLastSegmentId;
     }
 
@@ -1006,7 +1013,8 @@ OMAF_NS_BEGIN
 
         if (videoStream->getMetadataStream() == OMAF_NULL)
         {
-            mMetadataCreated = metadataParser.setVideoMetadata(mBasicSourceInfo, videoStream->getDecoderConfig());
+            sourceid_t sourceId = 0;
+            mMetadataCreated = metadataParser.setVideoMetadata(mBasicSourceInfo, sourceId, videoStream->getDecoderConfig());
         }
     }
 
@@ -1018,6 +1026,11 @@ OMAF_NS_BEGIN
             mStreamMode = VideoStreamMode::ENHANCEMENT_NORMAL;
         }
         mSegmentStream->setCacheFillMode(autoFill);
+    }
+
+    void_t DashRepresentation::setBufferingTime(uint32_t aExpectedPingTimeMs)
+    {
+        mSegmentStream->setBufferingTime(aExpectedPingTimeMs);
     }
 
     // this representation is too demanding for this device (e.g. 8k res). By default all are supported

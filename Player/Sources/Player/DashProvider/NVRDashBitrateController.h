@@ -30,7 +30,7 @@ public:
     DashBitrateContoller();
     ~DashBitrateContoller();
 
-    void_t initialize(DashAdaptationSet* aBaseLayer, DashAdaptationSet* aBaseLayerStereo, DashAdaptationSet* aAudio, const TileAdaptationSets& aTiles, VASTilePicker* aTilepicker);
+    void_t initialize(DashAdaptationSet* aBaseLayer, DashAdaptationSet* aBaseLayerStereo, const TileAdaptationSets& aTiles, VASTilePicker* aTilepicker);
 
     bool_t update(uint32_t aBandwidthOverhead);
     bool_t reportDownloadProblem(IssueType::Enum aIssue);

@@ -935,7 +935,7 @@ namespace VDD
         {
             if (!first && traverse.getType() == ConfigTraverseType::Field)
             {
-                str += ".";
+                str += "::";
             }
             first = false;
             str += traverse.asString();

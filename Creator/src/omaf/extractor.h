@@ -16,6 +16,8 @@
 
 #include <memory>
 #include <vector>
+#include "parser/h265datastructs.hpp"
+
 
 namespace VDD {
 
@@ -35,6 +37,15 @@ namespace VDD {
             // sample offset not relevant with VD use cases
             std::uint64_t  dataOffset;
             std::uint64_t  dataLength;
+
+            struct
+            {
+                // original slice header as a parsed data structure
+                H265::SliceHeader origSliceHeader;
+                std::vector<std::uint8_t> naluHeader;
+                std::uint64_t payloadOffset;
+                std::uint64_t origSliceHeaderLength;
+            } sliceInfo;
         };
         struct InlineConstruct 
         {

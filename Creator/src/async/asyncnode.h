@@ -69,7 +69,7 @@ namespace VDD {
 
         AsyncNodeId getId() const;
 
-        std::string getInfo() const;
+        virtual std::string getInfo() const;
         void setName(std::string aName);
 
         GraphBase& getGraph();
@@ -173,6 +173,8 @@ namespace VDD {
         void hasInput(const Views& views) override;
         void setLog(std::shared_ptr<Log> aLog) override;
 
+        std::string getInfo() const override;
+
         ~AsyncProcessorWrapper();
 
     private:
@@ -196,6 +198,8 @@ namespace VDD {
         void hasInput(const Views& views) override;
         void setLog(std::shared_ptr<Log> aLog) override;
 
+        std::string getInfo() const override;
+
         ~AsyncSinkWrapper();
 
     private:
@@ -213,6 +217,8 @@ namespace VDD {
         void produce() override;
         void abort() override;
         void setLog(std::shared_ptr<Log> aLog) override;
+
+        std::string getInfo() const override;
 
         ~AsyncSourceWrapper();
 

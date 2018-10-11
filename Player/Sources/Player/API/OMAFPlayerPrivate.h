@@ -65,11 +65,6 @@ namespace OMAF
 
     public: // IAudio
 
-        virtual Result::Enum initializeAudio(AudioObserver *observer,
-                                             int8_t outChannels,
-                                             AudioPlaybackMode::Enum playbackMode,
-                                             AudioOutputRange::Enum outputRange);
-
         virtual Result::Enum initializeAudioWithDirectRouting(bool_t allowExclusiveMode);
 
         virtual Result::Enum initializeAudioWithDirectRouting(bool_t allowExclusiveMode, const wchar_t* audioDevice);
@@ -103,6 +98,7 @@ namespace OMAF
         virtual OMAF::Result::Enum play();
         virtual OMAF::Result::Enum pause();
         virtual OMAF::Result::Enum stop();
+        virtual OMAF::Result::Enum next();
         virtual bool isSeekable();
         virtual OMAF::Result::Enum seekTo(uint64_t milliSeconds, SeekAccuracy::Enum accuracy);
         virtual uint64_t elapsedTime();

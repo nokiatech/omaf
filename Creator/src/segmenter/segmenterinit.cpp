@@ -44,6 +44,18 @@ namespace VDD
         return StorageType::CPU;
     }
 
+    std::string SegmenterInit::getGraphVizDescription()
+    {
+        std::ostringstream st;
+        bool first = true;
+        for (auto streamId: mConfig.streamIds) {
+            st << (first ? "" : ",");
+            first = false;
+            st << streamId;
+        }
+        return st.str();
+    }
+
     StreamSegmenter::Segmenter::InitSegment SegmenterInit::makeInitSegment(bool aFragmented)
     {
         StreamSegmenter::Segmenter::MovieDescription movieDescription;
@@ -335,11 +347,11 @@ namespace VDD
                 aSampleEntry.covi = StreamSegmenter::Segmenter::CoverageInformation();
                 if (aMeta.projection == OmafProjectionType::EQUIRECTANGULAR)
                 {
-                    aSampleEntry.covi->coverageShape = StreamSegmenter::Segmenter::CoverageInformationShapeType::FourGreatCircles;
+                    aSampleEntry.covi->coverageShape = StreamSegmenter::Segmenter::CoverageInformationShapeType::TwoAzimuthAndTwoElevationCircles;
                 }
                 else
                 {
-                    aSampleEntry.covi->coverageShape = StreamSegmenter::Segmenter::CoverageInformationShapeType::TwoAzimuthAndTwoElevationCircles;
+                    aSampleEntry.covi->coverageShape = StreamSegmenter::Segmenter::CoverageInformationShapeType::FourGreatCircles;
                 }
                 if (aSampleEntry.stvi)
                 {

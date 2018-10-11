@@ -56,7 +56,13 @@ const int64_t kAvgLeadTimeMs = -200;
         MemoryCopy(mDecoderConfig.configInfoData, infoBuffer, mDecoderConfig.configInfoSize);
 
         const MediaFormat::DecoderConfigMap& configInfo = format->getDecoderConfigInfoMap();
-        MediaFormat::DecoderConfigMap::ConstIterator it = configInfo.find(MediaFormat::AVC_HEVC_SPS);
+        MediaFormat::DecoderConfigMap::ConstIterator it = configInfo.find(MediaFormat::HEVC_VPS);
+        if (it != MediaFormat::DecoderConfigMap::InvalidIterator)
+        {
+            mDecoderConfig.vpsSize = (*it)->getSize();
+            MemoryCopy(mDecoderConfig.vpsData, (*it)->getDataPtr(), mDecoderConfig.vpsSize);
+        }
+        it = configInfo.find(MediaFormat::AVC_HEVC_SPS);
         if (it != MediaFormat::DecoderConfigMap::InvalidIterator)
         {
             mDecoderConfig.spsSize = (*it)->getSize();
@@ -67,12 +73,6 @@ const int64_t kAvgLeadTimeMs = -200;
         {
             mDecoderConfig.ppsSize = (*it)->getSize();
             MemoryCopy(mDecoderConfig.ppsData, (*it)->getDataPtr(), mDecoderConfig.ppsSize);
-        }
-        it = configInfo.find(MediaFormat::HEVC_VPS);
-        if (it != MediaFormat::DecoderConfigMap::InvalidIterator)
-        {
-            mDecoderConfig.vpsSize = (*it)->getSize();
-            MemoryCopy(mDecoderConfig.vpsData, (*it)->getDataPtr(), mDecoderConfig.vpsSize);
         }
         mIsVideo = true;
         mIsAudio = false;
@@ -146,12 +146,6 @@ const int64_t kAvgLeadTimeMs = -200;
         return false;
     }
 
-
-    bool_t MP4VideoStream::setYaw(float32_t yawDegrees)
-    {
-        // always return false; the alternate group variant only can return true
-        return false;
-    }
 
     bool_t MP4VideoStream::hasAlternates() const
     {
@@ -247,14 +241,25 @@ const int64_t kAvgLeadTimeMs = -200;
     }
 
 
-    void_t MP4VideoStream::setVideoSources(const CoreProviderSources& videoSources)
+    void_t MP4VideoStream::clearVideoSources()
+    {
+        mVideoSources.clear();
+    }
+
+    void_t MP4VideoStream::setVideoSources(const CoreProviderSources& videoSources, uint64_t aValidFromPts)
     {
         if (!mVideoSources.isEmpty())
         {
             //Should we do something else here?, could the sources actually change?
             mVideoSources.clear();
         }
+        mSourcesValidFromPts = aValidFromPts;
         mVideoSources.add(videoSources);
+    }
+
+    bool_t MP4VideoStream::hasVideoSources() const
+    {
+        return !mVideoSources.isEmpty();
     }
 
     const CoreProviderSources& MP4VideoStream::getVideoSources() const
@@ -262,5 +267,10 @@ const int64_t kAvgLeadTimeMs = -200;
         return mVideoSources;
     }
 
+    const CoreProviderSources& MP4VideoStream::getVideoSources(uint64_t& aValidFromPts) const
+    {
+        aValidFromPts = mSourcesValidFromPts;
+        return getVideoSources();
+    }
 
 OMAF_NS_END

@@ -1,0 +1,52 @@
+apply plugin: 'com.android.application'
+
+def root = "../../../../"
+def assetsRoot = "../Assets/"
+def playerLibs = root + "Lib/Android/Release/"
+def playerHeaders = root + "Sources/"
+
+android {
+    compileSdkVersion 28
+    buildToolsVersion "28.0.2"
+
+    defaultConfig {
+        applicationId "com.nokia.omaf.sample.videoplayback.handheld"
+        minSdkVersion 24
+        targetSdkVersion 28
+
+        externalNativeBuild {
+            cmake {
+                targets "OMAFPlayerWrapper"
+                arguments "-DOMAF_PLAYER_HEADERS=" + file(playerHeaders).absolutePath
+                arguments "-DOMAF_PLAYER_LIBS=" + file(playerLibs).absolutePath
+                arguments "-DJNILIBS=" + file("../jniLibs").absolutePath
+            }
+            ndk {
+                abiFilters "armeabi-v7a", "arm64-v8a"
+            }
+        }
+    }
+
+    buildTypes {
+        debug{
+            debuggable true
+        }
+        release{
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    sourceSets.main {
+        jniLibs {
+            srcDirs = ["../jniLibs"]
+        }
+        assets {
+            srcDirs += file(assetsRoot).absolutePath
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path "CMakeLists.txt"
+        }
+    }
+}

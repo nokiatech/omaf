@@ -140,7 +140,7 @@ OMAF_NS_BEGIN
             MP4VR::RegionWisePackingProperty mp4Rwpk;
             if (mReader->getPropertyRegionWisePacking(aVideoStream.getTrackId(), 0, mp4Rwpk) == MP4VR::MP4VRFileReaderInterface::OK)
             {
-                return mMetaDataParser.parseOmafCubemapFaceInfo(mp4Rwpk, aBasicSourceInfo);
+                return mMetaDataParser.parseOmafCubemapRegionMetadata(mp4Rwpk, aBasicSourceInfo);
             }
             // else use previously obtained values, without RWPK. We come here only after OMAF projection metadata is detected so we have some info
         }
@@ -630,6 +630,7 @@ OMAF_NS_BEGIN
 
     Error::Enum MP4VRParser::removeSegment(uint32_t initSegmentId, uint32_t segmentId, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams)
     {
+        OMAF_LOG_V("removeSegment %d", segmentId);
         Mutex::ScopeLock readerLock(mReaderMutex);
 
         int32_t result = mReader->invalidateSegment(initSegmentId, segmentId);
@@ -996,7 +997,7 @@ OMAF_NS_BEGIN
 
         uint32_t maxDecodedPixelsPerSecond = DeviceInfo::maxDecodedPixelCountPerSecond();
 
-        if (pixelsPerSecond > maxDecodedPixelsPerSecond)
+        if (pixelsPerSecond > maxDecodedPixelsPerSecond && videoStreams.getSize() > 1)
         {
             OMAF_LOG_W("Can't support all the video tracks in the file so removing some of the tracks");
 
@@ -1021,6 +1022,7 @@ OMAF_NS_BEGIN
                 removedColorTrack = true;
                 if (videoStreams.isEmpty())
                 {
+                    OMAF_LOG_E("No video streams left!!");
                     return Error::FILE_NOT_SUPPORTED;
                 }
             }
@@ -1061,7 +1063,8 @@ OMAF_NS_BEGIN
                         }
                         // if there was no useful source info, we use the default values (mono, no/default RWPK)
                         videoMetadataMissing = false;
-                        mMetaDataParser.setVideoMetadata(sourceInfo, videoStreams[0]->getDecoderConfig());
+                        sourceid_t sourceId = 0;
+                        mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, videoStreams[0]->getDecoderConfig());
                         if (sourceInfo.rotation.valid)
                         {
                             mMetaDataParser.setRotation(sourceInfo.rotation);
@@ -1137,7 +1140,8 @@ OMAF_NS_BEGIN
                                     sourceInfo.sourceType = SourceType::EQUIRECTANGULAR_PANORAMA; // v1 only support EQUIRECTANGULAR_PANORAMA.
                                 }
                             }
-                            mMetaDataParser.setVideoMetadata(sourceInfo, videoStreams[0]->getDecoderConfig());
+                            sourceid_t sourceId = 0;
+                            mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, videoStreams[0]->getDecoderConfig());
                             break;
                         }
                     }
@@ -1161,7 +1165,8 @@ OMAF_NS_BEGIN
                     }
                     else
                     {
-                        mMetaDataParser.setVideoMetadata(sourceInfo, videoStreams[0]->getDecoderConfig());
+                        sourceid_t sourceId = 0;
+                        mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, videoStreams[0]->getDecoderConfig());
                     }
                 }
                 else if (videoStreams[0]->getFormat()->width() == videoStreams[0]->getFormat()->height())
@@ -1170,7 +1175,8 @@ OMAF_NS_BEGIN
                     sourceInfo.sourceDirection = SourceDirection::TOP_BOTTOM;
                     sourceInfo.sourceType = SourceType::EQUIRECTANGULAR_PANORAMA;
 
-                    mMetaDataParser.setVideoMetadata(sourceInfo, videoStreams[0]->getDecoderConfig());
+                    sourceid_t sourceId = 0;
+                    mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, videoStreams[0]->getDecoderConfig());
                 }
                 else
                 {
@@ -1178,7 +1184,8 @@ OMAF_NS_BEGIN
                     sourceInfo.sourceDirection = SourceDirection::MONO;
                     sourceInfo.sourceType = SourceType::EQUIRECTANGULAR_PANORAMA;
 
-                    mMetaDataParser.setVideoMetadata(sourceInfo, videoStreams[0]->getDecoderConfig());
+                    sourceid_t sourceId = 0;
+                    mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, videoStreams[0]->getDecoderConfig());
                 }
             }
         }
@@ -1392,6 +1399,24 @@ OMAF_NS_BEGIN
         {
             return Error::INVALID_DATA;
         }
+        
+        for (MP4VR::TrackInformation* track = mTracks->begin(); track != mTracks->end(); track++)
+        {
+            if (track->sampleProperties.size == 0)
+            {
+                // ignore the track. It may be part of multi-res extractor case, where we may need to have init for all possible tracks, but have data only in relevant tracks
+                continue;
+            }
+            MP4VR::FourCC codecFourCC;
+            if (mReader->getDecoderCodeType(track->trackId, track->sampleProperties[0].sampleId, codecFourCC) != MP4VR::MP4VRFileReaderInterface::OK)
+            {
+                return Error::INVALID_DATA;
+            }
+            if (codecFourCC == MP4VR::FourCC("hvc2"))
+            {
+                hasExtractor = true;
+            }
+        }
 
         int32_t streamId = 0;
         for (MP4VR::TrackInformation* track = mTracks->begin(); track != mTracks->end(); track++)
@@ -1400,7 +1425,8 @@ OMAF_NS_BEGIN
             MP4VR::FourCC codecFourCC;
             if (track->sampleProperties.size == 0)
             {
-                return Error::INVALID_DATA;
+                // ignore the track. It may be part of multi-res extractor case, where we may need to have init for all possible tracks, but have data only in relevant tracks
+                continue;
             }
             if (mReader->getDecoderCodeType(track->trackId, track->sampleProperties[0].sampleId, codecFourCC) != MP4VR::MP4VRFileReaderInterface::OK)
             {
@@ -1412,13 +1438,9 @@ OMAF_NS_BEGIN
                 return Error::INVALID_DATA;
             }
 
-            if (codecFourCC == MP4VR::FourCC("avc1") || codecFourCC == MP4VR::FourCC("avc3") 
-                || codecFourCC == MP4VR::FourCC("hev1") || codecFourCC == MP4VR::FourCC("hvc1") || codecFourCC == MP4VR::FourCC("hvc2"))
+            if ((hasExtractor && codecFourCC == MP4VR::FourCC("hvc2"))
+                || (!hasExtractor && (codecFourCC == MP4VR::FourCC("avc1") || codecFourCC == MP4VR::FourCC("avc3") || codecFourCC == MP4VR::FourCC("hev1") || codecFourCC == MP4VR::FourCC("hvc1"))))
             {
-                if (codecFourCC == MP4VR::FourCC("hvc2"))
-                {
-                    hasExtractor = true;
-                }
                 format = OMAF_NEW(mAllocator, MediaFormat)(MediaFormat::Type::IsVideo, track->vrFeatures, codecFourCC.value, UNKNOWN_MIME_TYPE);
 
                 if (format == OMAF_NULL)
@@ -1578,23 +1600,6 @@ OMAF_NS_BEGIN
 
         }
 
-        // if there is an extractor track, filter out tracks that it depends on - TODO now it filters out all other video streams
-        if (hasExtractor)
-        {
-            for (size_t i = 0; i < videoStreams.getSize(); )
-            {
-                if (StringFindFirst(videoStreams[i]->getFormat()->getFourCC(), "hvc2") == Npos)
-                {
-                    MP4VideoStream* vs = videoStreams[i];
-                    videoStreams.remove(vs);
-                    OMAF_DELETE(mAllocator, vs);
-                }
-                else
-                {
-                    i++;
-                }
-            }
-        }
         if (hasMetadata)
         {
             for (MP4VR::TrackInformation* track = mTracks->begin(); track != mTracks->end(); track++)

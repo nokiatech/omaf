@@ -158,6 +158,17 @@ namespace VDD
             
             props.gopDuration.duration = FrameDuration(firstVideoTrack->getGOPLength(props.gopDuration.fixed), props.fps.asDouble());
 
+            bool omaf = false;
+            try
+            {
+                MP4VR::ProjectionFormatProperty omafProjection = firstVideoTrack->getProjection();
+                omaf = true;
+            }
+            catch (MP4LoaderError& exn)
+            {
+                // ignore
+            }
+
             Optional<GoogleVRVideoMetadata> googleVrMetadata = {};
             try
             {
@@ -172,6 +183,30 @@ namespace VDD
             {
                 props.stereo = googleVrMetadata->mode != VideoInputMode::Mono;
                 props.mode = googleVrMetadata->mode;
+            }
+            else if (omaf)
+            {
+                MP4VR::PodvStereoVideoConfiguration stereo = firstVideoTrack->getFramePacking();
+                switch (stereo)
+                {
+                case MP4VR::PodvStereoVideoConfiguration::MONOSCOPIC:
+                {
+                    props.mode = VideoInputMode::Mono;
+                }
+                break;
+                case MP4VR::PodvStereoVideoConfiguration::TOP_BOTTOM_PACKING:
+                {
+                    props.mode = VideoInputMode::TopBottom;
+                }
+                break;
+                case MP4VR::PodvStereoVideoConfiguration::SIDE_BY_SIDE_PACKING:
+                {
+                    props.mode = VideoInputMode::LeftRight;
+                }
+                break;
+                default:
+                    throw UnsupportedStereoscopicLayout("OMAF framepacking mode not supported");
+                }
             }
             else
             {
@@ -203,6 +238,9 @@ namespace VDD
                 break;
             }
             }
+
+            props.tiles = firstVideoTrack->getTiles(props.tilesX, props.tilesY);
+            firstVideoTrack->getCtuSize(props.ctuSize);
         }
         return props;
     }
@@ -223,12 +261,13 @@ namespace VDD
             if (formats.find("H265") != std::string::npos)
             {
                 setOfFormats.insert(setOfFormats.end(), CodedFormat::H265);
+                setOfFormats.insert(setOfFormats.end(), CodedFormat::H265Extractor);
             }
         }
         else
         {
             // allow H264 and H265
-            setOfFormats = { CodedFormat::H264, CodedFormat::H265 };
+            setOfFormats = { CodedFormat::H264, CodedFormat::H265, CodedFormat::H265Extractor };
             formats = "H264 or H265";
         }
         try
@@ -286,6 +325,14 @@ namespace VDD
                 genericVRVideo.filename = filename;
                 genericVRVideo.videoTracks = videoTracks;
                 genericVRVideo.allowedInputModes = std::move(allowedInputModes);
+                try
+                {
+                    return setupOMAFVRVideoInput(aOps, aConfigure, genericVRVideo, mp4Loader, inputLabel, aProcessingMode);
+                }
+                catch (MP4LoaderError& exn)
+                {
+                    // ignore
+                }
                 return setupGenericVRVideoInput(aOps, aConfigure, genericVRVideo, mp4Loader, inputLabel, aProcessingMode);
             }
         }
@@ -358,6 +405,87 @@ namespace VDD
         ViewMask inputLeftMask {};
         AsyncNode* inputRight {};
         ViewMask inputRightMask {};
+
+        // Needs to be captured before calling buildVideoDecoders, that takes ownership of the pointers
+        auto frameDuration = (*sources.begin())->getFrameRate().per1();
+        auto timeScale = (*sources.begin())->getTimeScale();
+        VideoGOP gopInfo;
+        gopInfo.duration = FrameDuration((*sources.begin())->getGOPLength(gopInfo.fixed), (*sources.begin())->getFrameRate().asDouble());
+
+        if (aProcessingMode == VideoProcessingMode::Passthrough)
+        {
+            if (buildVideoPassThrough(aOps, aInputLabel, mode, sources,
+                inputLeft, inputLeftMask,
+                inputRight, inputRightMask))
+            {
+                aConfigure.setInput(inputLeft, inputLeftMask,
+                    inputRight, inputRightMask,
+                    mode,
+                    frameDuration,
+                    timeScale,
+                    gopInfo,
+                    mode != VideoInputMode::Mono);
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool VideoInput::setupOMAFVRVideoInput(ControllerOps& aOps, ControllerConfigure& aConfigure,
+        VideoInput::GenericVRVideo aGenericVRVideo,
+        MP4Loader& aMP4Loader,
+        std::string aInputLabel,
+        VideoProcessingMode aProcessingMode)
+    {
+
+        std::list<std::unique_ptr<MP4LoaderSource>> sources;
+        for (auto trackId : aGenericVRVideo.videoTracks)
+        {
+            if (aGenericVRVideo.videoTracks.count(trackId) == 0)
+            {
+                throw ConfigValueInvalid("Track " + Utils::to_string(trackId) + " does not exist or isn't  a video track", aGenericVRVideo.config["tracks"]);
+            }
+
+            MP4Loader::SourceConfig sourceConfig{};
+            sources.push_back(aMP4Loader.sourceForTrack(trackId, sourceConfig));
+        }
+
+        VideoInputMode mode = VideoInputMode::Mono;
+        // If input has OMAF extractor track(s), we take only one of them. For other OMAF cases there should not be more than 1 video track.
+        MP4VR::PodvStereoVideoConfiguration stereo = (*sources.begin())->getFramePacking();
+        switch (stereo)
+        {
+        case MP4VR::PodvStereoVideoConfiguration::MONOSCOPIC:
+        {
+            mode = VideoInputMode::Mono;
+        }
+        break;
+        case MP4VR::PodvStereoVideoConfiguration::TOP_BOTTOM_PACKING:
+        {
+            mode = VideoInputMode::TopBottom;
+        }
+        break;
+        case MP4VR::PodvStereoVideoConfiguration::SIDE_BY_SIDE_PACKING:
+        {
+            mode = VideoInputMode::LeftRight;
+        }
+        break;
+        default:
+            throw UnsupportedStereoscopicLayout("OMAF framepacking mode not supported");
+        }
+
+
+        AsyncNode* inputLeft{};
+        ViewMask inputLeftMask{};
+        AsyncNode* inputRight{};
+        ViewMask inputRightMask{};
 
         // Needs to be captured before calling buildVideoDecoders, that takes ownership of the pointers
         auto frameDuration = (*sources.begin())->getFrameRate().per1();

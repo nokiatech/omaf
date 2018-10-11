@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <functional>
 
 #include "common/optional.h"
 
@@ -35,6 +36,7 @@ namespace VDD
             struct OK {};
             struct Fail {};
 
+            ParseResult();
             ParseResult(OK);
             explicit ParseResult(Fail, std::string aError);
 
@@ -47,6 +49,17 @@ namespace VDD
             std::string mError;
         };
 
+        class ParseError : public std::runtime_error
+        {
+        public:
+            ParseError(std::string aError);
+
+            const char* what() const noexcept override;
+
+        private:
+            std::string mError;
+        };
+
         class Parse
         {
         public:
@@ -56,17 +69,27 @@ namespace VDD
                 IsOptional
             };
 
-            Parse(Optional<std::string> aArgumentName, IsRequiredType aIsRequired);
+            enum CanBeRepeatedType
+            {
+                CannotBeRepeated,
+                CanBeRepeated
+            };
+
+            Parse(Optional<std::string> aArgumentName,
+                  IsRequiredType aIsRequired,
+                  CanBeRepeatedType aCanBeRepeated = CannotBeRepeated);
             virtual ~Parse();
 
             Optional<std::string> argumentName() const;
             bool isRequired() const;
+            bool canBeRepeated() const;
 
             virtual ParseResult parse(Arguments aArguments) const = 0;
 
         private:
             Optional<std::string> mArgumentName;
             bool mIsRequired;
+            bool mCanBeRepeated;
         };
 
         template <typename T>
@@ -78,6 +101,7 @@ namespace VDD
             OptionallyReference(T& aResult, const T& aDefaultValue);
 
             void set(const T& value) const;
+            T& get() const;
             Parse::IsRequiredType isRequired() const;
 
         private:
@@ -90,6 +114,8 @@ namespace VDD
         class String : public Parse
         {
         public:
+            typedef std::string ResultType;
+
             String(std::string aArgumentName,
                    OptionallyReference<std::string> aResult);
 
@@ -99,9 +125,29 @@ namespace VDD
             OptionallyReference<std::string> mResult;
         };
 
+        template <typename SubParse, typename Container>
+        class Accumulate : public Parse {
+        public:
+            typedef typename SubParse::ResultType ResultType;
+
+            Accumulate(std::string aArgumentName,
+                       OptionallyReference<Container> aResult);
+            Accumulate(std::string aArgumentName,
+                       OptionallyReference<Container> aResult,
+                       std::function<typename Container::value_type(typename SubParse::ResultType)> aMapping);
+
+            ParseResult parse(Arguments aArguments) const override;
+
+        private:
+            OptionallyReference<Container> mContainer;
+            std::function<typename Container::value_type(typename SubParse::ResultType)> mMapping;
+        };
+
         class InputFilename : public Parse
         {
         public:
+            typedef std::string ResultType;
+
             InputFilename(std::string aArgumentName,
                           OptionallyReference<std::string> aResult);
 
@@ -115,6 +161,8 @@ namespace VDD
         class Enum : public Parse
         {
         public:
+            typedef T ResultType;
+
             // aOptions[0] becomes T(0) etc
             Enum(OptionallyReference<T> aResult, std::vector<std::string>&& aOptions);
 
@@ -128,6 +176,8 @@ namespace VDD
         class Flag : public Parse
         {
         public:
+            typedef bool ResultType;
+
             Flag(bool& aResult);
 
             ParseResult parse(Arguments aArguments) const override;
@@ -153,6 +203,7 @@ namespace VDD
 
             Optional<std::string> argumentName() const;
             bool isRequired() const;
+            bool canBeRepeated() const;
 
             ParseResult parse(Arguments aArguments) const;
 
@@ -188,6 +239,8 @@ namespace VDD
             std::map<char, Arg*> mSwitches;
             std::map<std::string, Arg*> mLongSwitches;
             Arg* mRemaining = nullptr;    // may be null
+
+            static ParseResult tryArgParse(const Arg& aArg, const Arguments aArguments);
         };
     }
 }

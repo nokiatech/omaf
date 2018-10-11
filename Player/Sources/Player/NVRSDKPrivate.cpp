@@ -22,8 +22,21 @@
 
 #include "Provider/NVRVideoProvider.h"
 #include "Renderer/NVRRenderingManager.h"
-#include "Audio/NVRNullAudioRenderer.h"
+#include "Audio/NVRAACAudioRenderer.h"
+#if OMAF_AUDIO_BACKEND_OPENSL
+#include "Audio/OpenSL/NVROpenSLBackend.h"
+#endif
+
+#if OMAF_PLATFORM_UWP
+#include "Audio/UWP/NVRWasapi.h"
+#endif
+
+#if OMAF_AUDIO_BACKEND_WASAPI
+#include "Audio/WASAPI/NVRWasapi.h"
+#endif
+
 #include "Audio/NVRNullAudioBackend.h"
+
 #include "Foundation/NVRHttp.h"
 
 #include "Foundation/NVRBandwidthMonitor.h"
@@ -288,7 +301,7 @@ OMAF_NS_BEGIN
         if (sState == SDKState::INITIALIZED)
         {
             MemoryAllocator& allocator = *MemorySystem::DefaultHeapAllocator();
-            AudioRendererAPI* instance = OMAF_NEW(allocator, NullAudioRenderer)(allocator, *observer);
+            AudioRendererAPI* instance = OMAF_NEW(allocator, AACAudioRenderer)(allocator, *observer);
 
             return instance;
         }
@@ -350,7 +363,23 @@ OMAF_NS_BEGIN
         if (sState == SDKState::INITIALIZED)
         {
             MemoryAllocator& allocator = *MemorySystem::DefaultHeapAllocator();
+
+#if OMAF_AUDIO_BACKEND_OPENSL
+
+            return OMAF_NEW(allocator, OpenSLBackend)();
+
+#elif OMAF_PLATFORM_UWP
+
+            return OMAF_NEW(allocator, WASAPIBackend)();
+
+
+#elif OMAF_AUDIO_BACKEND_WASAPI
+
+            return OMAF_NEW(allocator, WASAPIBackend)();
+
+#else
             return OMAF_NEW(allocator, NullBackend)();
+#endif
         }
         else
         {

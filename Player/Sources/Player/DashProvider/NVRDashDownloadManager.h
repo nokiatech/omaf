@@ -24,13 +24,11 @@
 #include "Foundation/NVRDataBuffer.h"
 #include "Audio/NVRAudioInputBuffer.h"
 #include "DashProvider/NVRDashAdaptationSet.h"
-#include "VAS/NVRVASTilePicker.h"
-#include "VAS/NVRVASTileContainer.h"
 #include "Media/NVRMP4StreamManager.h"
 #include "Foundation/NVRPathName.h"
 #include "Foundation/NVRAtomicBoolean.h"
 #include "DashProvider/NVRDashBitrateController.h"
-
+#include "DashProvider/NVRDashVideoDownloader.h"
 
 OMAF_NS_BEGIN
     namespace DashDownloadManagerState
@@ -60,21 +58,6 @@ OMAF_NS_BEGIN
             METADATA,
             COUNT
         };
-    }
-    namespace VASType
-    {
-        enum Enum
-        {
-            INVALID = -1,
-            NONE,
-            SUBPICTURES,
-            EXTRACTOR_PRESELECTIONS_QUALITY,    // single resolution tiles, multiple qualities, linked with Preselections
-            EXTRACTOR_DEPENDENCIES_QUALITY,     // extractor has the qualities & coverage, linked with dependencyId
-            EXTRACTOR_PRESELECTIONS_RESOLUTION, // multi-resolution tiles, linked with Preselections
-            EXTRACTOR_DEPENDENCIES_RESOLUTION,  // multi-resolution tiles, linked with dependencyId
-            COUNT
-        };
-
     }
 
     class DashDownloadManager : public DashAdaptationSetObserver, public MP4StreamManager
@@ -115,8 +98,7 @@ OMAF_NS_BEGIN
         // called by renderer thread
         // all parameters in degrees
         const MP4VideoStreams& selectSources(float64_t longitude, float64_t latitude, float64_t roll, float64_t width, float64_t height, streamid_t& aBaseLayerStreamId);
-
-        virtual bool_t hasMPDVideoMetadata() const;
+        bool_t setInitialViewport(float64_t longitude, float64_t latitude, float64_t roll, float64_t width, float64_t height);
 
         MediaInformation getMediaInformation();
 
@@ -142,7 +124,7 @@ OMAF_NS_BEGIN
 
         virtual bool_t isBuffering();
         virtual bool_t isEOS() const;
-        virtual bool_t isReadyToSwitch(MP4MediaStream& aStream) const;
+        virtual bool_t isReadyToSignalEoS(MP4MediaStream& aStream) const;
 
     public: // from AdaptationSetObserver
         void_t onNewStreamsCreated();
@@ -155,20 +137,15 @@ OMAF_NS_BEGIN
         Error::Enum updateMPD(bool_t synchronous);
 
         void_t processSegmentDownload();
-        bool_t updateVideoStreams();
-        void_t checkVASVideoStreams(uint64_t currentPTS);
 
     private:
         AdaptationSets mAdaptationSets;
         dash::mpd::IMPD *mMPD;
         dash::IDASHManager *mDashManager;
-        DashBitrateContoller mBitrateController;
 
-        DashAdaptationSet* mVideoBaseAdaptationSet; 
-        DashAdaptationSet* mVideoBaseAdaptationSetStereo;
-        // The two tile-lists are alternatives: first is used with base layer + enhancement layer scheme, the 2nd with OMAF HEVC tiles
-        VASTilesLayer mVideoEnhTiles;
-        VASTilesLayer mVideoPartialTiles;
+        DashVideoDownloader* mVideoDownloader;
+        AtomicBoolean mVideoDownloaderCreated;
+        Event mViewportSetEvent;
 
         DashAdaptationSet *mAudioAdaptationSet;
         DashAdaptationSet *mAudioMetadataAdaptationSet;
@@ -181,22 +158,12 @@ OMAF_NS_BEGIN
         int32_t mMPDUpdateTimeMS;
         uint32_t mMPDUpdatePeriodMS;
         std::string mPublishTime;
-        VASTilePicker* mTilePicker;
-        MP4VideoStreams mCurrentVideoStreams;
-        MP4VideoStreams mRenderingVideoStreams;
         MP4AudioStreams mCurrentAudioStreams;
 
-        CoreProviderSourceTypes mVideoSourceTypes;
         bool_t mMetadataLoaded;
-        AtomicBoolean mNewVideoStreamsCreated;
-        AtomicBoolean mVideoStreamsChanged;
-        bool_t mStreamUpdateNeeded;
-        bool_t mGlobalSubSegmentsSupported;
 
         MediaInformation mMediaInformation;
 
-        uint32_t mPlaybackStartTimeMs;
-        bool_t mReselectSources;
         BasicSourceInfo mSourceOverride;
         class MPDDownloadThread
         {
@@ -217,12 +184,9 @@ OMAF_NS_BEGIN
             dash::IDASHManager *mDashManager;
             uint64_t mStart;
             bool_t mBusy;
+            uint32_t mMpdDownloadTimeMs;
+            friend class DashDownloadManager;
         };
         MPDDownloadThread* mMPDUpdater;
-        bool_t mABREnabled;
-        uint32_t mBandwidthOverhead;
-        uint32_t mBaseLayerDecoderPixelsinSec;
-        bool_t mTileSetupDone;
-        VASType::Enum mVASType;
     };
 OMAF_NS_END

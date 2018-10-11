@@ -92,11 +92,12 @@ Error::Enum MP4VRProvider::openFile(PathName &uri)
     return result;
 }
 
-void_t MP4VRProvider::selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources &required, CoreProviderSources &optional)
+uint64_t MP4VRProvider::selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources &required, CoreProviderSources &optional)
 {
     // No source picking so all sources are required
     required.clear();
     required.add(mMediaStreamManager->getVideoSources());
+    return 0;
 }
 
 const CoreProviderSourceTypes& MP4VRProvider::getSourceTypes()

@@ -27,7 +27,7 @@ namespace Hvc2Extractor
         std::uint8_t nuh_temporal_id_plus1 = 0;
     };
 
-    struct ExtNalDat
+    struct ExtractorSample
     {
         struct SampleConstruct
         {
@@ -46,22 +46,26 @@ namespace Hvc2Extractor
             std::vector<std::uint8_t> inline_data;
         };
 
-        std::vector<SampleConstruct> sampleConstruct;
-        std::vector<InlineConstruct> inlineConstruct;
+        struct Extractor
+        {
+            std::vector<InlineConstruct> inlineConstruct;
+            std::vector<SampleConstruct> sampleConstruct;
+        };
+        std::vector<Extractor> extractors;
     };
 
 
     struct Hvc2ExtractorNal
     {
         ExtNalHdr extNalHdr = {};
-        ExtNalDat extNalDat = {};
+        ExtractorSample extNalDat = {};
     };
 
     using DataVector = Vector<std::uint8_t>;
 
     // If the NalData is affirmed to be an extractor NAL, parse it to extNalDat
     bool parseExtractorNal(const DataVector& NalData,
-                           ExtNalDat& extNalDat,
+                           ExtractorSample& extNalDat,
                            uint8_t lengthSizeMinus1,
                            uint64_t& extractionSize);
 };  // namespace Hvc2Extractor

@@ -52,9 +52,9 @@ namespace VDD
         else
         {
             config->setKeyValue("dash.mpd.filename", aVDDConfig.outputDASH);
-            config->setKeyValue("dash.media.segment_name.mono", "$Name$.mono.$Segment$.mp4");
+            config->setKeyValue("dash.media.segment_name.video", "$Name$.video.$Segment$.mp4");
             config->setKeyValue("dash.media.segment_name.audio", "$Name$.audio.$Segment$.mp4");
-            config->setKeyValue("video.modes", "mono"); // only mono for DASH at the moment
+            config->setKeyValue("video.modes", "mono, topbottom, sidebyside");
         }
 
 

@@ -211,12 +211,14 @@ target_include_directories(${MODULE_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Pl
 
 target_include_directories(${MODULE_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Player/")
 
-
 target_include_directories(${MODULE_NAME} PRIVATE "${PROJECT_BINARY_DIR}")
 
 target_include_directories(${MODULE_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/../Mp4/srcs/api/reader/")
 
 target_include_directories(${MODULE_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/../../libdash/libdash/libdash/include/")
+
+target_include_directories(${MODULE_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/../../heif/srcs/api/common/")
+target_include_directories(${MODULE_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/../../heif/srcs/api/reader/")
 
 
 if(TARGET_OS_ANDROID)

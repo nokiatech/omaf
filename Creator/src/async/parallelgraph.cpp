@@ -125,6 +125,11 @@ namespace VDD
 
                                 nodeInfo.enqueued.pop_front();
                             }
+
+                            if (nodeInfo.terminated)
+                            {
+                                nodeInfo.enqueued.clear();
+                            }
                         }
 
                         double t1 = Utils::getSeconds();
@@ -295,6 +300,7 @@ namespace VDD
             {
                 n->processor = processor;
             }
+            n->isSource = !!dynamic_cast<AsyncSource*>(node);
 
             mById.insert({ n->node->getId(), n.get() });
             mNodeInfo.emplace(std::make_pair(node, std::move(n)));
@@ -473,6 +479,11 @@ namespace VDD
             performanceLogging();
         }
 
+        if (mConfig.enableDebugDump)
+        {
+            debugDump();
+        }
+
         return keepWorking;
     }
 
@@ -629,6 +640,76 @@ namespace VDD
         }
         return perfInfos;
     }
+
+    void ParallelGraph::debugDump()
+    {
+        auto now = std::chrono::steady_clock::now();
+        std::chrono::duration<double> delta = now - mPrevDebugDumpTime;
+        if (delta.count() > 0.2)
+        {
+            std::ostringstream dump;
+            dump << "--" << std::endl;
+            mPrevDebugDumpTime = now;
+            size_t count = 0;
+            for (auto idNodeInfo: mById)
+            {
+                auto id = idNodeInfo.first;
+                const auto& nodeInfo = *idNodeInfo.second;
+
+                DebugPrevNodeInfo info { nodeInfo.numInputs.load(), nodeInfo.numOutputs.load() };
+
+                if (mDebugPrevNodeInfo.count(id))
+                {
+                    DebugPrevNodeInfo& prevInfo = mDebugPrevNodeInfo[id];
+
+                    const AsyncSource* source = nodeInfo.isSource ? static_cast<const AsyncSource*>(nodeInfo.node) : nullptr;
+                    bool isActive = source ? source->isActive() : false;
+
+                    if (nodeInfo.enqueued.size() ||
+                        info.in - prevInfo.in ||
+                        info.out - prevInfo.out ||
+                        isActive)
+                    {
+                        std::ostringstream st;
+
+                        st << id
+                           << ":" << nodeInfo.enqueued.size()
+                           << ":" << info.in - prevInfo.in
+                           << ":" << info.out - prevInfo.out
+                           << ":" << nodeInfo.oldestEnqueuedData.load()
+                           << ":" << isActive
+                           << ":B" << nodeInfo.areOutputsBlocked()
+                           << ":R" << nodeInfo.running
+                           << ":W" << nodeInfo.nodeHasWork()
+                            ;
+
+                        ++count;
+                        dump << st.str();
+                        if (count % 8 == 0)
+                        {
+                            dump << std::endl;
+                        } else {
+                            for (int c = 0; c < 30 - int(st.str().size()); ++c)
+                            {
+                                dump << " ";
+                            }
+                            dump << " ";
+                        }
+                    }
+                }
+
+                mDebugPrevNodeInfo[id] = info;
+            }
+
+            if (dump.str() != mPrevDebugDump)
+            {
+                mPrevDebugDump = dump.str();
+                std::cout << mPrevDebugDump << std::endl;
+            }
+        }
+    }
+
+
 
     size_t ParallelGraph::numActiveNodes() const
     {

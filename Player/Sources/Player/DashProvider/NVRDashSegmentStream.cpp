@@ -51,6 +51,7 @@ DashSegmentStream::DashSegmentStream(
     , mDownloadSpeedFactor(0.0f)
     , mCachedSegmentCount(0)
     , mDownloadRetryCounter(0)
+    , mMaxAvgDownloadTimeMs(0)
     , mLastRequest(0)
     , mInitializationSegmentId(aInitializationSegmentId)
     , mSegmentIndexState(DashSegmentIndexState::WAITING)
@@ -144,6 +145,7 @@ bool_t DashSegmentStream::isEndOfStream()
     {
         if (mAutoFillCache && mCachedSegmentCount <= 1) 
         {
+            OMAF_LOG_V("DashSegmentStream is EoS");
             return true;
         }
         else
@@ -300,20 +302,22 @@ void_t DashSegmentStream::stopSegmentIndexDownload()
 
 void_t DashSegmentStream::startDownload(time_t downloadStartTime, bool_t aIsIndependent)
 {
-    mInitialCachedSegments = min((uint32_t)INITIAL_CACHE_SIZE, mMaxCachedSegments);
+    mInitialCachedSegments = max((uint32_t)(INITIAL_CACHE_DURATION_MS / mSegmentDurationInMs + 1), mMaxCachedSegments);
+    OMAF_LOG_V("Initial cache %d", mInitialCachedSegments);
     mDownloadByteRange = { 0, 0 };
     startDownloader(downloadStartTime, INVALID_SEGMENT_INDEX, aIsIndependent);
 }
 
 void_t DashSegmentStream::startDownloadABR(uint32_t overrideSegmentId, bool_t aIsIndependent)
 {
-    // This call is done always when the playback is already ongoing, after ABR switch. Hence to minimize any buffering notes, use a smaller threshold for cache.
-    mInitialCachedSegments = min((uint32_t)INITIAL_CACHE_SIZE_IN_ABR, mMaxCachedSegments);
     startDownloadWithOverride(overrideSegmentId, aIsIndependent);
 }
 
 void_t DashSegmentStream::startDownloadWithOverride(uint32_t overrideSegmentId, bool_t aIsIndependent)
 {
+    // This call is done always when the playback is already ongoing, after ABR switch. Hence to minimize any buffering notes, use a smaller threshold for cache.
+    mInitialCachedSegments = min((uint32_t)INITIAL_CACHE_SIZE_IN_ABR, mMaxCachedSegments);
+    OMAF_LOG_V("Initial cache %d", mInitialCachedSegments);
     mDownloadByteRange = { 0, 0 };
     if (overrideSegmentId == 0)
     {
@@ -636,7 +640,10 @@ void_t DashSegmentStream::processDownloadingSegmentIndex(uint32_t segmentId)
 
 void_t DashSegmentStream::processSegmentDownload(bool_t aForcedCacheUpdate)
 {
-    if (!mRunning) return;
+    if (!mRunning)
+    {
+        return;
+    }
     switch (mState)
     {
     case DashSegmentStreamState::UNINITIALIZED:
@@ -707,6 +714,9 @@ void_t DashSegmentStream::processSegmentDownload(bool_t aForcedCacheUpdate)
         {
             // report buffering warning to bitrate controller
             mObserver->onCacheWarning();
+            //TODO should have some filter before increasing to avoid excessive increase in short time
+            //mMaxCachedSegments++;
+            OMAF_LOG_W("Running out of cache!");
         }
 
         processIdleOrRetry();
@@ -860,12 +870,15 @@ void_t DashSegmentStream::updateDownloadTime(int64_t newDownloadTime)
     if (mDownloadTimesInMs.getSize() > 1)
     {
         FixedArray<float32_t, 3> factors;
+        uint32_t avgTimeMs = 0;
 
         float32_t segmentDurationInMs = (float32_t)mSegmentDurationInMs;
         for (DownloadTimes::ConstIterator it = mDownloadTimesInMs.begin();
              it != mDownloadTimesInMs.end(); ++it)
         {
             float32_t factor = segmentDurationInMs / (*it);
+            avgTimeMs += (uint32_t)(*it);
+
             bool_t added = false;
             for (size_t i = 0; i < factors.getSize(); i++)
             {
@@ -890,6 +903,15 @@ void_t DashSegmentStream::updateDownloadTime(int64_t newDownloadTime)
         }
 
         OMAF_LOG_V("New downloadSpeedFactor: %f", mDownloadSpeedFactor);
+
+        avgTimeMs /= factors.getSize();
+        if (avgTimeMs > mMaxAvgDownloadTimeMs)
+        {
+            mMaxAvgDownloadTimeMs = avgTimeMs;
+            mMaxCachedSegments = max(mMaxCachedSegments, (uint32_t)ceil(3.f*mMaxAvgDownloadTimeMs / mSegmentDurationInMs));
+            OMAF_LOG_V("Increase cache limit to %d, avg download time ms %d", mMaxCachedSegments, avgTimeMs);
+        }
+
     }
 }
 
@@ -905,7 +927,7 @@ uint32_t DashSegmentStream::getAvgDownloadTimeMs()
     for (DownloadTimes::ConstIterator it = mDownloadTimesInMs.begin();
         it != mDownloadTimesInMs.end(); ++it)
     {
-        avgTimeMs += *it;
+        avgTimeMs += (uint32_t)(*it);
         count++;
     }
     if (count < 3)
@@ -917,7 +939,6 @@ uint32_t DashSegmentStream::getAvgDownloadTimeMs()
         }
     }
     avgTimeMs = max(MIN_DOWNLOAD_TIME, (uint32_t)(avgTimeMs / count) + 100); // add 100 ms safety margin, and use 500 ms as the minimum
-    //OMAF_LOG_D("avgTimeMs %d", avgTimeMs);
     return avgTimeMs;
 }
 
@@ -974,7 +995,13 @@ void_t DashSegmentStream::setCacheFillMode(bool_t autoFill)
     {
         mMaxCachedSegments = 1;
     }
+}
 
+void_t DashSegmentStream::setBufferingTime(uint32_t aExpectedPingTimeMs)
+{
+    // Set initial value based on round-trip delay measured from MPD; will be updated if average download time is more than expected or we run out of cache
+    mMaxCachedSegments = max(RUNTIME_CACHE_DURATION_MS/mSegmentDurationInMs, min(mMaxCachedSegments, (uint32_t)ceil(20.f*aExpectedPingTimeMs/mSegmentDurationInMs)));
+    OMAF_LOG_V("MaxCachedSegments based on MPD ping time %d -> %d", aExpectedPingTimeMs, mMaxCachedSegments);
 }
 
 bool_t DashSegmentStream::hasFixedSegmentSize() const

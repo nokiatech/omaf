@@ -21,7 +21,6 @@
 OMAF_NS_BEGIN
     OMAF_LOG_ZONE(DashStaticTemplateStream)
 
-    static uint32_t kBufferingTime(10000);
     static uint32_t kAbsMaxCacheSize(15);    // with very short segments, too large cache derived from target buffering time can throttles the whole system
     
     DashTemplateStreamStatic::DashTemplateStreamStatic(uint32_t bandwidth,
@@ -41,7 +40,7 @@ OMAF_NS_BEGIN
         mSegmentCount = (mTotalDurationMs+(mSegmentDurationInMs-1)) / mSegmentDurationInMs; //round up.
         mMaxCachedSegments = min(mSegmentCount, 
                                     min(kAbsMaxCacheSize,
-                                        max(INITIAL_CACHE_SIZE,(uint32_t)(kBufferingTime / mSegmentDurationInMs) + 1))); // buffer for at least kBufferingTime seconds (round up) or 2 buffers (buffering state is entered if only 1 segment is cached)
+                                        max(2u, INITIAL_CACHE_DURATION_MS/mSegmentDurationInMs + 1))); // buffer for at least INITIAL_CACHE_DURATION_MS (round up) or 2 buffers (buffering state is entered if only 1 segment is cached)
     }
 
     DashTemplateStreamStatic::~DashTemplateStreamStatic()

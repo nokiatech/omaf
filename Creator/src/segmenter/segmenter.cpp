@@ -109,6 +109,18 @@ namespace VDD
         }
     }
 
+    std::string Segmenter::getGraphVizDescription()
+    {
+        std::ostringstream st;
+        bool first = true;
+        for (auto streamId: mConfig.streamIds) {
+            st << (first ? "" : ",");
+            first = false;
+            st << streamId;
+        }
+        return st.str();
+    }
+
     Segmenter::~Segmenter()
     {
         // nothing
@@ -434,21 +446,32 @@ namespace VDD
 
     void Segmenter::packExtractors(const Data& aFrame, std::vector<Data>& aOutputData)
     {
-        StreamSegmenter::Segmenter::HevcExtractorTrackFrameData extractorData;
+        std::vector<std::uint8_t> extractorNALUnits;
+        if (aFrame.getStorageType() != StorageType::Empty)
+        {
+            // first place possible other NAL units (at least SEI)
+            auto& data = aFrame.getCPUDataReference();
+            StreamSegmenter::FrameData frameData(
+                static_cast<const std::uint8_t*>(data.address[0]),
+                static_cast<const std::uint8_t*>(data.address[0]) + data.size[0]);
+
+            extractorNALUnits.insert(extractorNALUnits.begin(), make_move_iterator(frameData.begin()), make_move_iterator(frameData.end()));
+        }
         for (auto extractor : aFrame.getExtractors())
         {
+            StreamSegmenter::Segmenter::HevcExtractorTrackFrameData extractorData;
             extractorData.nuhTemporalIdPlus1 = extractor.nuhTemporalIdPlus1;
             std::vector<Extractor::SampleConstruct>::iterator sampleConstruct;
             std::vector<Extractor::InlineConstruct>::iterator inlineConstruct;
 
             // We loop through both constructors, until both of them are empty. They are often interleaved, but not
             // always through the whole sequence.
+            StreamSegmenter::Segmenter::HevcExtractor outputExtractor;
             for (sampleConstruct = extractor.sampleConstruct.begin(),
                 inlineConstruct = extractor.inlineConstruct.begin();
                 sampleConstruct != extractor.sampleConstruct.end() ||
                 inlineConstruct != extractor.inlineConstruct.end();)
             {
-                StreamSegmenter::Segmenter::HevcExtractor outputExtractor;
                 if (inlineConstruct != extractor.inlineConstruct.end() &&
                     (sampleConstruct == extractor.sampleConstruct.end() ||
                     (*inlineConstruct).idx < (*sampleConstruct).idx))
@@ -465,11 +488,14 @@ namespace VDD
                     outputExtractor.sampleConstructor->dataLength = sampleConstruct->dataLength;
                     outputExtractor.sampleConstructor->trackId = sampleConstruct->trackId;  // Note: this refers to the index in the track references. It works if trackIds are 1-based and contiguous, as the spec expects the index is 1-based. 
                     sampleConstruct++;
+                    // now we have a full extractor: either just a sample constructor, or inline+sample constructor pair
+                    extractorData.samples.push_back(outputExtractor);
+                    const StreamSegmenter::FrameData& nal = extractorData.toFrameData();
+                    extractorNALUnits.insert(extractorNALUnits.end(), make_move_iterator(nal.begin()), make_move_iterator(nal.end()));
                 }
-                extractorData.samples.push_back(outputExtractor);
             }
         }
-        std::vector<std::vector<std::uint8_t>> matrix(1, std::move(extractorData.toFrameData()));
+        std::vector<std::vector<std::uint8_t>> matrix(1, std::move(extractorNALUnits));
         Meta meta(aFrame.getCodedFrameMeta());
         if (auto trackIdTag = aFrame.getMeta().findTag<TrackIdTag>())
         {

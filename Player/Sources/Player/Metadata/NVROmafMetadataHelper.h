@@ -25,7 +25,7 @@ OMAF_NS_BEGIN
 namespace OmafMetadata
 {
     Error::Enum parseOmafEquirectRegions(const MP4VR::RegionWisePackingProperty& aRwpk, RegionPacking& aRegionPacking, SourceDirection::Enum aSourceDirection);
-    Error::Enum parseOmafCubemapFaceInfo(const MP4VR::RegionWisePackingProperty& aRwpk, SourceDirection::Enum aSourceDirection, uint32_t& aFaceOrderBits, uint32_t& aFaceOrientationBits);
+    Error::Enum parseOmafCubemapRegions(const MP4VR::RegionWisePackingProperty& aRwpk, SourceDirection::Enum aSourceDirection, VRCubeMap& aTiledCubeMap);
 }
 
 

@@ -204,6 +204,11 @@ Error::Enum ProviderBase::stop()
     }
 }
 
+Error::Enum ProviderBase::next()
+{
+    return Error::NOT_SUPPORTED;
+}
+
 // called in client thread
 Error::Enum ProviderBase::seekToMs(uint64_t& aSeekMs, SeekAccuracy::Enum seekAccuracy)
 {
@@ -421,7 +426,7 @@ PacketProcessingResult::Enum ProviderBase::processMP4Video(MP4StreamManager &str
 
                     if (videoStream->getMode() == VideoStreamMode::BASE)
                     {
-                        if (streamManager.isEOS() || streamManager.isReadyToSwitch(*videoStream))
+                        if (streamManager.isEOS() || streamManager.isReadyToSignalEoS(*videoStream))
                         {
                             // notify decoder about end of stream
                             OMAF_LOG_V("Set EOS after empty packet from base layer stream %d",
@@ -689,6 +694,12 @@ PacketProcessingResult::Enum ProviderBase::processMP4Audio(MP4StreamManager& str
     }
 }
 
+bool_t ProviderBase::setInitialViewport(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical)
+{
+    // is relevant for viewport dependent operation only, skipped
+    return true;
+}
+
 Streams ProviderBase::extractStreamsFromSources(const CoreProviderSources &sources)
 {
     Streams streams;
@@ -721,6 +732,27 @@ Error::Enum ProviderBase::prepareSources(HeadTransform currentHeadtransform, flo
         && state != VideoProviderState::BUFFERING
         && state != VideoProviderState::LOADED)
     {
+    
+        if (!mViewingOrientationOffset.valid)
+        {
+            // make sure we start at yaw = 0, no matter where the user is watching. If there's signaled initial viewing orientation, it will be applied when the state is such that this step is skipped, and it will override this one
+            Quaternion sensorOffset = currentHeadtransform.orientation;
+
+            // We take the current sensor as the new origin for yaw/azimuth. Hence the current yaw should be inverted. 
+            float32_t yaw, pitch, roll;
+            eulerAngles(sensorOffset, yaw, pitch, roll, EulerAxisOrder::YXZ);
+            sensorOffset = makeQuaternion(0.f, -yaw, 0.f, EulerAxisOrder::YXZ);
+
+            mViewingOrientationOffset.orientation = sensorOffset;
+
+            mViewingOrientationOffset.valid = true;
+
+            setupInitialViewingOrientation(currentHeadtransform, 0);
+            if (!setInitialViewport(currentHeadtransform, fovHorizontal, fovVertical))
+            {
+                mViewingOrientationOffset.valid = false; // triggers to retry
+            }
+        }
         return Error::OK_SKIPPED;
     }
 
@@ -735,7 +767,7 @@ Error::Enum ProviderBase::prepareSources(HeadTransform currentHeadtransform, flo
     // initial viewing orientation should be added to currentHeadTransform before selecting sources
     setupInitialViewingOrientation(currentHeadtransform, elapsedTimeUs);
 
-    selectSources(currentHeadtransform, fovHorizontal, fovVertical, requiredSources, enhancementSources);
+    uint64_t sourceValidFromPts = selectSources(currentHeadtransform, fovHorizontal, fovVertical, requiredSources, enhancementSources);
     for(CoreProviderSources::ConstIterator it = requiredSources.begin(); it != requiredSources.end(); ++it)
     {
         requiredVideoSources.add(*it);
@@ -760,16 +792,22 @@ Error::Enum ProviderBase::prepareSources(HeadTransform currentHeadtransform, flo
 
     if (uploadResult == Error::OK)
     {
-        mFirstDisplayFramePTSUs = OMAF_UINT64_MAX;
-        mPreparedSources.clear();
-
-        for (CoreProviderSources::ConstIterator it = allSelectedSources.begin(); it != allSelectedSources.end(); ++it)
+        uint64_t pts = OMAF_UINT64_MAX;
+        if (!requiredStreams.isEmpty())
         {
-            CoreProviderSource* coreProviderSource = *it;
-
-            if (coreProviderSource->category == SourceCategory::VIDEO)
+            pts = mVideoDecoder->getCurrentVideoFrame(requiredStreams.at(0)).pts;
+        }
+        if (requiredStreams.isEmpty() || pts < sourceValidFromPts)
+        {
+            if (pts < sourceValidFromPts)
             {
-                VideoFrameSource* videoFrameSource = (VideoFrameSource*)coreProviderSource;
+                OMAF_LOG_D("Source pts %llu is for a newer frame than %llu", sourceValidFromPts,
+                           pts);
+            }
+            // reuse the old sources list but update the texture references
+            for (CoreProviderSources::Iterator it = mPreparedSources.begin(); it != mPreparedSources.end(); ++it)
+            {
+                VideoFrameSource* videoFrameSource = (VideoFrameSource*)(*it);
                 streamid_t streamId = videoFrameSource->streamIndex;
 
                 if (textureLoadOutput.updatedStreams.contains(streamId))
@@ -780,16 +818,48 @@ Error::Enum ProviderBase::prepareSources(HeadTransform currentHeadtransform, flo
                     mMediaInformation.height = videoFrameSource->heightInPixels;
                     if (mViewingOrientationOffset.valid)
                     {
-                        // initial viewing orientation has to be stored to the source to pass it to the renderer. 
-						// And we need to calculate it in provider due to viewport dependent operation
+                        // initial viewing orientation has to be stored to the source to pass it to the renderer.
+                        // And we need to calculate it in provider due to viewport dependent operation
                         videoFrameSource->forcedOrientation.orientation = currentHeadtransform.orientation;
                         videoFrameSource->forcedOrientation.valid = true;
                     }
-                    mPreparedSources.add(videoFrameSource);
                 }
-                OMAF_LOG_V("Rendered frame %lld target %lld", videoFrameSource->videoFrame.pts, elapsedTimeUs);
             }
         }
+        else
+        {
+            // normal case, create new sources for the new texture(s)
+
+            mFirstDisplayFramePTSUs = OMAF_UINT64_MAX;
+            mPreparedSources.clear();
+            for (CoreProviderSources::ConstIterator it = allSelectedSources.begin(); it != allSelectedSources.end(); ++it)
+            {
+                CoreProviderSource* coreProviderSource = *it;
+
+                if (coreProviderSource->category == SourceCategory::VIDEO)
+                {
+                    VideoFrameSource* videoFrameSource = (VideoFrameSource*)coreProviderSource;
+                    streamid_t streamId = videoFrameSource->streamIndex;
+
+                    if (textureLoadOutput.updatedStreams.contains(streamId))
+                    {
+                        videoFrameSource->videoFrame = mVideoDecoder->getCurrentVideoFrame(streamId);
+                        // Video resolution can change so update it
+                        mMediaInformation.width = videoFrameSource->widthInPixels;
+                        mMediaInformation.height = videoFrameSource->heightInPixels;
+                        if (mViewingOrientationOffset.valid)
+                        {
+                            // initial viewing orientation has to be stored to the source to pass it to the renderer.
+                            // And we need to calculate it in provider due to viewport dependent operation
+                            videoFrameSource->forcedOrientation.orientation = currentHeadtransform.orientation;
+                            videoFrameSource->forcedOrientation.valid = true;
+                        }
+                        mPreparedSources.add(videoFrameSource);
+                    }
+                }
+            }
+        }
+        //OMAF_LOG_V("Rendered frame %lld source %lld", pts, sourceValidFromPts);
         mVideoDecoderFull = false;
     }
 
@@ -843,10 +913,21 @@ Error::Enum ProviderBase::setAudioInputBuffer(AudioInputBuffer *inputBuffer)
         //connect to new buffer.
         mAudioInputBuffer->setObserver(this);
         mAuxiliaryAudioInputBuffer = inputBuffer->getAuxiliaryAudioInputBuffer();
-        mAuxiliarySynchronizer.setAudioSource(mAuxiliaryAudioInputBuffer);
-        mAuxiliaryAudioInputBuffer->setObserver(this);
+        if (mAuxiliaryAudioInputBuffer != OMAF_NULL)
+        {
+            mAuxiliarySynchronizer.setAudioSource(mAuxiliaryAudioInputBuffer);
+            mAuxiliaryAudioInputBuffer->setObserver(this);
+        }
     }
     return Error::OK;
+}
+
+void ProviderBase::enter() {
+    mResourcesInUse.wait();
+}
+
+void ProviderBase::leave() {
+    mResourcesInUse.signal();
 }
 
 void_t ProviderBase::initializeAuxiliaryAudio(const MP4AudioStreams& audioStreams)

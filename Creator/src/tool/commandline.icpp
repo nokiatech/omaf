@@ -56,9 +56,60 @@ namespace VDD
         }
 
         template <typename T>
+        T&
+        OptionallyReference<T>::get() const
+        {
+            if (mResultOptional) {
+                if (!*mResultOptional) {
+                    *mResultOptional = T();
+                }
+                return **mResultOptional;
+            } else {
+                return *mResult;
+            }
+        }
+
+        template <typename T>
         Parse::IsRequiredType OptionallyReference<T>::isRequired() const
         {
             return mIsRequired;
+        }
+
+        template <typename SubParse, typename Container>
+        Accumulate<SubParse, Container>::Accumulate(std::string aArgumentName, OptionallyReference<Container> aResult)
+            : Parse(aArgumentName, aResult.isRequired(), Parse::CanBeRepeated)
+            , mContainer(aResult)
+            , mMapping([](const typename SubParse::ResultType& arg) { return arg; })
+        {
+            // nothing
+        }
+
+        template <typename SubParse, typename Container>
+        Accumulate<SubParse, Container>::Accumulate(std::string aArgumentName,
+                                                    OptionallyReference<Container> aResult,
+                                                    std::function<typename Container::value_type(typename SubParse::ResultType)> aMapping)
+            : Parse(aArgumentName, aResult.isRequired(), Parse::CanBeRepeated)
+            , mContainer(aResult)
+            , mMapping(aMapping)
+        {
+            // nothing
+        }
+
+        template <typename SubParse, typename Container>
+        ParseResult
+        Accumulate<SubParse, Container>::parse(Arguments aArguments) const
+        {
+            typename SubParse::ResultType result;
+            auto parseResult = SubParse(argumentName() ? *argumentName() : "", result).parse(aArguments);
+            if (parseResult.isOK())
+            {
+                mContainer.get().push_back(mMapping(result));
+                return ParseResult::OK();
+            }
+            else
+            {
+                return parseResult;
+            }
         }
 
         template <typename T>

@@ -26,7 +26,7 @@ OMAF_NS_BEGIN
 
     DashAdaptationSetExtractor::DashAdaptationSetExtractor(DashAdaptationSetObserver& observer)
     : DashAdaptationSetTile(observer)
-        , mNextSegmentToBeConcatenated(0)
+        , mNextSegmentToBeConcatenated(1)
     {
 
     }
@@ -35,9 +35,8 @@ OMAF_NS_BEGIN
     {
     }
 
-    bool_t DashAdaptationSetExtractor::isExtractor(DashComponents aDashComponents, uint32_t& aAdaptationSetId)
+    bool_t DashAdaptationSetExtractor::isExtractor(DashComponents aDashComponents)
     {
-        aAdaptationSetId = aDashComponents.adaptationSet->GetId();
         for (size_t codecIndex = 0; codecIndex < aDashComponents.adaptationSet->GetCodecs().size(); codecIndex++)
         {
             const std::string& codec = aDashComponents.adaptationSet->GetCodecs().at(codecIndex);
@@ -49,9 +48,14 @@ OMAF_NS_BEGIN
         return false;
     }
 
-    SupportingAdaptationSetIds DashAdaptationSetExtractor::hasPreselection(DashComponents aDashComponents, uint32_t aAdaptationSetId)
+    uint32_t DashAdaptationSetExtractor::parseId(DashComponents aDashComponents)
     {
-        SupportingAdaptationSetIds supportingSetIds;
+        return aDashComponents.adaptationSet->GetId();
+    }
+
+    AdaptationSetBundleIds DashAdaptationSetExtractor::hasPreselection(DashComponents aDashComponents, uint32_t aAdaptationSetId)
+    {
+        AdaptationSetBundleIds supportingSetIds;
         // In OMAF, Preselection links adaptation sets. Not relevant with the representations
         DashOmafAttributes::getOMAFPreselection(aDashComponents, aAdaptationSetId, supportingSetIds);
         return supportingSetIds;
@@ -63,6 +67,24 @@ OMAF_NS_BEGIN
         // check for dependencies too. We add all representation ids that all representations of this set depends on into the same list, but grouped
         DashOmafAttributes::getOMAFRepresentationDependencies(aDashComponents, dependingRepresentationIds);
         return dependingRepresentationIds;
+    }
+
+    bool_t DashAdaptationSetExtractor::hasMultiResolution(DashComponents aDashComponents)
+    {
+        bool_t multiResolution;
+        dash::mpd::IRepresentation *representation = aDashComponents.adaptationSet->GetRepresentation().at(0);
+        Error::Enum result = DashOmafAttributes::getOMAFQualityRankingType(representation->GetAdditionalSubNodes(), multiResolution);
+        if (result == Error::ITEM_NOT_FOUND)
+        {
+            // try adaptation set level - TODO should this be under the DashOmafAttributes
+            result = DashOmafAttributes::getOMAFQualityRankingType(aDashComponents.adaptationSet->GetAdditionalSubNodes(), multiResolution);
+        }
+
+        if (result != Error::OK)
+        {
+            return false;
+        }
+        return multiResolution;
     }
 
 
@@ -125,6 +147,19 @@ OMAF_NS_BEGIN
         {
             return 0;
         }
+    }
+
+    Error::Enum DashAdaptationSetExtractor::startDownload(time_t startTime)
+    {
+        mTargetNextSegmentId = 0;
+        return DashAdaptationSet::startDownload(startTime);
+    }
+
+    Error::Enum DashAdaptationSetExtractor::startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode, uint32_t aExpectedPingTimeMs)
+    {
+        mExpectedPingTimeMs = aExpectedPingTimeMs;
+        mTargetNextSegmentId = overrideSegmentId;
+        return DashAdaptationSet::startDownload(overridePTSUs, overrideSegmentId, aMode, aExpectedPingTimeMs);
     }
 
     Error::Enum DashAdaptationSetExtractor::stopDownload()
@@ -211,11 +246,18 @@ OMAF_NS_BEGIN
                 {
                     if ((*it)->isActive())
                     {
-                        (*it)->processSegmentDownloadTile(nextSegmentId);
+                        (*it)->processSegmentDownloadTile(nextSegmentId, true);
                     }
                     else
                     {
-                        (*it)->startDownload(mDownloadStartTime);
+                        if (mTargetNextSegmentId > 0)
+                        {
+                            (*it)->startDownload(OMAF_UINT64_MAX, mTargetNextSegmentId, VideoStreamMode::BASE, mExpectedPingTimeMs);
+                        }
+                        else
+                        {
+                            (*it)->startDownload(mDownloadStartTime);
+                        }
                     }
                 }
             }
@@ -271,7 +313,7 @@ OMAF_NS_BEGIN
         }
     }
 
-    const SupportingAdaptationSetIds& DashAdaptationSetExtractor::getSupportingSets() const
+    const AdaptationSetBundleIds& DashAdaptationSetExtractor::getSupportingSets() const
     {
         return mSupportingSetIds;
     }
@@ -279,6 +321,7 @@ OMAF_NS_BEGIN
     void_t DashAdaptationSetExtractor::addSupportingSet(DashAdaptationSetTile* aSupportingSet)
     {
         mSupportingSets.add(aSupportingSet);
+        //OMAF_LOG_V("addSupportingSet %d for %d", aSupportingSet->getId(), mAdaptationSetId);
     }
 
     void_t DashAdaptationSetExtractor::concatenateAndParseSegments()
@@ -287,6 +330,17 @@ OMAF_NS_BEGIN
         DashSegment* segment = mCurrentRepresentation->peekSegment();
         if (segment != OMAF_NULL)
         {
+            if (segment->getSegmentId() < mNextSegmentToBeConcatenated)
+            {
+                OMAF_LOG_V("Too old segment!");
+                mCurrentRepresentation->cleanUpOldSegments(mNextSegmentToBeConcatenated);
+                segment = mCurrentRepresentation->peekSegment();
+                if (segment == OMAF_NULL)
+                {
+                    return;
+                }
+            }
+            OMAF_LOG_V("concatenateAndParseSegments %d, repr %s", segment->getSegmentId(), mCurrentRepresentation->getId());
             size_t totalSize = segment->getDataBuffer()->getSize();
             uint32_t segmentId = segment->getSegmentId();
             bool_t available = true;
@@ -300,7 +354,6 @@ OMAF_NS_BEGIN
                 else
                 {
                     available = false;
-                    break;
                 }
             }
             if (available)

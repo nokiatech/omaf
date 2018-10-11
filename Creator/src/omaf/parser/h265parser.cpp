@@ -382,7 +382,7 @@ void H265Parser::writePPS(Parser::BitStream& bitstr, PictureParameterSet& pps, b
 }
 
 int H265Parser::writeSliceHeader(Parser::BitStream& bitstr, SliceHeader& slice,
-    H265NalUnitType naluType, SequenceParameterSet& sps, PictureParameterSet& pps)
+    H265NalUnitType naluType, const SequenceParameterSet& sps, const PictureParameterSet& pps)
 {
     bitstr.writeBits(slice.mFirstSliceSegmentInPicFlag, 1);
     if (naluType >= H265NalUnitType::CODED_SLICE_BLA_W_LP && naluType <= H265NalUnitType::RESERVED_IRAP_VCL23)
@@ -432,8 +432,6 @@ int H265Parser::writeSliceHeader(Parser::BitStream& bitstr, SliceHeader& slice,
             {
                 bitstr.writeBits(slice.mShortTermRefPicSetIdx, ceilLog2(sps.mNumShortTermRefPicSets));
             }
-            const unsigned int currStRpsIdx = slice.mShortTermRefPicSetSpsFlag ? slice.mShortTermRefPicSetIdx : sps.mNumShortTermRefPicSets;
-            slice.mCurrStRps = (currStRpsIdx == sps.mNumShortTermRefPicSets) ? &slice.mShortTermRefPicSetDerived : &sps.mShortTermRefPicSetsDerived[currStRpsIdx];
             if (sps.mLongTermRefPicsPresentFlag)
             {
                 if (sps.mNumLongTermRefPicsSps > 0)
@@ -476,18 +474,20 @@ int H265Parser::writeSliceHeader(Parser::BitStream& bitstr, SliceHeader& slice,
 
         if (slice.mSliceType == SliceType::P || slice.mSliceType == SliceType::B)
         {
+            const unsigned int currStRpsIdx = slice.mShortTermRefPicSetSpsFlag ? slice.mShortTermRefPicSetIdx : sps.mNumShortTermRefPicSets;
+            const ShortTermRefPicSetDerived* currStRps = (currStRpsIdx == sps.mNumShortTermRefPicSets) ? &slice.mShortTermRefPicSetDerived : &sps.mShortTermRefPicSetsDerived[currStRpsIdx];
             slice.mNumPocTotalCurr = 0;
-            for (unsigned int i = 0; i < slice.mCurrStRps->mNumNegativePics; ++i)
+            for (unsigned int i = 0; i < currStRps->mNumNegativePics; ++i)
             {
-                if (slice.mCurrStRps->mUsedByCurrPicS0[i])
+                if (currStRps->mUsedByCurrPicS0[i])
                 {
                     slice.mNumPocTotalCurr++;
                 }
             }
 
-            for (unsigned int i = 0; i < slice.mCurrStRps->mNumPositivePics; ++i)
+            for (unsigned int i = 0; i < currStRps->mNumPositivePics; ++i)
             {
-                if (slice.mCurrStRps->mUsedByCurrPicS1[i])
+                if (currStRps->mUsedByCurrPicS1[i])
                 {
                     slice.mNumPocTotalCurr++;
                 }
@@ -579,6 +579,8 @@ int H265Parser::writeSliceHeader(Parser::BitStream& bitstr, SliceHeader& slice,
     }
     //std::cout << "writeRbspTrailingBits" << std::endl;
     writeRbspTrailingBits(bitstr);
+//in theory we should call EPB (with offset set to skip the start code), but in practice slice header cannot have emulation
+//    insertEPB(bitstr.getStorage());
 
     return 0;
     //if (pps.mSliceSegmentHeaderExtensionPresentFlag) // TODO
@@ -940,7 +942,7 @@ int H265Parser::parseNalUnit(const vector<uint8_t>& nalUnit, NalUnitHeader& nalu
 {
     vector<uint8_t> nalUnitRBSP;
 
-    convertByteStreamToRBSP(nalUnit, nalUnitRBSP);
+    convertToRBSP(nalUnit, nalUnitRBSP);
     Parser::BitStream bitstr(nalUnitRBSP); 
     parseNalUnitHeader(bitstr, naluHeader);
 
@@ -2489,11 +2491,12 @@ H265::H265NalUnitType H265Parser::readNextNalUnit(H265InputStream& aInputStream,
         }
         else if (numZeros >= 2 && nextChar == 1)
         {
-            // mp4reader outputs 4-byte start codes
-            nalUnit.pop_back();
-            nalUnit.pop_back();
-            nalUnit.pop_back();
-            aInputStream.rewind(4);
+            // mp4reader outputs 4-byte start codes, standard hevc streams contain 4-byte start codes for param sets, but 3-byte for pictures
+            for (int i = 0; i < numZeros; i++)
+            {
+                nalUnit.pop_back();
+            }
+            aInputStream.rewind(numZeros + 1);
             startCodeFound = true;
             break;
         }
@@ -2505,7 +2508,10 @@ H265::H265NalUnitType H265Parser::readNextNalUnit(H265InputStream& aInputStream,
         ++readBytes;
     }
 
-    return H265NalUnitType((nalUnit[startCodeLen] >> 1) & 0x3f);  // NAL unit type
+    return
+        nalUnit.size()
+        ? H265NalUnitType((nalUnit[startCodeLen] >> 1) & 0x3f)
+        : H265NalUnitType::INVALID;  // NAL unit type
 }
 
 H265NalUnitType H265Parser::getH265NalUnitType(const vector<uint8_t>& nalUnit)
@@ -2547,25 +2553,28 @@ bool H265Parser::isFirstVclNaluInPic(const vector<uint8_t>& nalUnit)
     }
 }
 
-void H265Parser::convertByteStreamToRBSP(const vector<uint8_t>& byteStr, vector<uint8_t>& dest)
+void H265Parser::convertToRBSP(const vector<uint8_t>& src, vector<uint8_t>& dest, bool byteStreamMode)
 {
-    const unsigned int numBytesInNalUnit = byteStr.size();
+    const unsigned int numBytesInNalUnit = src.size();
 
     // this is a reasonable guess, as the result vector can not be larger than the original
     dest.reserve(numBytesInNalUnit);
 
     // find start code
     unsigned int i = 0;
-    while ((i < (numBytesInNalUnit - 3)) && !(byteStr[i] == 0 && byteStr[i + 1] == 0 && byteStr[i + 2] == 1))
+    if (byteStreamMode)
     {
-        ++i;
-    }
+        while ((i < (numBytesInNalUnit - 3)) && !(src[i] == 0 && src[i + 1] == 0 && src[i + 2] == 1))
+        {
+            ++i;
+        }
 
-    i += 3;  // skip start code
+        i += 3;  // skip start code
+    }
 
     // copy NALU header
     static const size_t NALU_HEADER_LENGTH = 2;
-    dest.insert(dest.end(), byteStr.cbegin() + i, byteStr.cbegin() + i + NALU_HEADER_LENGTH);
+    dest.insert(dest.end(), src.cbegin() + i, src.cbegin() + i + NALU_HEADER_LENGTH);
     i += NALU_HEADER_LENGTH;
 
     // copy rest of the data while removing start code emulation prevention bytes
@@ -2579,7 +2588,7 @@ void H265Parser::convertByteStreamToRBSP(const vector<uint8_t>& byteStr, vector<
     size_t copyStartOffset = i;
     for (; i < numBytesInNalUnit; ++i)
     {
-        const unsigned int byte = byteStr[i];
+        const unsigned int byte = src[i];
         switch (state)
         {
         case State::COPY_DATA:
@@ -2597,7 +2606,7 @@ void H265Parser::convertByteStreamToRBSP(const vector<uint8_t>& byteStr, vector<
             if (byte == 0x03)
             {
                 // skip copying 0x03
-                dest.insert(dest.end(), byteStr.cbegin() + copyStartOffset, byteStr.cbegin() + i);
+                dest.insert(dest.end(), src.cbegin() + copyStartOffset, src.cbegin() + i);
                 copyStartOffset = i + 1;
                 // continue byte stream copying
                 state = State::COPY_DATA;
@@ -2607,7 +2616,7 @@ void H265Parser::convertByteStreamToRBSP(const vector<uint8_t>& byteStr, vector<
             break;
         }
     }
-    dest.insert(dest.end(), byteStr.cbegin() + copyStartOffset, byteStr.cend());
+    dest.insert(dest.end(), src.cbegin() + copyStartOffset, src.cend());
 }
 
 void H265Parser::writeSEINalHeader(Parser::BitStream& bitstr, H265SEIType payloadType, unsigned int payloadSize, int temporalIdPlus1)

@@ -36,10 +36,14 @@ OMAF_NS_BEGIN
         extern const MimeType VIDEO_MIME_TYPE_OMAF_VD_ESC;
 }
 
-
-typedef FixedArray<uint32_t, 128> SupportingAdaptationSetIds;
+struct AdaptationSetBundleIds
+{
+    uint32_t mainAdSetId;
+    FixedArray<uint32_t, 128> partialAdSetIds;
+};
+typedef FixedArray<AdaptationSetBundleIds, 128> SupportingAdaptationSetIds;
 /*
- * As we don't have std::map, let's use an array of structs to store representation dependencies
+ * As we don't have std::map, let's use an array of structs to store representation dependencies. TODO multiple extractor case not supported by this 
  */
 typedef FixedArray<FixedString128, 64> DependableRepresentations;
 struct DashDependency
@@ -56,11 +60,10 @@ namespace DashOmafAttributes
     SourceType::Enum getOMAFVideoProjection(DashComponents& aDashComponents);
     Error::Enum getOMAFVideoViewport(DashComponents& aDashComponents, DashAttributes::Coverage& aCoverage, SourceType::Enum aProjection);
     Error::Enum hasOMAFVideoRWPK(DashComponents& aDashComponents);
+    Error::Enum getOMAFQualityRankingType(const std::vector<dash::xml::INode *>& aNodes, bool_t& aMultiResolution);
     Error::Enum getOMAFQualityRanking(const std::vector<dash::xml::INode *>& aNodes, VASTileViewport& aViewPort, uint8_t& aQualityIndex, bool_t& aGlobal);
-    Error::Enum getOMAFSRQR(std::vector<dash::xml::INode *>::const_iterator& aNode, VASTileViewport& aViewPort, uint8_t& aQualityIndex, bool_t& aGlobal);
-    Error::Enum getOMAF2DQR(std::vector<dash::xml::INode *>::const_iterator& aNode, VASTileViewport& aViewPort, uint8_t& aQualityIndex, bool_t& aGlobal);
     bool_t getOMAFPreselection(DashComponents& aDashComponents, uint32_t aMyId);
-    bool_t getOMAFPreselection(DashComponents& aDashComponents, uint32_t aMyId, SupportingAdaptationSetIds& aReferredAdaptationSets);
+    bool_t getOMAFPreselection(DashComponents& aDashComponents, uint32_t aMyId, AdaptationSetBundleIds& aReferredAdaptationSets);
     bool_t getOMAFRepresentationDependencies(DashComponents& aDashComponents, RepresentationDependencies& aDependingRepresentationIds);
 };
 

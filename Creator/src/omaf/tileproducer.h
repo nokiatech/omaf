@@ -37,8 +37,10 @@ namespace VDD {
             std::string inputFileName;
             std::uint8_t quality;
             TileFilter::OmafTileSets tileConfig;
-            bool createExtractor;
+            ExtractorMode extractorMode;
             Projection projection;
+            size_t tileCount;
+            size_t frameCount;
         };
         TileProducer(Config& config);
 
@@ -52,11 +54,12 @@ namespace VDD {
     private:
         TileFilter mTileFilter;
         TileFilter::OmafTileSets mTileConfig;
-        bool mCreateExtractor;
+        ExtractorMode mExtractorMode;
         std::unique_ptr<MP4LoaderSource> mMp4Source;
 
         size_t mAUIndex;
         int mTileCount;
+        uint32_t mFrameCountLimit;
     };
 
     class WrongTileFilterConfigurationException : public Exception

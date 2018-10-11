@@ -197,6 +197,17 @@ namespace VDD
         // nothing
     }
 
+    std::string AsyncProcessorWrapper::getInfo() const
+    {
+        std::string info = AsyncProcessor::getInfo();
+        std::string additional = mProcessor->getGraphVizDescription();
+        if (additional.size()) {
+            info += "\n";
+            info += additional;
+        }
+        return info;
+    }
+
     void AsyncProcessorWrapper::setLog(std::shared_ptr<Log> aLog)
     {
         mLog = aLog;
@@ -253,6 +264,17 @@ namespace VDD
 
     AsyncSinkWrapper::~AsyncSinkWrapper() = default;
 
+    std::string AsyncSinkWrapper::getInfo() const
+    {
+        std::string info = AsyncProcessor::getInfo();
+        std::string additional = mSink->getGraphVizDescription();
+        if (additional.size()) {
+            info += "\n";
+            info += additional;
+        }
+        return info;
+    }
+
     void AsyncSinkWrapper::setLog(std::shared_ptr<Log> aLog)
     {
         mLog = aLog;
@@ -295,6 +317,17 @@ namespace VDD
         , mSource(std::unique_ptr<Source>(aSource))
     {
         // nothing
+    }
+
+    std::string AsyncSourceWrapper::getInfo() const
+    {
+        std::string info = AsyncSource::getInfo();
+        std::string additional = mSource->getGraphVizDescription();
+        if (additional.size()) {
+            info += "\n";
+            info += additional;
+        }
+        return info;
     }
 
     void AsyncSourceWrapper::setLog(std::shared_ptr<Log> aLog)

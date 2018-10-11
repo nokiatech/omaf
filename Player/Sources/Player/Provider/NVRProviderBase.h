@@ -26,6 +26,8 @@
 #include "Foundation/NVRMutex.h"
 #include "Foundation/NVREvent.h"
 #include "Foundation/NVRPathName.h"
+#include "Foundation/NVRSemaphore.h"
+
 
 OMAF_NS_BEGIN
 
@@ -67,7 +69,7 @@ const static int32_t MIN_AUDIO_BUFFER_LEVEL = 50;
 
 namespace
 {
-    static const int ASYNC_OPERATION_TIMEOUT = 5000;
+    static const int ASYNC_OPERATION_TIMEOUT = 500000;
 }
 
 class ProviderBase
@@ -85,6 +87,8 @@ public: // CoreProvider
     virtual const CoreProviderSources& getSources();
 
     virtual Error::Enum setAudioInputBuffer(AudioInputBuffer *inputBuffer);
+    virtual void enter();
+    virtual void leave();
 
 public: // VideoProvider
 
@@ -93,6 +97,7 @@ public: // VideoProvider
     virtual Error::Enum start();
     virtual Error::Enum stop();
     virtual Error::Enum pause();
+    virtual Error::Enum next();
 
     virtual VideoProviderState::Enum getAuxiliaryState() const { return mAuxiliaryPlaybackState; }
     virtual Error::Enum loadAuxiliaryStream(PathName& uri) { return Error::NOT_SUPPORTED; }
@@ -101,10 +106,8 @@ public: // VideoProvider
     virtual Error::Enum pauseAuxiliary() { return Error::NOT_SUPPORTED; }
     virtual Error::Enum seekToMsAuxiliary(uint64_t seekTargetMS) { return Error::NOT_SUPPORTED; }
 
-
     virtual uint64_t durationMsAuxiliary() const { return mMediaInformationAuxiliary.duration; }
     virtual uint64_t elapsedTimeMsAuxiliary() const;
-
 
     virtual bool_t isSeekable() = 0;
     virtual bool_t isSeekableByFrame() = 0;
@@ -113,8 +116,6 @@ public: // VideoProvider
 
     virtual uint64_t durationMs() const = 0;
     virtual uint64_t elapsedTimeMs() const;
-
-
 
     virtual const MediaInformation& getMediaInformation();
 
@@ -129,7 +130,8 @@ protected:
 
     void_t destroyInstance();
 
-    virtual void_t selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources& required, CoreProviderSources& optional) = 0;
+    virtual uint64_t selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources& required, CoreProviderSources& optional) = 0;
+    virtual bool_t setInitialViewport(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical);
 
     virtual MP4AudioStream* getAudioStream() = 0;
 
@@ -163,6 +165,11 @@ private:
     void_t retrieveInitialViewingOrientation(MP4VideoStream& aStream);
     // called by renderer thread
     void_t setupInitialViewingOrientation(HeadTransform& aCurrentHeadTransform, uint64_t aTimestampUs);
+
+    // Some providers might change underlying resources while rendering loop is using them
+    // this lock should be used when references to resources are used by anyone and should not
+    // be modified
+    Semaphore mResourcesInUse;
 
 protected:
 

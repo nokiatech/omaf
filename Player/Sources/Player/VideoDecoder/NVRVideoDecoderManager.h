@@ -34,12 +34,14 @@ struct DecoderState
         textureActive = false;
         decoderHW = OMAF_NULL;
         initialBufferingDone = false;
+        free = true;
     }
 
     bool_t decoderActive;
     bool_t frameCacheActive;
     bool_t textureActive;
     bool_t initialBufferingDone;
+    bool_t free;
     VideoDecoderHW* decoderHW;
     DecoderConfig config;
 };
@@ -87,6 +89,7 @@ public:
 
     // Called from the provider thread
     streamid_t generateUniqueStreamID();
+    streamid_t getSharedStreamID();
     DecodeResult::Enum decodeMediaPacket(streamid_t stream, MP4VRMediaPacket* packet, bool_t seeking = false);
     void_t seekToPTS(const Streams& streams, uint64_t seekTargetPTS);
     bool_t isBuffering(const Streams& streams);
@@ -112,8 +115,6 @@ protected:
     virtual VideoDecoderHW* reserveVideoDecoder(const DecoderConfig& config) = 0;
     virtual void_t releaseVideoDecoder(VideoDecoderHW* decoder) = 0;
 
-    Error::Enum uploadTexturesForPTSPrivate(const Streams& requiredStreams, const Streams& optionalStreams, uint64_t targetPTSUs, TextureLoadOutput& output);
-
 protected:
     FrameCache* mFrameCache;
 
@@ -130,6 +131,7 @@ protected:
 private:
     static VideoDecoderManager* sInstance;
     streamid_t mNextStreamID;
+    streamid_t mSharedStreamID;
 };
 
 OMAF_NS_END

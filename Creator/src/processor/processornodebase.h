@@ -43,6 +43,8 @@ namespace VDD
         Log& getLog();
         LogStream& log(LogLevel aLog);
 
+        virtual std::string getGraphVizDescription() { return ""; }
+
     private:
         std::shared_ptr<Log> mLog;
     };

@@ -33,6 +33,7 @@ OMAF_NS_BEGIN
 
         virtual const FixedArray<VASTileViewport*, 32> getCoveredViewports() const;
 
+        virtual uint32_t peekNextSegmentId() const;
         virtual bool_t processSegmentDownload();
     
     public: // new

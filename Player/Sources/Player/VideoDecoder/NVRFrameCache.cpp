@@ -209,7 +209,7 @@ Error::Enum FrameCache::getSynchedFramesForPTS(const Streams& reqStreams, const 
         
         if (frame == OMAF_NULL)
         {
-            OMAF_LOG_V("getSynchedFramesForPTS target PTS %llu NULL frame from stream %d", targetPTSUS, (*it));
+            // OMAF_LOG_V("getSynchedFramesForPTS target PTS %llu NULL frame from stream %d", targetPTSUS, (*it));
             return Error::ITEM_NOT_FOUND;
         }
         

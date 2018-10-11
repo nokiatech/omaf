@@ -20,7 +20,6 @@
 #include <mp4vrfiledatatypes.h>
 
 #include "Provider/NVRCoreProvider.h"
-#include "Provider/NVRSources.h"
 #include "VideoDecoder/NVRVideoDecoderConfig.h"
 #include "Foundation/NVRPathName.h"
 #if OMAF_ENABLE_STREAM_VIDEO_PROVIDER
@@ -50,14 +49,16 @@ OMAF_NS_BEGIN
         MetadataParser();
         ~MetadataParser();
 
+        void reset();
+
         static bool_t parseUri(const char_t* uri, BasicSourceInfo& data);
-        Error::Enum parseOmafCubemapFaceInfo(const MP4VR::RegionWisePackingProperty& aRwpk, BasicSourceInfo& aBasicSourceInfo);
+        Error::Enum parseOmafCubemapRegionMetadata(const MP4VR::RegionWisePackingProperty& aRwpk, BasicSourceInfo& aBasicSourceInfo);
         Error::Enum parseOmafEquirectRegionMetadata(const MP4VR::RegionWisePackingProperty& aRwpk, BasicSourceInfo& aBasicSourceInfo);
 
         const CoreProviderSources& getVideoSources();
         const CoreProviderSourceTypes& getVideoSourceTypes();
 
-        bool_t setVideoMetadata(BasicSourceInfo sourceInfo, const VideoInfo& stream);
+        bool_t setVideoMetadata(BasicSourceInfo sourceInfo, sourceid_t& sourceId, const VideoInfo& stream);
 
         bool_t setVideoMetadataPackageMono(sourceid_t sourceId, const VideoInfo& stream, SourceType::Enum sourceType);
 
@@ -79,6 +80,9 @@ OMAF_NS_BEGIN
         bool_t setVideoMetadataPackageMonoCubemap(sourceid_t sourceId, const VideoInfo& stream, BasicSourceInfo sourceInfo);
 
         bool_t setVideoMetadataPackageStereoCubemap(sourceid_t sourceIdLeft, sourceid_t sourceIdRight, const VideoInfo& leftStream, const VideoInfo& rightStream, BasicSourceInfo sourceInfo);
+
+        bool_t setVideoMetadataPackageMultiResMonoCubemap(sourceid_t& sourceId, const VideoInfo& stream, BasicSourceInfo sourceInfo);
+        bool_t setVideoMetadataPackageMultiResStereoCubemap(sourceid_t& sourceIdLeft, const VideoInfo& leftStream, const VideoInfo& rightStream, BasicSourceInfo sourceInfo);
 
         bool_t setVideoMetadataPackageErpRegions(sourceid_t& aSourceId, const VideoInfo& aStream, BasicSourceInfo aSourceInfo);
 

@@ -64,6 +64,7 @@ void_t VideoDecoderManager::destroyInstance()
 VideoDecoderManager::VideoDecoderManager()
     : mByteStreamHeadersMode(true)
     , mNextStreamID(0)
+    , mSharedStreamID(OMAF_UINT8_MAX)
     , mLatestPts(0)
 {
     while (mDecoders.getSize() != MAX_STREAM_COUNT)
@@ -87,9 +88,14 @@ VideoDecoderManager::~VideoDecoderManager()
 
 Error::Enum VideoDecoderManager::initializeStream(streamid_t stream, const DecoderConfig& config)
 {
+    if (stream == mSharedStreamID && mDecoders.at(stream).decoderHW != OMAF_NULL)
+    {
+        return Error::OK_SKIPPED;
+    }
     OMAF_ASSERT(mDecoders.at(stream).decoderHW == OMAF_NULL, "Decoder for stream already created");
     mDecoders.at(stream).config = config;
     mFrameCache->initializeStream(stream, config);
+    mDecoders.at(stream).free = false;
     return Error::OK;
 }
 
@@ -100,6 +106,7 @@ void_t VideoDecoderManager::shutdownStream(streamid_t stream)
         deactivateStream(stream);
     }
     mFrameCache->shutdownStream(stream);
+    mDecoders.at(stream).free = true;
 }
 
 Error::Enum VideoDecoderManager::activateStream(streamid_t stream, uint64_t currentPTS)
@@ -353,7 +360,26 @@ const VideoFrame& VideoDecoderManager::getCurrentVideoFrame(streamid_t stream)
 
 streamid_t VideoDecoderManager::generateUniqueStreamID()
 {
-    return mNextStreamID++;
+    for (uint32_t i = 0; i < mDecoders.getSize(); i++) 
+    {
+        if (mDecoders[i].free) 
+        {
+            mDecoders.at(i).free = false;
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+// the shared streams must have the same configuration (width, height etc)
+streamid_t VideoDecoderManager::getSharedStreamID() 
+{
+    if (mSharedStreamID == OMAF_UINT8_MAX)
+    {
+        mSharedStreamID = generateUniqueStreamID();
+    }
+    return mSharedStreamID;
 }
 
 bool_t VideoDecoderManager::syncStreams(streamid_t anchorStream, streamid_t stream)

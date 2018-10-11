@@ -20,34 +20,36 @@
 #include "NVRErrorCodes.h"
 
 #include "Audio/NVRAudioRendererAPI.h"
+#include "Audio/NVRAudioRendererObserver.h"
+#include "Core/Foundation/NVRSpinlock.h"
+#include "Media/NVRMediaPacketQueue.h"
+#include "Foundation/NVRArray.h"
 
 
 OMAF_NS_BEGIN
-    class NullAudioRenderer : public AudioRendererAPI
+    const int32_t kMaxAacInputBuffers = 100;
+
+    class AACAudioRenderer : public AudioRendererAPI
     {
     public:
 
-        NullAudioRenderer(MemoryAllocator& allocator, AudioRendererObserver& observer);
-        virtual ~NullAudioRenderer();
+        AACAudioRenderer(MemoryAllocator& allocator, AudioRendererObserver& observer);
+        virtual ~AACAudioRenderer();
 
-        virtual Error::Enum init(int8_t outChannels, PlaybackMode::Enum playbackMode, AudioOutputRange::Enum outputRange);
+        virtual Error::Enum init();
         virtual Error::Enum reset();
 
-        virtual AudioReturnValue::Enum renderSamples(size_t samplesToRender, float32_t* samples, size_t& samplesRendered, int32_t timeout = 0);
-        virtual AudioReturnValue::Enum renderSamples(size_t samplesToRender, int16_t* samples, size_t& samplesRendered, int32_t timeout = 0);
+        virtual AudioReturnValue::Enum fetchAACFrame(uint8_t* aBuffer, size_t aBufferSize, size_t& aDataSize);
+        virtual uint32_t getInputSampleRate();
+        virtual uint32_t getInputChannels();
         virtual void_t playbackStarted();
 
-        virtual int32_t getInputSampleRate() const;
         virtual bool_t isReady() const;
 
         virtual AudioInputBuffer* getAudioInputBuffer();
 
-        virtual Error::Enum setAudioLatency(int64_t latencyUs);
-
         virtual void_t setAudioVolume(float_t volume);
         virtual void_t setAudioVolumeAuxiliary(float_t volume);
-
-        virtual void_t setHeadTransform(const Quaternion& headTransform);
 
         virtual Error::Enum initializeForEncodedInput(streamid_t nrStreams, uint8_t* codecData, size_t dataSize);
         virtual Error::Enum initializeForNoAudio();
@@ -70,6 +72,17 @@ OMAF_NS_BEGIN
 
         virtual AudioInputBuffer* getAuxiliaryAudioInputBuffer();
 
+    private:
+        MediaPacketQueue mAACBuffers;
+        Spinlock mBufferLock;
+        size_t mMaxBufferSize;
+        AudioRendererObserver& mObserver;
+        uint32_t mSampleRate;
+        uint32_t mInputChannels;
+        Array<AudioInputBufferObserver *> mAudioInputObservers;
+        bool_t mInitialized;
+        streamid_t mStreamId;
+        bool_t mPlaying;
     };
 
 OMAF_NS_END

@@ -14,7 +14,7 @@
  */
 #include "omafconfiguratornode.h"
 #include "parser/h265parser.hpp"
-
+#include "omafproperties.h"
 
 namespace VDD
 {
@@ -45,8 +45,10 @@ namespace VDD
         {
             frames.push_back({Data(EndOfStream())});
         }
-        else 
+        else if (mFirst)
         {
+            // The very first Data package
+
             std::vector<uint8_t> fpSeiNAL;
             std::vector<CodedFrameMeta> meta;
             for (auto& view : aStreams)
@@ -54,38 +56,26 @@ namespace VDD
                 meta.push_back(view.getCodedFrameMeta());
             }
 
-            if (!mStart)
+            if (mConfig.videoOutput != PipelineOutput::VideoMono)
             {
-                // The very first Data package
-                if (mConfig.videoOutput != PipelineOutput::VideoMono)
-                {
-                    createFramePackingSEI(aStreams.front(), fpSeiNAL);
-                }
-                mStart = true;
-
-                // test code
-                if (false)
-                {
-                    createFakeRwpk(meta[0], mConfig.videoOutput);
-                }
-
+                createFramePackingSEI(aStreams.front(), fpSeiNAL);
             }
-            // Projection SEI shall be inserted for each picture (OMAF 10.1.2.2)
+            mFirst = false;
+
             // Create OMAF projection SEI
             std::vector<uint8_t> seiNAL;
             createProjectionSEI(aStreams.front(), seiNAL);
+            // create new Data with the SEI in front, and the original data after it
+            std::vector<std::uint8_t> videoData(seiNAL);
+            if (!fpSeiNAL.empty())
+            {
+                // add framepacking, if available
+                videoData.insert(videoData.end(), fpSeiNAL.begin(), fpSeiNAL.end());
+            }
             size_t i = 0;
 
             for (auto& view : aStreams)
             {
-                // create new Data with the SEI in front, and the original data after it
-                std::vector<std::uint8_t> videoData(seiNAL);
-                if (!fpSeiNAL.empty())
-                {
-                    // add framepacking, if available
-                    videoData.insert(videoData.end(), fpSeiNAL.begin(), fpSeiNAL.end());
-                }
-
                 const uint8_t* data = static_cast<const std::uint8_t*>(view.getCPUDataReference().address[0]);
                 const uint8_t* dataEnd = data + view.getCPUDataReference().size[0];
                 videoData.insert(videoData.end(), data, dataEnd);
@@ -95,6 +85,11 @@ namespace VDD
                     meta[i++],
                     view.getStreamId()) });
             }
+        }
+        else
+        {
+            // normal case, not first or last frame
+            frames.push_back({ aStreams[0] });
         }
 
         return frames;
@@ -111,15 +106,8 @@ namespace VDD
         }
         H265::NalUnitHeader naluHeader;
         H265Parser::parseNalUnitHeader(bitstr, naluHeader);
-        int temporalIdPlus1 = naluHeader.mNuhTemporalIdPlus1;
 
-        H265::EquirectangularProjectionSEI projection;
-        projection.erpCancel = false;
-        projection.erpPersistence = true; // valid until updated
-        projection.erpGuardBand = false;
-        bitstr.clear();
-
-        std::uint32_t length = H265Parser::writeEquiProjectionSEINal(bitstr, projection, temporalIdPlus1);
+        std::uint32_t length = OMAF::createProjectionSEI(bitstr, naluHeader.mNuhTemporalIdPlus1);
         Parser::BitStream seiLengthField;
         seiLengthField.write32Bits(length);
 
@@ -178,6 +166,7 @@ namespace VDD
         seiNal.insert(seiNal.end(), bitstr.getStorage().begin(), bitstr.getStorage().end());
     }
 
+    // test code only
     void OmafConfiguratorNode::createFakeRwpk(VDD::CodedFrameMeta& aMeta, PipelineOutput aVideoOutput)
     {
         unsigned int fullWidth = aMeta.width;

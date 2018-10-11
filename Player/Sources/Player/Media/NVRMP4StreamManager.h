@@ -32,7 +32,7 @@ public:
 
     virtual bool_t isBuffering() = 0;
     virtual bool_t isEOS() const = 0;
-    virtual bool_t isReadyToSwitch(MP4MediaStream& aStream) const = 0;
+    virtual bool_t isReadyToSignalEoS(MP4MediaStream& aStream) const = 0;
 };
 
 

@@ -57,7 +57,7 @@ class MP4MediaStreamManager : public MP4StreamManager
 
         virtual bool_t isBuffering();
         virtual bool_t isEOS() const;
-        virtual bool_t isReadyToSwitch(MP4MediaStream& aStream) const;
+        virtual bool_t isReadyToSignalEoS(MP4MediaStream& aStream) const;
 
         virtual bool_t seekToUs(uint64_t& seekPosUs, SeekDirection::Enum direction, SeekAccuracy::Enum accuracy);
         virtual bool_t seekToFrame(int32_t seekFrameNr, uint64_t& seekPosUs);// , SeekSyncFrame::Enum mode);

@@ -1006,33 +1006,36 @@ namespace MP4VR
                 assert(nalLengthSizeMinus1 == 3);   // NAL length can be 1, 2 or 4 bytes, but the whole parsing process assumes it is 4 bytes
             }
 
-            Hvc2Extractor::ExtNalDat extNalDat;
+            Hvc2Extractor::ExtractorSample extractorSample;
             uint64_t extractionSize = 0;
             uint64_t tolerance      = 0;
 
             // If the current NAL is affirmed to be an extractor NAL, parse it to extNalDat
 
-            if (Hvc2Extractor::parseExtractorNal(extractorSampleBuffer, extNalDat, nalLengthSizeMinus1, extractionSize))
+            if (Hvc2Extractor::parseExtractorNal(extractorSampleBuffer, extractorSample, nalLengthSizeMinus1, extractionSize))
             {
                 if (extractionSize == 0)
                 {
                     // the size from extractors is not reliable. Make an estimate based on sample lengths of the
                     // referred tracks
                     extractionSize = 0;
-                    for (std::vector<Hvc2Extractor::ExtNalDat::SampleConstruct>::iterator sampleConstruct =
-                             extNalDat.sampleConstruct.begin();
-                         sampleConstruct != extNalDat.sampleConstruct.end(); ++sampleConstruct)
+                    for (auto& extractor : extractorSample.extractors)
                     {
-                        uint64_t refSampleLength = 0;
-                        uint64_t refDataOffset   = 0;
-                        result =
-                            getRefSampleDataInfo(trackId, itemIdApi, initSegmentId, (*sampleConstruct).track_ref_index,
-                                                 refSampleLength, refDataOffset);
-                        if (result != ErrorCode::OK)
+                        for (std::vector<Hvc2Extractor::ExtractorSample::SampleConstruct>::iterator sampleConstruct =
+                            extractor.sampleConstruct.begin();
+                            sampleConstruct != extractor.sampleConstruct.end(); ++sampleConstruct)
                         {
-                            return result;
+                            uint64_t refSampleLength = 0;
+                            uint64_t refDataOffset = 0;
+                            result =
+                                getRefSampleDataInfo(trackId, itemIdApi, initSegmentId, (*sampleConstruct).track_ref_index,
+                                    refSampleLength, refDataOffset);
+                            if (result != ErrorCode::OK)
+                            {
+                                return result;
+                            }
+                            extractionSize += refSampleLength;
                         }
-                        extractionSize += refSampleLength;
                     }
                     // + add 10% tolerance (inline constructors can result in more data in the extracted samples than
                     // the original samples, but should be less than 10%)
@@ -1052,125 +1055,128 @@ namespace MP4VR
                 char* buffer                       = memoryBuffer;
                 char* inlineNalLengthPlaceHolder = nullptr;
                 size_t inlineLength                = 0;
-                std::vector<Hvc2Extractor::ExtNalDat::SampleConstruct>::iterator sampleConstruct;
-                std::vector<Hvc2Extractor::ExtNalDat::InlineConstruct>::iterator inlineConstruct;
+                std::vector<Hvc2Extractor::ExtractorSample::SampleConstruct>::iterator sampleConstruct;
+                std::vector<Hvc2Extractor::ExtractorSample::InlineConstruct>::iterator inlineConstruct;
                 uint64_t refSampleLength = 0;
                 uint64_t refSampleOffset = 0;
                 uint8_t trackRefIndex = UINT8_MAX;
 
-                // We loop through both constructors, until both of them are empty. They are often interleaved, but not
-                // always through the whole sequence.
-                for (sampleConstruct = extNalDat.sampleConstruct.begin(),
-                    inlineConstruct  = extNalDat.inlineConstruct.begin();
-                     sampleConstruct != extNalDat.sampleConstruct.end() ||
-                     inlineConstruct != extNalDat.inlineConstruct.end();)
+                for (auto& extractor : extractorSample.extractors)
                 {
-                    if (inlineConstruct != extNalDat.inlineConstruct.end() &&
-                        (sampleConstruct == extNalDat.sampleConstruct.end() ||
-                         (*inlineConstruct).order_idx < (*sampleConstruct).order_idx))
+                    // We loop through both constructors, until both of them are empty. They are often interleaved, but not
+                    // always through the whole sequence.
+                    for (sampleConstruct = extractor.sampleConstruct.begin(),
+                        inlineConstruct = extractor.inlineConstruct.begin();
+                        sampleConstruct != extractor.sampleConstruct.end() ||
+                        inlineConstruct != extractor.inlineConstruct.end();)
                     {
-                        inlineNalLengthPlaceHolder = buffer;  
-                        // the inline constructor is expected to contain a placeholder for the NAL unit length field too
-
-                        // copy the inline part - note: std::copy with iterators give warning in Visual Studio, so the
-                        // good old memcpy is used instead
-                        memcpy(buffer, (*inlineConstruct).inline_data.data(), (*inlineConstruct).inline_data.size());
-                        inlineLength                 = (*inlineConstruct).inline_data.size() - (nalLengthSizeMinus1 + 1);   // exclude the length 
-                        buffer += (*inlineConstruct).data_length;
-                        extractedBytes += (*inlineConstruct).data_length;
-                        ++inlineConstruct;
-                    }
-                    else if (sampleConstruct != extNalDat.sampleConstruct.end())
-                    {
-                        // read the sample from the referenced track
-                        if ((*sampleConstruct).track_ref_index != trackRefIndex || trackRefIndex == UINT8_MAX)
+                        if (inlineConstruct != extractor.inlineConstruct.end() &&
+                            (sampleConstruct == extractor.sampleConstruct.end() ||
+                            (*inlineConstruct).order_idx < (*sampleConstruct).order_idx))
                         {
-                            result =
-                                getRefSampleDataInfo(trackId, itemIdApi, initSegmentId, (*sampleConstruct).track_ref_index,
-                                    refSampleLength, refSampleOffset);
-                            if (result != ErrorCode::OK)
-                            {
-                                return result;
-                            }
-                            trackRefIndex = (*sampleConstruct).track_ref_index;
-                            seekInput(io, refSampleOffset);
+                            inlineNalLengthPlaceHolder = buffer;
+                            // the inline constructor is expected to contain a placeholder for the NAL unit length field too
+
+                            // copy the inline part - note: std::copy with iterators give warning in Visual Studio, so the
+                            // good old memcpy is used instead
+                            memcpy(buffer, (*inlineConstruct).inline_data.data(), (*inlineConstruct).inline_data.size());
+                            inlineLength = (*inlineConstruct).inline_data.size() - (nalLengthSizeMinus1 + 1);   // exclude the length 
+                            buffer += (*inlineConstruct).data_length;
+                            extractedBytes += (*inlineConstruct).data_length;
+                            ++inlineConstruct;
                         }
-                        // let's read the length to the buffer (use it as a temp storage, don't update the ptr)
-                        io.stream->read(buffer, (nalLengthSizeMinus1 + 1));
-                        // todo nalLengthSizeMinus1-based reading
-                        uint64_t refNalLength = readNalLength(buffer);
-
-                        // sc.data_offset is from the beginning of sample
-                        uint64_t inputReadOffset = refSampleOffset + (*sampleConstruct).data_offset;
-
-                        // Extract the referenced sample into memoryBuffer from io stream
-                        uint64_t bytesToCopy = refNalLength;
-                        if ((*sampleConstruct).data_length == 0)
+                        else if (sampleConstruct != extractor.sampleConstruct.end())
                         {
-                            // bytes to copy is taken from the bitstream (length field referenced by data_offset)
-                            // there should be no inline constructor / replacement header (see 14496-15 A.7.4.1.2)
-                            bytesToCopy = refNalLength;
-                            refSampleLength = 0;
-                        }
-                        else
-                        {
-                            if ((uint64_t)((*sampleConstruct).data_offset) + (uint64_t)((*sampleConstruct).data_length) > refSampleLength)
+                            // read the sample from the referenced track
+                            if ((*sampleConstruct).track_ref_index != trackRefIndex || trackRefIndex == UINT8_MAX)
                             {
-                                // the sampleConstruct gives too large data_length, clip the length of copied data block to the length of the actual sample
-                                if ((*sampleConstruct).data_offset > refSampleLength)
+                                result =
+                                    getRefSampleDataInfo(trackId, itemIdApi, initSegmentId, (*sampleConstruct).track_ref_index,
+                                        refSampleLength, refSampleOffset);
+                                if (result != ErrorCode::OK)
                                 {
-                                    // something is wrong, the offset and sample lengths do not match at all
-                                    return ErrorCode::INVALID_SEGMENT;
+                                    return result;
                                 }
-                                bytesToCopy = refSampleLength - (*sampleConstruct).data_offset;
+                                trackRefIndex = (*sampleConstruct).track_ref_index;
+                                seekInput(io, refSampleOffset);
+                            }
+                            // let's read the length to the buffer (use it as a temp storage, don't update the ptr)
+                            io.stream->read(buffer, (nalLengthSizeMinus1 + 1));
+                            // todo nalLengthSizeMinus1-based reading
+                            uint64_t refNalLength = readNalLength(buffer);
+
+                            // sc.data_offset is from the beginning of sample
+                            uint64_t inputReadOffset = refSampleOffset + (*sampleConstruct).data_offset;
+
+                            // Extract the referenced sample into memoryBuffer from io stream
+                            uint64_t bytesToCopy = refNalLength;
+                            if ((*sampleConstruct).data_length == 0)
+                            {
+                                // bytes to copy is taken from the bitstream (length field referenced by data_offset)
+                                // there should be no inline constructor / replacement header (see 14496-15 A.7.4.1.2)
+                                bytesToCopy = refNalLength;
+                                refSampleLength = 0;
                             }
                             else
                             {
-                                // follow the values given in the sampleConstruct
-                                bytesToCopy = (*sampleConstruct).data_length;
-                            }
-
-                            if (inlineNalLengthPlaceHolder != nullptr)
-                            {
-                                // need to rewrite the NAL length field as the value from inline constructor is no
-                                // longer valid
-                                uint64_t actualNalLength = bytesToCopy + inlineLength;
-                                writeNalLength(actualNalLength, inlineNalLengthPlaceHolder);
-                                inlineNalLengthPlaceHolder = nullptr;
-                            }
-                            else 
-                            {
-                                // there was no inline constructor. (*sampleConstruct).data_offset should now point to
-                                // the length field of the NAL to be copied, and we already have the length in the buffer. 
-                                // Just update the ptr & counter
-                                inputReadOffset += (nalLengthSizeMinus1 + 1);
-                                if (bytesToCopy == refSampleLength - (*sampleConstruct).data_offset)
+                                if ((uint64_t)((*sampleConstruct).data_offset) + (uint64_t)((*sampleConstruct).data_length) > refSampleLength)
                                 {
-                                    bytesToCopy -= (nalLengthSizeMinus1 + 1);
+                                    // the sampleConstruct gives too large data_length, clip the length of copied data block to the length of the actual sample
+                                    if ((*sampleConstruct).data_offset > refSampleLength)
+                                    {
+                                        // something is wrong, the offset and sample lengths do not match at all
+                                        return ErrorCode::INVALID_SEGMENT;
+                                    }
+                                    bytesToCopy = refSampleLength - (*sampleConstruct).data_offset;
                                 }
-                                buffer += (nalLengthSizeMinus1 + 1);
-                                extractedBytes += (nalLengthSizeMinus1 + 1);
+                                else
+                                {
+                                    // follow the values given in the sampleConstruct
+                                    bytesToCopy = (*sampleConstruct).data_length;
+                                }
+
+                                if (inlineNalLengthPlaceHolder != nullptr)
+                                {
+                                    // need to rewrite the NAL length field as the value from inline constructor is no
+                                    // longer valid
+                                    uint64_t actualNalLength = bytesToCopy + inlineLength;
+                                    writeNalLength(actualNalLength, inlineNalLengthPlaceHolder);
+                                    inlineNalLengthPlaceHolder = nullptr;
+                                }
+                                else
+                                {
+                                    // there was no inline constructor. (*sampleConstruct).data_offset should now point to
+                                    // the length field of the NAL to be copied, and we already have the length in the buffer. 
+                                    // Just update the ptr & counter
+                                    inputReadOffset += (nalLengthSizeMinus1 + 1);
+                                    if (bytesToCopy == refSampleLength - (*sampleConstruct).data_offset)
+                                    {
+                                        bytesToCopy -= (nalLengthSizeMinus1 + 1);
+                                    }
+                                    buffer += (nalLengthSizeMinus1 + 1);
+                                    extractedBytes += (nalLengthSizeMinus1 + 1);
+                                }
                             }
-                        }
 
-                        if (extractedBytes + (uint32_t) bytesToCopy > spaceAvailable)
-                        {
-                            memoryBufferSize = extractedBytes + (uint32_t) bytesToCopy;
-                            return ErrorCode::MEMORY_TOO_SMALL_BUFFER;
-                        }
-                        // Add NAL payload
-                        if (inputReadOffset > 0)
-                        {
-                            seekInput(io, (std::int64_t) inputReadOffset);
-                        }
-                        io.stream->read(buffer, bytesToCopy);
-                        buffer += bytesToCopy;
-                        extractedBytes += (uint32_t) bytesToCopy;
-                        ++sampleConstruct;
-                        inlineNalLengthPlaceHolder = nullptr;
-                        inlineLength = 0;
+                            if (extractedBytes + (uint32_t)bytesToCopy > spaceAvailable)
+                            {
+                                memoryBufferSize = extractedBytes + (uint32_t)bytesToCopy;
+                                return ErrorCode::MEMORY_TOO_SMALL_BUFFER;
+                            }
+                            // Add NAL payload
+                            if (inputReadOffset > 0)
+                            {
+                                seekInput(io, (std::int64_t) inputReadOffset);
+                            }
+                            io.stream->read(buffer, bytesToCopy);
+                            buffer += bytesToCopy;
+                            extractedBytes += (uint32_t)bytesToCopy;
+                            ++sampleConstruct;
+                            inlineNalLengthPlaceHolder = nullptr;
+                            inlineLength = 0;
 
-                        refSampleLength -= (refNalLength + (nalLengthSizeMinus1 + 1));
+                            refSampleLength -= (refNalLength + (nalLengthSizeMinus1 + 1));
+                        }
                     }
                 }
                 memoryBufferSize = extractedBytes;

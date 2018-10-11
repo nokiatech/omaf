@@ -22,6 +22,7 @@
 #include <fstream>
 #include <set>
 #include <map>
+#include <chrono>
 
 #include "common/optional.h"
 #include "graphbase.h"
@@ -32,6 +33,7 @@ namespace VDD {
     public:
         struct Config {
             bool enablePerformanceLogging;
+            bool enableDebugDump;
         };
 
         ParallelGraph(const Config& config);
@@ -99,6 +101,9 @@ namespace VDD {
             // ..with a different type to avoid expensive dynamic casts during work
             AsyncProcessor* processor = nullptr;
 
+            // Sources are handled specially in areOutputsBlocked
+            bool isSource = false;
+
             // Number of blocked outputs; can never be < 0
             int numBlockedOutputs = 0;
 
@@ -136,7 +141,12 @@ namespace VDD {
             // number of outputs produced by node; for debugging
             std::atomic<size_t> numOutputs;
 
-            bool areOutputsBlocked() const { return numBlockedOutputs >= std::max(1, numOutputNodes); }
+            bool areOutputsBlocked() const {
+                return
+                    isSource
+                    ? numBlockedOutputs >= 1
+                    : numBlockedOutputs >= std::max(1, numOutputNodes);
+            }
             bool nodeHasWork() const { return enqueued.size() > 0; }
             bool isNodeOverEmployed() const { return enqueued.size() >= 1 || isInternallyBlocked; }
         };
@@ -182,5 +192,14 @@ namespace VDD {
         std::map<const AsyncNode*, std::ofstream> mPerfCsv;
 
         void buildNodeInfo();
+
+        struct DebugPrevNodeInfo {
+            size_t in;
+            size_t out;
+        };
+        void debugDump();
+        std::string mPrevDebugDump;
+        std::chrono::time_point<std::chrono::steady_clock> mPrevDebugDumpTime;
+        std::map<int, DebugPrevNodeInfo> mDebugPrevNodeInfo;
     };
 }

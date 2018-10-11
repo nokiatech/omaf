@@ -26,15 +26,19 @@ OMAF_NS_BEGIN
 
         virtual ~DashAdaptationSetExtractor();
 
-        static bool_t isExtractor(DashComponents aDashComponents, uint32_t& aAdaptationSetId);
-        static SupportingAdaptationSetIds hasPreselection(DashComponents aDashComponents, uint32_t aAdaptationSetId);
+        static bool_t isExtractor(DashComponents aDashComponents);
+        static uint32_t parseId(DashComponents aDashComponents);
+        static AdaptationSetBundleIds hasPreselection(DashComponents aDashComponents, uint32_t aAdaptationSetId);
         static RepresentationDependencies hasDependencies(DashComponents aDashComponents);
+        static bool_t hasMultiResolution(DashComponents aDashComponents);
         
     public: // from DashAdaptationSet
         virtual AdaptationSetType::Enum getType() const;
 
         virtual Error::Enum initialize(DashComponents aDashComponents, uint32_t& aInitializationSegmentId);
 
+        virtual Error::Enum startDownload(time_t startTime);
+        virtual Error::Enum startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode, uint32_t aExpectedPingTimeMs);
         virtual Error::Enum stopDownload();
         virtual Error::Enum stopDownloadAsync(bool_t aReset);
         virtual void_t clearDownloadedContent();
@@ -45,7 +49,7 @@ OMAF_NS_BEGIN
 
     public: // new
         virtual bool_t updateBitrate(size_t aNrForegroundTiles, uint8_t aQualityForeground, uint8_t aQualityBackground, uint8_t aNrLevels);
-        virtual const SupportingAdaptationSetIds& getSupportingSets() const;
+        virtual const AdaptationSetBundleIds& getSupportingSets() const;
         virtual void_t addSupportingSet(DashAdaptationSetTile* aSupportingSet);
 
     protected: // from DashAdaptationSet
@@ -59,11 +63,13 @@ OMAF_NS_BEGIN
     protected: // new member variables
 
         // relevant with extractor types only; collects the adaptation sets that this set depends on
-        SupportingAdaptationSetIds mSupportingSetIds;
+        AdaptationSetBundleIds mSupportingSetIds;
         typedef FixedArray<DashAdaptationSetTile*, 128> SupportingAdaptationSets;
         SupportingAdaptationSets mSupportingSets;
 
         uint32_t mNextSegmentToBeConcatenated;
+        uint32_t mTargetNextSegmentId;
+        uint32_t mExpectedPingTimeMs;//round-trip delay
 
     };
 OMAF_NS_END

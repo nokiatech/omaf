@@ -153,7 +153,7 @@ Error::Enum DashProvider::seekToMsAuxiliary(uint64_t seekTargetMS)
     return Error::OK;
 }
 
-void_t DashProvider::selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources &base, CoreProviderSources &enhancement)
+uint64_t DashProvider::selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources &base, CoreProviderSources &enhancement)
 {
     float32_t longitude;
     float32_t latitude;
@@ -173,6 +173,7 @@ void_t DashProvider::selectSources(HeadTransform headTransform, float32_t fovHor
     enhancement.clear();
 
     // Loop through the streams to find out what are required and what optional
+    uint64_t validFromPts = 0;
     for (MP4VideoStreams::ConstIterator it = streams.begin(); it != streams.end(); ++it)
     {
         MP4VideoStream* videoStream = *it;
@@ -180,8 +181,7 @@ void_t DashProvider::selectSources(HeadTransform headTransform, float32_t fovHor
 
         if (videoStream->getMode() == VideoStreamMode::BASE)
         {
-            //OMAF_LOG_D("add required stream id %d, pts %lld", streamId, videoPacket->presentationTimeUs());
-            base.add(videoStream->getVideoSources());
+            base.add(videoStream->getVideoSources(validFromPts));
         }
         else if (videoStream->getMode() == VideoStreamMode::ENHANCEMENT_NORMAL)
         {
@@ -207,7 +207,28 @@ void_t DashProvider::selectSources(HeadTransform headTransform, float32_t fovHor
         }
     }
     //OMAF_LOG_D("Rendering: required %zd, optional %zd", base.getSize(), enhancement.getSize());
+    return validFromPts;
+}
 
+bool_t DashProvider::setInitialViewport(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical)
+{
+    if (mDownloadManager->getState() == DashDownloadManagerState::IDLE)
+    {
+        // too early
+        return false;
+    }
+    float32_t longitude;
+    float32_t latitude;
+    float32_t roll;
+    eulerAngles(headTransform.orientation, longitude, latitude, roll, EulerAxisOrder::YXZ);
+
+    streamid_t baseLayerStreamId = OMAF_UINT8_MAX;
+
+    // does the initial tile picking
+    return mDownloadManager->setInitialViewport(toDegrees(longitude),
+        toDegrees(latitude),
+        toDegrees(roll),
+        fovHorizontal, fovVertical);
 }
 
 void_t DashProvider::parserThreadCallback()

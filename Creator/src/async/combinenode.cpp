@@ -36,8 +36,6 @@ namespace VDD {
     {
         Views views;
         bool end = true;
-        // required by the end-of-stream handling of CombineSourceNode::produce, which produces exactly one EndOfStream per input
-        assert(aViews.size() == 1);
         mCombineSourceNode->addFrame(mIndex, aViews);
         if (end)
         {
@@ -136,9 +134,10 @@ namespace VDD {
         if (numFinished == mFrames.size())
         {
             Views views;
-            for (size_t index = 0; index < mFinished.size(); ++index)
-            {
-                views.push_back(EndOfStream());
+            for (const auto& finished: mFinished) {
+                for (StreamId streamId: finished.second) {
+                    views.push_back({ EndOfStream(), streamId });
+                }
             }
             hasOutput(views);
             setInactive();
@@ -150,7 +149,9 @@ namespace VDD {
         std::unique_lock<std::mutex> framesLock(mFramesMutex);
         if (aViews[0].isEndOfStream())
         {
-            mFinished.insert(aIndex);
+            for (const auto& view: aViews) {
+                mFinished[aIndex].insert(view.getStreamId());
+            }
         }
         else
         {

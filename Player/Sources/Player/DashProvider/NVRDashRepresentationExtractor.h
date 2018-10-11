@@ -27,6 +27,7 @@ OMAF_NS_BEGIN
 
         virtual void_t createVideoSource(sourceid_t& sourceId, SourceType::Enum sourceType, StereoRole::Enum channel);
 
+        bool_t isDone();
         bool_t readyForSegment(uint32_t aId);
         Error::Enum parseConcatenatedMediaSegment(DashSegment *aSegment);
 

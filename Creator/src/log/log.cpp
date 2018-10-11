@@ -31,6 +31,11 @@ namespace VDD
         log(Info) << "Processing frame " << aFrameIndex << std::endl;
     }
 
+    void Log::progress(size_t aFrameIndex, std::string aFileName)
+    {
+        log(Info) << "Processing frame " << aFrameIndex << " of " << aFileName << std::endl;
+    }
+
     LogLevel Log::getLogLevel() const
     {
         return mLogLevel;

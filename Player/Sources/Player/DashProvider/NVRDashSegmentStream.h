@@ -33,8 +33,9 @@ OMAF_NS_BEGIN
     class DashSegment;
     static const uint32_t INVALID_SEGMENT_INDEX = OMAF_UINT32_MAX;
     static const time_t INVALID_START_TIME = 0; // Start time is fetched with time and 0 marks EPOCH
-    static const uint32_t INITIAL_CACHE_SIZE = 3; //TODO configure based on the stream. Segment duration should have impact here?
+    static const uint32_t INITIAL_CACHE_DURATION_MS = 4000; //TODO configure based on the stream.
     static const uint32_t INITIAL_CACHE_SIZE_IN_ABR = 2;
+    static const uint32_t RUNTIME_CACHE_DURATION_MS = 3000; //Milliseconds
 
     typedef FixedQueue<DashSegment*, 1024> DashSegments;
 
@@ -129,6 +130,8 @@ OMAF_NS_BEGIN
         bool_t isActive();
 
         void_t setCacheFillMode(bool_t autoFill);
+        void_t setBufferingTime(uint32_t aExpectedPingTimeMs);
+
         virtual uint32_t calculateSegmentId(uint64_t ptsUs) = 0;
         virtual bool_t hasFixedSegmentSize() const;
 
@@ -187,6 +190,7 @@ OMAF_NS_BEGIN
         float32_t mDownloadSpeedFactor;
         uint32_t mCachedSegmentCount;
         uint32_t mDownloadRetryCounter;
+        uint32_t mMaxAvgDownloadTimeMs;
 
         void processUninitialized();
         void processDownloadingInitSegment();

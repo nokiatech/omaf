@@ -42,11 +42,23 @@ namespace VDD
 
     DashOmaf::~DashOmaf() = default;
 
-    void DashOmaf::setupMpd()
+    void DashOmaf::setupMpd(const std::string& aName)
     {
         if (mDashConfig.valid())
         {
-            mMpdFilename = readString(mDashConfig["mpd"]["filename"]);
+            if (mDashConfig["mpd"].valid() && mDashConfig["mpd"]["filename"].valid())
+            {
+                std::string templ = readString(mDashConfig["mpd"]["filename"]);
+                mMpdFilename = Utils::replace(templ, "$Name$", aName);
+            }
+            else if (aName != "")
+            {
+                mMpdFilename = aName + ".mpd";
+            }
+            else
+            {
+                throw ConfigValueInvalid("Missing name for the MPD or the output name in general", mDashConfig["mpd"]);
+            }
 
             mMpd.type = StreamSegmenter::MPDTree::RepresentationType::Static;
             mMpd.minBufferTime = StreamSegmenter::MPDTree::Duration{ 3, 1 }; //TODO
@@ -137,8 +149,18 @@ namespace VDD
 
                 adaptationSet.id = aAdaptationConfig.adaptationSetId;
                 adaptationSet.segmentAlignment = StreamSegmenter::MPDTree::BoolOrNumber{ StreamSegmenter::MPDTree::Number{ 1 } };;
-                //adaptationSet.subsegmentAlignment = 
-
+                if (aSegmenterOutput == PipelineOutput::VideoTopBottom)
+                {
+                    StreamSegmenter::MPDTree::VideoFramePacking packing;
+                    packing.packingType = 4;
+                    adaptationSet.videoFramePacking = packing;
+                }
+                else if (aSegmenterOutput == PipelineOutput::VideoSideBySide)
+                {
+                    StreamSegmenter::MPDTree::VideoFramePacking packing;
+                    packing.packingType = 3;
+                    adaptationSet.videoFramePacking = packing;
+                }
                 size_t representationIndex = 0;
                 for (const auto& representationInfo : aAdaptationConfig.representations)
                 {
@@ -240,8 +262,9 @@ namespace VDD
                         }
                     }
 
-                    if (meta.front().format == CodedFormat::H265)
+                    if (meta.front().format == CodedFormat::H265 || meta.front().format == CodedFormat::H265Extractor)
                     {
+                        // for extractor, we don't expect to have quality ranking except for multi-res case
                         if (meta.front().qualityRankCoverage && meta.front().sphericalCoverage)
                         {
                             // add quality
@@ -254,20 +277,58 @@ namespace VDD
                             {
                                 srqr.shapeType = StreamSegmenter::MPDTree::OmafShapeType::FourGreatCircles;
                             }
-                            srqr.remainingArea = false;
-                            srqr.qualityRankingLocal = false;
-                            srqr.qualityType = StreamSegmenter::MPDTree::OmafQualityType::AllCorrespondTheSame;
-                            StreamSegmenter::MPDTree::SphereRegion sphere;
-                            sphere.centreAzimuth = meta.front().sphericalCoverage.get().cAzimuth;
-                            sphere.centreElevation = meta.front().sphericalCoverage.get().cElevation;
-                            sphere.azimuthRange = meta.front().sphericalCoverage.get().rAzimuth;
-                            sphere.elevationRange = meta.front().sphericalCoverage.get().rElevation;
+                            Quality3d quality = meta.front().qualityRankCoverage.get();
 
-                            StreamSegmenter::MPDTree::OmafQualityInfo info;
-                            info.sphere = sphere;
-                            info.qualityRanking = meta.front().qualityRankCoverage.get().qualityRank;
-                            srqr.qualityInfos.push_back(info);
-                            srqr.defaultViewIdc = StreamSegmenter::MPDTree::OmafViewType::Monoscopic;//TODO stereo support
+                            srqr.remainingArea = quality.remainingArea;
+                            srqr.qualityRankingLocal = false;
+                            if (quality.qualityType == 0)
+                            {
+                                srqr.qualityType = StreamSegmenter::MPDTree::OmafQualityType::AllCorrespondTheSame;
+                            }
+                            else
+                            {
+                                srqr.qualityType = StreamSegmenter::MPDTree::OmafQualityType::MayDiffer;
+                            }
+
+                            for (auto& qInfo : quality.qualityInfo)
+                            {
+                                StreamSegmenter::MPDTree::OmafQualityInfo info;
+
+                                info.qualityRanking = qInfo.qualityRank;
+                                if (quality.qualityType != 0)
+                                {
+                                    info.origHeight = qInfo.origHeight;
+                                    info.origWidth = qInfo.origWidth;
+                                }
+                                if (qInfo.sphere)
+                                {
+                                    StreamSegmenter::MPDTree::SphereRegion sphere;
+                                    sphere.centreAzimuth = qInfo.sphere->cAzimuth;
+                                    sphere.centreElevation = qInfo.sphere->cElevation;
+                                    sphere.centreTilt = qInfo.sphere->cTilt;
+                                    sphere.azimuthRange = qInfo.sphere->rAzimuth;
+                                    sphere.elevationRange = qInfo.sphere->rElevation;
+                                    info.sphere = sphere;
+                                }
+                                srqr.qualityInfos.push_back(info);
+                            }
+                            if (aSegmenterOutput == PipelineOutput::VideoTopBottom || aSegmenterOutput == PipelineOutput::VideoSideBySide || aSegmenterOutput == PipelineOutput::VideoFramePacked)
+                            {
+                                // we support only symmetric stereo
+                                srqr.defaultViewIdc = StreamSegmenter::MPDTree::OmafViewType::LeftAndRightView;
+                            }
+                            else if (aSegmenterOutput == PipelineOutput::VideoLeft)
+                            {
+                                srqr.defaultViewIdc = StreamSegmenter::MPDTree::OmafViewType::LeftView;
+                            }
+                            else if (aSegmenterOutput == PipelineOutput::VideoRight)
+                            {
+                                srqr.defaultViewIdc = StreamSegmenter::MPDTree::OmafViewType::RightView;
+                            }
+                            else
+                            {
+                                srqr.defaultViewIdc = StreamSegmenter::MPDTree::OmafViewType::Monoscopic;
+                            }
                             representation.sphereRegionQualityRanks.push_back(srqr);
                         }
 
@@ -326,7 +387,23 @@ namespace VDD
                         StreamSegmenter::MPDTree::OmafCoverageInfo cc;
                         cc.region = sphere;
                         covi.coverageInfos.push_back(cc);
-                        covi.defaultViewIdc = StreamSegmenter::MPDTree::OmafViewType::Monoscopic;
+                        if (aSegmenterOutput == PipelineOutput::VideoTopBottom || aSegmenterOutput == PipelineOutput::VideoSideBySide || aSegmenterOutput == PipelineOutput::VideoFramePacked)
+                        {
+                            // we support only symmetric stereo
+                            covi.defaultViewIdc = StreamSegmenter::MPDTree::OmafViewType::LeftAndRightView;
+                        }
+                        else if (aSegmenterOutput == PipelineOutput::VideoLeft)
+                        {
+                            covi.defaultViewIdc = StreamSegmenter::MPDTree::OmafViewType::LeftView;
+                        }
+                        else if (aSegmenterOutput == PipelineOutput::VideoRight)
+                        {
+                            covi.defaultViewIdc = StreamSegmenter::MPDTree::OmafViewType::RightView;
+                        }
+                        else
+                        {
+                            covi.defaultViewIdc = StreamSegmenter::MPDTree::OmafViewType::Monoscopic;
+                        }
                         adaptationSet.contentCoverages.push_back(covi);
                     }
                 }
@@ -334,7 +411,7 @@ namespace VDD
                 if (adSetmeta.format == CodedFormat::H265Extractor && aSupportingAdSets) 
                 {
                     StreamSegmenter::MPDTree::PreselectionType preselection;
-                    preselection.tag = "ext1";
+                    preselection.tag = "ext" + std::to_string(aAdaptationConfig.adaptationSetId);
                     // this is valid for extractor adaptation set only
                     preselection.components.push_back(aAdaptationConfig.adaptationSetId);
                     for (auto set : aSupportingAdSets.get())
@@ -442,10 +519,10 @@ namespace VDD
     {
         ConfigValue segmentName = aConfig["segment_name"];
 
-        auto outputName = outputNameForPipelineOutput(aOutput);
-        if (segmentName->type() != Json::stringValue && !segmentName[outputName].valid())
+        auto outputNameSelector = outputNameForPipelineOutput(aOutput);
+        if (segmentName->type() != Json::stringValue && !segmentName[outputNameSelector].valid())
         {
-            throw ConfigValueInvalid("Missing output " + outputName, aConfig);
+            throw ConfigValueInvalid("Missing output " + outputNameSelector, aConfig);
         }
 
         std::string templ;
@@ -456,7 +533,7 @@ namespace VDD
         }
         else
         {
-            templ = readString(segmentName[outputName]);
+            templ = readString(segmentName[outputNameSelector]);
             templ = Utils::replace(templ, "$Name$", aName);
         }
 
@@ -466,12 +543,12 @@ namespace VDD
 
         if (templ.find("$Number$") != std::string::npos)
         {
-            throw ConfigValueInvalid("Template cannot contain $Number$, you must use $Segment$ instead", segmentName[outputName]);
+            throw ConfigValueInvalid("Template cannot contain $Number$, you must use $Segment$ instead", segmentName[outputNameSelector]);
         }
 
         if (templ.find("$Segment$") == std::string::npos)
         {
-            throw ConfigValueInvalid("Template does not contain $Segment$", segmentName[outputName]);
+            throw ConfigValueInvalid("Template does not contain $Segment$", segmentName[outputNameSelector]);
         }
 
         c.durations = aSegmentDurations;
@@ -512,7 +589,7 @@ namespace VDD
     }
 
     // In extractor case, we specify also subpicture video tracks for the extractor segmenterInit, but not to the extractor segmenter instance
-    void DashOmaf::addAdditionalVideoTracksToInitConfig(TrackId aExtractorTrackId, SegmenterInit::Config& aInitConfig, const TileFilter::OmafTileSets& aTileConfig, FrameDuration aTimeScale)
+    void DashOmaf::addAdditionalVideoTracksToExtractorInitConfig(TrackId aExtractorTrackId, SegmenterInit::Config& aInitConfig, const TileFilter::OmafTileSets& aTileConfig, FrameDuration aTimeScale)
     {
         for (auto& tile : aTileConfig)
         {
@@ -529,4 +606,19 @@ namespace VDD
             aInitConfig.streamIds.push_back(tile.streamId);
         }
     }
+    void DashOmaf::addPartialAdaptationSetsToMultiResExtractor(const TileDirectionConfig& aDirection, std::list<StreamId>& aAdSetIds)
+    {
+        aAdSetIds.clear();
+        for (auto& column : aDirection.tiles)
+        {
+            for (auto& gridTile : column)
+            {
+                for (auto& tile : gridTile.tile)
+                {
+                    aAdSetIds.push_back(tile.ids.first);    //TODO this is about adaptation set ids, but we use streamIds for it here and elsewhere. But this dependency can cause problems if something is changed.
+                }
+            }
+        }
+    }
+
 }

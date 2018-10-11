@@ -35,7 +35,10 @@ OMAF_NS_BEGIN
     // Used on US Galaxy S7s and MotoZ
     static const FixedString32 SNAPDRAGON_820 = "msm8996";
 
-    // Used on US Galaxy S8
+    // Used on EU Galaxy S9
+    static const FixedString32 EXYNOS_9810 = "universal9810";
+
+        // Used on US Galaxy S8
     static const FixedString32 SNAPDRAGON_835 = "msm8998";
 
     // Used on EU Galaxy S8
@@ -304,7 +307,8 @@ OMAF_NS_BEGIN
             if (device.findFirst(SNAPDRAGON_820) != Npos
                 || device.findFirst(EXYNOS_8895) != Npos
                 || device.findFirst(HI_3660) != Npos
-                || device.findFirst(SNAPDRAGON_835) != Npos)
+                || device.findFirst(SNAPDRAGON_835) != Npos
+                || device.findFirst(EXYNOS_9810) != Npos)
             {
                 return true;
             }
@@ -332,7 +336,8 @@ OMAF_NS_BEGIN
             else if (device.findFirst(EXYNOS_8895) != Npos
                     || device.findFirst(HI_3660) != Npos
                     || device.findFirst(SNAPDRAGON_835) != Npos
-                    || device.findFirst(EXYNOS_8890) != Npos)
+                    || device.findFirst(EXYNOS_8890) != Npos
+                    || device.findFirst(EXYNOS_9810) != Npos)
             {
                 return true;
             }
@@ -343,6 +348,7 @@ OMAF_NS_BEGIN
         {
             const FixedString256& device = getDevicePlatformId();
             if (device.findFirst(EXYNOS_8895) != Npos
+                || device.findFirst(EXYNOS_9810) != Npos
                 || device.findFirst(HI_3660) != Npos
                 || device.findFirst(SNAPDRAGON_835) != Npos)
             {
@@ -361,6 +367,7 @@ OMAF_NS_BEGIN
             const FixedString256& device = getDevicePlatformId();
             // base layer(s) decoders and streams are on top of this
             if (device.findFirst(EXYNOS_8895) != Npos
+                || device.findFirst(EXYNOS_9810) != Npos
                 || device.findFirst(HI_3660) != Npos
                 || device.findFirst(SNAPDRAGON_835) != Npos)
             {
@@ -381,6 +388,7 @@ OMAF_NS_BEGIN
         {
             const FixedString256& device = getDevicePlatformId();
             if (device.findFirst(EXYNOS_8895) != Npos
+                || device.findFirst(EXYNOS_9810) != Npos
                 || device.findFirst(HI_3660) != Npos)
             {
                 return 4*4096*2048*30;

@@ -102,6 +102,10 @@ namespace VDD
         /** @brief Retrieve track references */
         std::list<TrackId> getTrackReferences(const std::string& aFourCC) const;
 
+        MP4VR::ProjectionFormatProperty getProjection() const;
+
+        MP4VR::PodvStereoVideoConfiguration getFramePacking() const;
+
         /** @brief Retrieve the SphericalVideoV1 property, a Google box */
         Optional<MP4VR::SphericalVideoV1Property> getSphericalVideoV1() const;
 
@@ -110,6 +114,9 @@ namespace VDD
 
         /** @brief Retrieve the StereoScopic3DProperty property, a Google box */
         Optional<MP4VR::StereoScopic3DProperty> getStereoScopic3D() const;
+
+        bool getTiles(int& aTilesX, int& aTilesY);
+        void getCtuSize(int& aCtuSize);
 
         std::vector<Views> produce() override;
 

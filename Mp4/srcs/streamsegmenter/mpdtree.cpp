@@ -494,6 +494,18 @@ namespace StreamSegmenter
             writeXMLElementWithAttributes(out, indentLevel, "EssentialProperty", attrs, true);
         }
 
+        void VideoFramePacking::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+        }
+
+        void VideoFramePacking::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs = { { "schemeIdUri", "urn:mpeg:mpegB:cicp:VideoFramePackingType" } };
+            attrs.push_back({ "value", toXml(packingType) });
+
+            writeXMLElementWithAttributes(out, indentLevel, "EssentialProperty", attrs, true);
+        }
+
         //
         // MPDNodeWithCommonAttributes
         //
@@ -803,6 +815,11 @@ namespace StreamSegmenter
             {
                 bool isSupplemental = !!id && preselection->components.front() == *id;
                 preselection->writeXML(out, indentLevel, isSupplemental);
+            }
+
+            if (videoFramePacking)
+            {
+                videoFramePacking->writeXML(out, indentLevel);
             }
 
             for (auto& representation : representations)

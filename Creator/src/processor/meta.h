@@ -162,11 +162,20 @@ namespace VDD
         //bool interpolate;
     };
     // applicable in OMAF
+    struct QualityInfo
+    {
+        std::uint8_t qualityRank;
+        std::uint16_t origWidth = 0;    // used only with multi-res cases
+        std::uint16_t origHeight = 0;   // used only with multi-res cases
+        VDD::Optional<Spherical> sphere;    // not used with remaining area info
+    };
     struct Quality3d
     {
         // referring to the CodedFrameMeta::SphericalCoverage
-        std::uint8_t qualityRank;
-        // TODO other parameters
+        std::uint8_t shapeType = 0;
+        std::uint8_t qualityType = 0;
+        bool remainingArea = false;
+        std::vector<QualityInfo> qualityInfo;
     };
 
     struct CodedFrameMeta

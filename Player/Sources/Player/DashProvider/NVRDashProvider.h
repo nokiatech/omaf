@@ -49,7 +49,8 @@ public: // VideoProvider
 
 protected: // ProviderBase
     
-    virtual void_t selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources& base, CoreProviderSources& enhancement);
+    virtual uint64_t selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources& base, CoreProviderSources& enhancement);
+    virtual bool_t setInitialViewport(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical);
     virtual MP4AudioStream* getAudioStream();
 private:
     

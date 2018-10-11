@@ -17,9 +17,7 @@
 #include "NVRNamespace.h"
 
 #include "Audio/NVRAudioTypes.h"
-
-#include "Provider/NVRSources.h"
-
+#include "Provider/NVRCoreProviderSources.h"
 #include "NVRErrorCodes.h"
 
 OMAF_NS_BEGIN

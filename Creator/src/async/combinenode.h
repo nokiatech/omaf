@@ -85,7 +85,7 @@ namespace VDD {
         CombineSourceNode(GraphBase&);
 
         std::vector<std::list<Views>> mFrames; // one frame queue per each CombineSinkNode
-        std::set<size_t> mFinished; // which nodes are finished; used to synchronise EndOfStream
+        std::map<size_t, std::set<StreamId>> mFinished; // which nodes are finished; used to synchronise EndOfStream
         std::mutex mFramesMutex; // protect read/write from/to mFrames
 
         void addInput();

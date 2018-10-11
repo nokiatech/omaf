@@ -60,6 +60,7 @@ private:
     Spinlock mDiscardedFramesLock;
     FrameList mDiscardedFrames;
     DecoderFrame* mStagedFrame;
+    bool_t mDiscardOldFrames;
 };
 
 OMAF_NS_END

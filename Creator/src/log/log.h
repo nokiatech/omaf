@@ -41,6 +41,7 @@ namespace VDD
 
         void writeLine(LogLevel, const std::string&);
         virtual void progress(size_t aFrameIndex);
+        virtual void progress(size_t aFrameIndex, std::string aFileName);
 
         // Create another instance that can be used from another thread at the same time
         std::shared_ptr<Log> instance();

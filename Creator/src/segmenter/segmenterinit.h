@@ -86,6 +86,8 @@ namespace VDD
          */
         Optional<StreamSegmenter::Segmenter::InitSegment> prepareInitSegment();
 
+        std::string getGraphVizDescription() override;
+
     private:
         /** Information about the tracks, in particular the sample types */
         StreamSegmenter::Segmenter::TrackDescriptions mTrackDescriptions;

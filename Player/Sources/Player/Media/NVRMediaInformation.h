@@ -28,6 +28,8 @@ namespace MediaFileType
         MP4_OMAF,
         DASH,
         DASH_OMAF,
+        HEIF,
+        HEIF_OMAF,
         COUNT
     };
 }

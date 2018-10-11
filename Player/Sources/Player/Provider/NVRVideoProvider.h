@@ -88,7 +88,9 @@ OMAF_NS_BEGIN
     }
 
     class ProviderBase;
-    
+    class RTPProvider;
+    class HLSProvider;
+
     class VideoProvider
     : public CoreProvider
     {
@@ -104,6 +106,8 @@ OMAF_NS_BEGIN
         virtual const CoreProviderSources& getSources();
 
         virtual Error::Enum setAudioInputBuffer(AudioInputBuffer *inputBuffer);
+        virtual void enter();
+        virtual void leave();
 
     public:  // new methods
 
@@ -112,7 +116,7 @@ OMAF_NS_BEGIN
         virtual Error::Enum start();
         virtual Error::Enum stop();
         virtual Error::Enum pause();
-
+        virtual Error::Enum next();
 
         virtual Error::Enum loadAuxiliaryStream(PathName& uri);
         virtual VideoProviderState::Enum getAuxiliaryState() const;
@@ -140,6 +144,19 @@ OMAF_NS_BEGIN
 
     private:
         ProviderBase* mProviderImpl;
+        
+        // Some providers might change underlying resources while rendering loop is using them
+        // this lock should be used when references to resources are used by anyone and should not
+        // be modified
+        Semaphore mResourcesInUse;
+
+        // TODO: refactor HLS and RTP to have same provider base class
+#if OMAF_ENABLE_STREAM_VIDEO_PROVIDER
+        HLSProvider* mHLSProvider;
+#if OMAF_ENABLE_RTP_VIDEO_PROVIDER
+        RTPProvider* mRTPProvider;
+#endif // OMAF_ENABLE_STREAM_VIDEO_PROVIDER
+#endif // OMAF_ENABLE_RTP_VIDEO_PROVIDER
 
         // Used when there's no actual provider created
         CoreProviderSources mVideoSourcesEmpty;

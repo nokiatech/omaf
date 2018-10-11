@@ -14,6 +14,10 @@
  */
 #pragma once
 
+#include <vector>
+#include <array>
+#include <memory>
+
 namespace H265
 {
     struct ScalingListData

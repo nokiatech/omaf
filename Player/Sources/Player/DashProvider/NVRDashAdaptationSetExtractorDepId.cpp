@@ -90,6 +90,23 @@ OMAF_NS_BEGIN
         return viewports;
     }
 
+    uint32_t DashAdaptationSetExtractorDepId::peekNextSegmentId() const
+    {
+        if (mCurrentRepresentation)
+        {
+            DashSegment* segment = mCurrentRepresentation->peekSegment();
+            if (segment != OMAF_NULL)
+            {
+                return segment->getSegmentId();
+            }
+            else
+            {
+                OMAF_LOG_V("peekNextSegmentId - no segment");
+                return mNextSegmentToBeConcatenated;
+            }
+        }
+        return mNextSegmentToBeConcatenated;
+    }
 
     bool_t DashAdaptationSetExtractorDepId::processSegmentDownload()
     {
@@ -107,17 +124,14 @@ OMAF_NS_BEGIN
         if (mNextRepresentation != OMAF_NULL && mCurrentRepresentation != mNextRepresentation)
         {
             bool_t doTheSwitch = false;
-//            if (mContent.matches(MediaContent::Type::VIDEO_EXTRACTOR))
+            if (!mNextRepresentation->isBuffering())
             {
-                if (!mNextRepresentation->isBuffering())
+                DashSegment* segment = mNextRepresentation->peekSegment();
+                if (segment != OMAF_NULL)
                 {
-                    DashSegment* segment = mNextRepresentation->peekSegment();
-                    if (segment != OMAF_NULL)
+                    if (segment->getSegmentId() == mNextSegmentToBeConcatenated)
                     {
-                        if (segment->getSegmentId() == mNextSegmentToBeConcatenated)
-                        {
-                            doTheSwitch = true;
-                        }
+                        doTheSwitch = true;
                     }
                 }
             }

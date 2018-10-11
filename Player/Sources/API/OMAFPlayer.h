@@ -201,18 +201,6 @@ namespace OMAF
             virtual Result::Enum initializeAudioWithDirectRouting(bool_t aAllowExclusiveMode, const wchar_t* audioDevice) = 0;
 
             /**
-             * Initializes the audio using a custom routing implementation.
-             * In this mode it is the task of the AudioObserver to playback the audio samples
-             * once they are received from the audio rendering
-             * @param observer The observer which routes renderered audio to playback
-             * @param outChannels The amount of output channels for the binauralizer; currently only 2 channels is supported
-             * @param playbackMode The output mode for the binauralizer
-             * @param outputRange The value range of the samples from the audio rendering
-             * @return Result
-             */
-            virtual Result::Enum initializeAudio(AudioObserver* aObserver, int8_t aOutChannels, AudioPlaybackMode::Enum aPlaybackMode, AudioOutputRange::Enum aOutputRange) = 0;
-
-            /**
              * Resets the audio to a state where a new initialization is required
              * @return Result
              */
@@ -225,37 +213,6 @@ namespace OMAF
              */
             virtual Result::Enum setGain(float aGain) = 0;
 
-            /**
-             * Sets the hardware specific audio latency to finetune the audio sync
-             * Relevant only with custom audio routing.
-             * @param latencyUs The latency in microseconds
-             * @return Result
-             */
-            virtual Result::Enum setAudioLatency(int64_t aLatencyUs) = 0;
-
-            /*
-             * In custom audio routing case, requests new audio samples from the SDK.
-             * Typically these are called as a response to onNewSamplesAvailable-observer callback
-             * @param bufferSize The size of the given buffer
-             * @param samples Output buffer either for float or int16 samples; the type needs to follow the AudioOutputRange selection
-             * @param samplesRendered The number of samples written to the buffer
-             * @return AudioReturnValue
-             */
-            virtual AudioReturnValue::Enum renderSamples(size_t aBufferSize, float* aSamples, size_t& aSamplesRendered) = 0;
-            virtual AudioReturnValue::Enum renderSamples(size_t aBufferSize, int16_t* aSamples, size_t& aSamplesRendered) = 0;
-
-            /**
-             * In custom audio routing case, this should be called by the audio observer once it has played back the first audio samples
-             * Used to trigger the AV-sync, and hence must be called when the audio playback has just started
-             */
-            virtual void firstSamplesConsumed() = 0;
-
-            /**
-             * Sets the head transform for the binauralizer
-             * Should be called at the same time as it is called for the renderer
-             * @param headTransform The headtransform
-             */
-            virtual void setHeadTransform(const HeadTransform& aHeadTransform) = 0;
     };
 
     /**
@@ -317,6 +274,12 @@ namespace OMAF
              * @return Result
              */
             virtual Result::Enum stop() = 0;
+
+            /**
+            * Requests for changing sources to the next item in the video archive for multi-item archives.
+            * @return Result
+            */
+            virtual Result::Enum next() = 0;
 
             /**
             * Tells if the source is seekable. The source needs to be loaded fully before the value is valid

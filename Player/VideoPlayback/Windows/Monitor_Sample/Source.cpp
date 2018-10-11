@@ -39,6 +39,7 @@ OMAF::IRenderer* gRenderer = NULL;
 OMAF::IAudio* gAudio = NULL;
 float gYaw = 0.0f;
 int gOldX = 0;
+bool gNext = false;
 
 #define declare(a,b) a b=NULL;
 #include "GlFunctions.inc"
@@ -87,7 +88,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         ValidateRect(hwnd, NULL);
         return 0;
     }
+    case WM_KEYDOWN:
+    {
+        switch (wParam)
+        {
+        case VK_SPACE:
 
+            // Process the SPACE key. 
+            gNext = true;
+            break;
+        }
+        break;
+    }
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
@@ -357,6 +369,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
         }
         else
         {
+            if (gNext)
+            {
+                gPlaybackControl->next();
+                gNext = false;
+                continue;
+            }
             //rotate only around y-axis for this sample
             OMAF::HeadTransform head = { 0 };
             head.orientation.x = 0;
@@ -364,8 +382,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
             head.orientation.z = 0;
             head.orientation.w = cos(gYaw / 2.f);
 
-            //Update head transform to audio and rendering
-            if (gAudio) gAudio->setHeadTransform(head);
+            //Update head transform to rendering
             if (gRenderer)
             {
                 //render video for both eye surfaces

@@ -33,16 +33,6 @@ namespace VDD
     {
         Config config {};
         config.segmentDuration = optionWithDefault(aConfig, "fragment_duration", "Duration of a single fragment", readSegmentDuration, { 1, 1 });
-        ConfigValue fileName = aConfig["filename"];
-        if (fileName->type() == Json::stringValue)
-        {
-            config.filenameTemplate = readString(fileName);
-        }
-        else
-        {
-            //TODO json says we should be able to give filename as a config object too, but we'd need the baselayer type here in order to pick the right one
-            //config.filenameTemplate = readString(fileName[]);
-        }
         return config;
     }
 
@@ -58,13 +48,11 @@ namespace VDD
         mSegmenterInitConfig = {};
         mSingleFileSaveConfig = {};
 
-        std::string name = aConfig.filenameTemplate;
-        name = Utils::replace(name, "$Name$", aName + "." + nameOfPipelineMode(aMode));
-        if (name.find(".mp4") == std::string::npos)
+        if (aName.find(".mp4") == std::string::npos)
         {
-            name.append(".mp4");
+            aName.append(".mp4");
         }
-        mSingleFileSaveConfig.filename = name;
+        mSingleFileSaveConfig.filename = aName;
     }
 
     void MP4VRWriter::finalizePipeline()
@@ -151,6 +139,7 @@ namespace VDD
 
                 SegmenterInit::TrackConfig trackInitConfig{};
                 trackInitConfig.meta = trackMeta;
+                trackInitConfig.pipelineOutput = aPipelineOutput;
                 for (auto id : aVRVideoConfig.get().ids)
                 {
                     trackInitConfig.trackReferences["scal"].insert(id.second);

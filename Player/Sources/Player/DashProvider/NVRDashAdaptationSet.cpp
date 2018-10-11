@@ -21,6 +21,7 @@
 #include "Foundation/NVRTime.h"
 #include "DashProvider/NVRDashRepresentationExtractor.h"
 #include "DashProvider/NVRDashRepresentationTile.h"
+#include "Metadata/NVRCubemapDefinitions.h"
 
 OMAF_NS_BEGIN
     OMAF_LOG_ZONE(DashAdaptationSet)
@@ -105,6 +106,13 @@ OMAF_NS_BEGIN
             if (!parseVideoProperties(nextComponents))
             {
                 return Error::NOT_SUPPORTED;
+            }
+            nextComponents.basicSourceInfo.sourceType = mSourceType;
+            if (mDashType == DashType::OMAF && mSourceType == SourceType::CUBEMAP)
+            {
+                // In the absence of RWPK, we use default OMAF cubemap parameters
+                nextComponents.basicSourceInfo.faceOrder = DEFAULT_OMAF_FACE_ORDER;       // a coded representation of LFRDBU
+                nextComponents.basicSourceInfo.faceOrientation = DEFAULT_OMAF_FACE_ORIENTATION;  // a coded representation of 000111. A merge of enum of individual faces / face sections, that can be many
             }
         }
 
@@ -477,15 +485,34 @@ OMAF_NS_BEGIN
         }
     }
 
-    Error::Enum DashAdaptationSet::startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId)
+    Error::Enum DashAdaptationSet::startDownload(time_t startTime, uint32_t aExpectedPingTimeMs)
     {
+        return startDownload(startTime);
+    }
+
+    Error::Enum DashAdaptationSet::startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode)
+    {
+        OMAF_LOG_V("startDownload ad set %d with override %d", mAdaptationSetId, overrideSegmentId);
         if (mNextRepresentation != OMAF_NULL)
         {
-            return mNextRepresentation->startDownloadWithOverride(overridePTSUs, overrideSegmentId);
+            return mNextRepresentation->startDownloadWithOverride(overridePTSUs, overrideSegmentId, aMode);
         }
         else
         {
-            return mCurrentRepresentation->startDownloadWithOverride(overridePTSUs, overrideSegmentId);
+            return mCurrentRepresentation->startDownloadWithOverride(overridePTSUs, overrideSegmentId, aMode);
+        }
+    }
+
+    Error::Enum DashAdaptationSet::startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode, uint32_t aExpectedPingTimeMs)
+    {
+        OMAF_LOG_V("startDownload ad set %d with override %d", mAdaptationSetId, overrideSegmentId);
+        if (mNextRepresentation != OMAF_NULL)
+        {
+            return mNextRepresentation->startDownloadWithOverride(overridePTSUs, overrideSegmentId, aMode);
+        }
+        else
+        {
+            return mCurrentRepresentation->startDownloadWithOverride(overridePTSUs, overrideSegmentId, aMode);
         }
     }
 
@@ -506,6 +533,7 @@ OMAF_NS_BEGIN
 
     Error::Enum DashAdaptationSet::stopDownloadAsync(bool_t aReset)
     {
+        OMAF_LOG_V("stopDownloadAsync for %d", mAdaptationSetId);
         mDownloadStartTime = INVALID_START_TIME;
         if (mNextRepresentation)
         {
@@ -679,14 +707,14 @@ OMAF_NS_BEGIN
         if (!mCurrentRepresentation->isDone())
         {
             // in practice the buffering state is reached this way only in the very beginning. After that buffering is detected by empty packet during processing
-            isBuffering = !mCurrentRepresentation->getIsInitialized();//  isBuffering();
+            isBuffering = !mCurrentRepresentation->getIsInitialized();
         }
         return isBuffering;
     }
 
     bool_t DashAdaptationSet::isEndOfStream()
     {
-        if (mCurrentRepresentation->isEndOfStream())// && mCurrentRepresentation->isDone())
+        if (mCurrentRepresentation->isEndOfStream())
         {
             return true;
         }
@@ -1205,7 +1233,7 @@ OMAF_NS_BEGIN
         return 1;
     }
 
-    bool_t DashAdaptationSet::isReadyToSwitch(MP4MediaStream& aStream) const
+    bool_t DashAdaptationSet::isReadyToSignalEoS(MP4MediaStream& aStream) const
     {
         if (mNextRepresentation != OMAF_NULL)
         {
@@ -1219,5 +1247,6 @@ OMAF_NS_BEGIN
 
         return false;
     }
+
 
 OMAF_NS_END

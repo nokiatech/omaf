@@ -135,6 +135,7 @@ namespace OMAF
         union
         {
             struct { Point origin; Size size; };
+            // value range 0..1
             struct { float32_t x, y, w, h; };
         };
     };

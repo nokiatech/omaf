@@ -18,7 +18,6 @@
 
 #include "NVRNamespace.h"
 #include "Platform/OMAFDataTypes.h"
-#include "Provider/NVRSources.h"    // for ImageSources
 #include "Media/NVRMP4MediaStream.h"
 #include "VideoDecoder/NVRVideoDecoderConfig.h"
 
@@ -81,7 +80,6 @@ OMAF_NS_BEGIN
         virtual bool_t updateMetadataStream(MP4VR::TrackInformation* track, MP4VR::MP4VRFileReaderInterface* reader);
         virtual bool_t updateTrack(MP4VR::TrackInformation* track);
 
-        virtual bool_t setYaw(float32_t yawDegrees);
         virtual bool_t isEoF() const;
 
         virtual bool_t hasAlternates() const;
@@ -95,8 +93,11 @@ OMAF_NS_BEGIN
         virtual void_t setMode(VideoStreamMode::Enum mode);
         virtual VideoStreamMode::Enum getMode() const;
 
-        virtual void_t setVideoSources(const CoreProviderSources& videoSources);
+        virtual void_t clearVideoSources();
+        virtual void_t setVideoSources(const CoreProviderSources& videoSources, uint64_t aValidFromPts = 0);
+        virtual bool_t hasVideoSources() const;
         virtual const CoreProviderSources& getVideoSources() const;
+        virtual const CoreProviderSources& getVideoSources(uint64_t& aValidFromPts) const;
 
         virtual void_t dataAvailable();
 
@@ -112,11 +113,12 @@ OMAF_NS_BEGIN
         VideoStreamMode::Enum mStreamMode;
 
         CoreProviderSources mVideoSources;
+        uint64_t mSourcesValidFromPts;
 
         uint64_t mDLStartTimeMs;
         uint64_t mFFStartTimeMs;
     };
 
-    typedef FixedArray<MP4VideoStream*, 64> MP4VideoStreams;
+    typedef FixedArray<MP4VideoStream*, 256> MP4VideoStreams;
 
 OMAF_NS_END

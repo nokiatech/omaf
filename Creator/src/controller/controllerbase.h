@@ -45,13 +45,14 @@ namespace VDD
             std::string filenameComponent;
         };
 
+        // Note: this now merges all videos to "video", hence eliminating possibility to use two-channel stereo. This is done for simplicity, as OMAF doesn't really consider multi-track videos
         const std::map<PipelineOutput, PipelineOutputTypeInfo> kOutputTypeInfo{
-            { PipelineOutput::VideoMono,{ "mono", "mono" } },
-			{ PipelineOutput::VideoFramePacked,{ "framepacked", "fp" } },
-            { PipelineOutput::VideoTopBottom,{ "topbottom", "tb" } },
-            { PipelineOutput::VideoSideBySide,{ "sidebyside", "lr" } },
-            { PipelineOutput::VideoLeft,{ "left", "left" } },
-            { PipelineOutput::VideoRight,{ "right", "right" } },
+            { PipelineOutput::VideoMono,{ "video", "video" } },
+			{ PipelineOutput::VideoFramePacked,{ "video", "video" } },
+            { PipelineOutput::VideoTopBottom,{ "video", "video" } },
+            { PipelineOutput::VideoSideBySide,{ "video", "video" } },
+            { PipelineOutput::VideoLeft,{ "video", "video" } },
+            { PipelineOutput::VideoRight,{ "video", "video" } },
             { PipelineOutput::Audio,{ "audio", "audio" } },
             { PipelineOutput::VideoExtractor,{ "extractor", "extractor" } }
         };

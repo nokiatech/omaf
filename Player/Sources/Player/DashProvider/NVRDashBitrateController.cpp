@@ -27,7 +27,6 @@ OMAF_LOG_ZONE(DashBitrateContoller);
 DashBitrateContoller::DashBitrateContoller()
     : mTilePicker(OMAF_NULL)
     , mBaselayerAdaptationSet(OMAF_NULL)
-    , mAudioAdaptationSet(OMAF_NULL)
     , mBaselayerAdaptationStereoSet(OMAF_NULL)
     , mCurrentBitrateIndex(0)
     , mNrBaselayerBitrates(1)
@@ -50,7 +49,7 @@ DashBitrateContoller::~DashBitrateContoller()
     BandwidthMonitor::setMode(false);
 }
 
-void_t DashBitrateContoller::initialize(DashAdaptationSet* aBaseLayer, DashAdaptationSet* aBaseLayerStereo, DashAdaptationSet* aAudio, const TileAdaptationSets& aEnhTiles, VASTilePicker* aTilepicker)
+void_t DashBitrateContoller::initialize(DashAdaptationSet* aBaseLayer, DashAdaptationSet* aBaseLayerStereo, const TileAdaptationSets& aEnhTiles, VASTilePicker* aTilepicker)
 {
 }
 

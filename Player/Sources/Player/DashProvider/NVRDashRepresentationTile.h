@@ -19,7 +19,7 @@
 
 OMAF_NS_BEGIN
 
-    typedef FixedArray<DashSegment*, 34> SegmentStorage;
+    typedef Array<DashSegment*> SegmentStorage;
 
     class DashRepresentationTile
             : public DashRepresentation
@@ -40,7 +40,7 @@ OMAF_NS_BEGIN
         void_t seekWhenSegmentAvailable();
 
     protected:
-        Error::Enum handleInputSegment(DashSegment* aSegment);
+        Error::Enum handleInputSegment(DashSegment* aSegment, bool_t& aReadyForReading);
 
     private:
         SegmentStorage mSegments;

@@ -20,7 +20,8 @@
 #include "async/future.h"
 #include "processor/source.h"
 #include "processor/data.h"
-#include "tilefilter.h"
+#include "controller/common.h"
+#include "./omaf/parser/h265datastructs.hpp"
 
 namespace VDD {
 
@@ -39,26 +40,9 @@ namespace VDD {
          */
         TrackId                trackId;
         /*
-         * List of tiles to include
+         * The tile index
          */
-        std::vector<uint64_t>  tileId;
-        /*
-         * Tile span (columns, rows)
-         */
-        struct {
-            uint64_t columns;
-            uint64_t rows;
-        } tileSpan;
-
-        /*
-         * Extracted subpicture coordinates and resolution (left, top, width, height)
-         */
-        struct {
-            uint64_t top;
-            uint64_t left;
-            uint64_t width;
-            uint64_t height;
-        } pixelSpan;
+        int64_t                tileIndex;
     };
 
     struct Projection
@@ -66,4 +50,48 @@ namespace VDD {
         OmafProjectionType projection;
         // in future could have custom faceorder and transform here
     };
+
+    struct TileGrid
+    {
+        std::vector<uint16_t> columnWidths;  // In pixels; note PPS needs in CTBs
+        std::vector<uint16_t> rowHeights;    // In pixels; note PPS needs in CTBs
+    };
+
+    struct TileSingle
+    {
+        StreamAndTrack ids;
+
+        int ctuIndex;
+    };
+
+    struct TileInGrid
+    {
+        Region regionPacking;
+        std::vector<TileSingle> tile;
+    };
+
+    using TileRow = std::vector<TileInGrid>;
+    // one for each direction
+    struct TileDirectionConfig
+    {
+        std::string label;
+        std::vector<TileRow> tiles;
+
+        StreamAndTrack extractorId;
+        Quality3d qualityRank;
+    };
+
+    struct TileMergeConfig
+    {
+        uint32_t packedWidth;
+        uint32_t packedHeight;
+        uint32_t projectedWidth;
+        uint32_t projectedHeight;
+        TileGrid grid;
+        std::vector<TileDirectionConfig> directions;
+        // these are configured when SPS/PPS from original stream is available
+        H265::SequenceParameterSet extractorSPS;
+        H265::PictureParameterSet extractorPPS;
+    };
+
 }

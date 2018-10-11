@@ -38,6 +38,13 @@ namespace VDD
             // nothing
         }
 
+        ParseResult::ParseResult()
+            : mOK(false)
+            , mError("ParseResult not iniialized")
+        {
+            // nothing
+        }
+
         bool ParseResult::isOK() const
         {
             return mOK;
@@ -48,9 +55,12 @@ namespace VDD
             return mError;
         }
 
-        Parse::Parse(Optional<std::string> aArgumentName, IsRequiredType aIsRequired)
+        Parse::Parse(Optional<std::string> aArgumentName,
+                     IsRequiredType aIsRequired,
+                     CanBeRepeatedType aCanBeRepeated)
             : mArgumentName(aArgumentName)
             , mIsRequired(aIsRequired == IsRequired)
+            , mCanBeRepeated(aCanBeRepeated == CanBeRepeated)
         {
             // nothing
         }
@@ -65,6 +75,11 @@ namespace VDD
         bool Parse::isRequired() const
         {
             return mIsRequired;
+        }
+
+        bool Parse::canBeRepeated() const
+        {
+            return mCanBeRepeated;
         }
 
         String::String(std::string aArgumentName,
@@ -182,6 +197,11 @@ namespace VDD
             return mParse->isRequired();
         }
 
+        bool Arg::canBeRepeated() const
+        {
+            return mParse->canBeRepeated();
+        }
+
         ParseResult Arg::parse(Arguments aArguments) const
         {
             ParseResult result = mParse->parse(aArguments);
@@ -190,6 +210,18 @@ namespace VDD
                 result = ParseResult(ParseResult::Fail(), "Error while parsing " + getDescription() + ": " + result.getError());
             }
             return result;
+        }
+
+        ParseError::ParseError(std::string aError)
+            : std::runtime_error("ParseError")
+            , mError(aError)
+        {
+            // nothing
+        }
+
+        const char* ParseError::what() const noexcept
+        {
+            return mError.c_str();
         }
 
         Parser::Parser(std::string aAppName)
@@ -220,6 +252,21 @@ namespace VDD
                 mRemaining = ptr;
             }
             return *this;
+        }
+
+        ParseResult Parser::tryArgParse(const Arg& aArg, const Arguments aArguments)
+        {
+            try
+            {
+                return aArg.parse(aArguments);
+            }
+            catch (ParseError& parseError)
+            {
+                return ParseResult(ParseResult::Fail(),
+                                   std::string("Failed to parse argument") +
+                                   (aArg.argumentName() ? (std::string(" to ") + *aArg.argumentName()) : "") +
+                                   std::string(": ") + parseError.what());
+            }
         }
 
         ParseResult Parser::parse(const std::vector<std::string>& aArgs) const
@@ -265,7 +312,7 @@ namespace VDD
                                 ++argIndex;
                                 if (argIndex < aArgs.size())
                                 {
-                                    parseResult = it->second->parse({ aArgs[argIndex] });
+                                    parseResult = tryArgParse(*it->second, { aArgs[argIndex] });
                                     remainingRequiredArgs.erase(it->second);
                                 }
                                 else
@@ -275,7 +322,7 @@ namespace VDD
                             }
                             else
                             {
-                                parseResult = it->second->parse({});
+                                parseResult = tryArgParse(*it->second, {});
                                 remainingRequiredArgs.erase(it->second);
                             }
                         }
@@ -303,7 +350,7 @@ namespace VDD
                                     ++argIndex;
                                     if (argIndex < aArgs.size())
                                     {
-                                        parseResult = arg.parse({ aArgs[argIndex] });
+                                        parseResult = tryArgParse(arg, { aArgs[argIndex] });
                                         remainingRequiredArgs.erase(&arg);
                                     }
                                     else
@@ -313,7 +360,7 @@ namespace VDD
                                 }
                                 else
                                 {
-                                    parseResult = arg.parse({});
+                                    parseResult = tryArgParse(arg, {});
                                     remainingRequiredArgs.erase(&arg);
                                 }
                             }
@@ -329,7 +376,7 @@ namespace VDD
             {
                 if (mRemaining)
                 {
-                    parseResult = mRemaining->parse(remaining);
+                    parseResult = tryArgParse(*mRemaining, remaining);
                     remainingRequiredArgs.erase(mRemaining);
                 }
                 else
@@ -372,10 +419,10 @@ namespace VDD
                 }
             };
 
-            std::string argUsageLabel(const Arg& aArg)
+            std::string argUsageLabel(const Arg& aArg, bool aShortOnly = false)
             {
                 std::ostringstream st;
-                if (aArg.getName())
+                if (aArg.getName() && !aShortOnly)
                 {
                     st << "--" << *aArg.getName();
                     if (aArg.argumentName())
@@ -410,6 +457,9 @@ namespace VDD
             {
                 const char* brackets = arg.get().isRequired() ? "()" : "{}";
                 aStream << " " << brackets[0] << argUsageLabel(arg) << brackets[1];
+                if (arg.get().canBeRepeated()) {
+                    aStream << " {" << argUsageLabel(arg, true) << " ..}";
+                }
             }
 
             aStream << std::endl;

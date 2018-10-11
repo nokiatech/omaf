@@ -33,9 +33,9 @@ OMAF_NS_BEGIN
     {
     }
 
-    bool_t DashAdaptationSetTile::isTile(DashComponents aDashComponents, SupportingAdaptationSetIds& aSupportingIds)
+    bool_t DashAdaptationSetTile::isTile(DashComponents aDashComponents, AdaptationSetBundleIds& aSupportingIds)
     {
-        if (!aSupportingIds.isEmpty() && aSupportingIds.contains(aDashComponents.adaptationSet->GetId()))
+        if (!aSupportingIds.partialAdSetIds.isEmpty() && aSupportingIds.partialAdSetIds.contains(aDashComponents.adaptationSet->GetId()))
         {
             return true;
         }
@@ -150,11 +150,11 @@ OMAF_NS_BEGIN
     }
 
     // This is used only with OMAF partial adaptation sets
-    bool_t DashAdaptationSetTile::processSegmentDownloadTile(uint32_t aNextSegmentId)
+    bool_t DashAdaptationSetTile::processSegmentDownloadTile(uint32_t aNextSegmentId, bool_t aCanSwitchRepresentations)
     {
         mCurrentRepresentation->processSegmentDownload();
 
-        if (mNextRepresentation != OMAF_NULL && mCurrentRepresentation != mNextRepresentation)
+        if (aCanSwitchRepresentations && mNextRepresentation != OMAF_NULL && mCurrentRepresentation != mNextRepresentation)
         {
             //technically the new stream/representation/decoder will get activated HERE!
             //(stream activate gets called when init segment is processed)
@@ -287,6 +287,14 @@ OMAF_NS_BEGIN
         return false;
     }
 
+    void_t DashAdaptationSetTile::setBufferingTime(uint32_t aExpectedPingTimeMs)
+    {
+        for (Representations::Iterator it = mRepresentations.begin(); it != mRepresentations.end(); ++it)
+        {
+            (*it)->setBufferingTime(aExpectedPingTimeMs);
+        }
+    }
+
     uint8_t DashAdaptationSetTile::getNrQualityLevels() const
     {
         return mNrQualityLevels;
@@ -336,6 +344,7 @@ OMAF_NS_BEGIN
                 {
                     OMAF_LOG_V("selectRepresentation, found: %s", (*repr)->getId());
                     mNextRepresentation = *repr;
+                    mCurrentRepresentation->stopDownloadAsync(false);
                     return prepareForSwitch(aNextNeededSegment, false);//TODO can we know if we go to background in this case? By quality rank in representation
                 }
                 return false;
@@ -394,45 +403,45 @@ OMAF_NS_BEGIN
     {
         DashAttributes::Coverage coverage;
 
-            Error::Enum result = DashOmafAttributes::getOMAFVideoViewport(aNextComponents, coverage, mSourceType);
-            if (result == Error::OK_NO_CHANGE)
+        Error::Enum result = DashOmafAttributes::getOMAFVideoViewport(aNextComponents, coverage, mSourceType);
+        if (result == Error::OK_NO_CHANGE)
+        {
+            mContent.addType(MediaContent::Type::VIDEO_BASE);
+        }
+        else if (result == Error::OK)
+        {
+            if (mSourceType == SourceType::EQUIRECTANGULAR_PANORAMA)
             {
-                mContent.addType(MediaContent::Type::VIDEO_BASE);
-            }
-            else if (result == Error::OK)
-            {
-                if (mSourceType == SourceType::EQUIRECTANGULAR_PANORAMA)
-                {
-                    mSourceType = SourceType::EQUIRECTANGULAR_TILES;
-                    aNextComponents.basicSourceInfo.sourceType = SourceType::EQUIRECTANGULAR_TILES;
+                mSourceType = SourceType::EQUIRECTANGULAR_TILES;
+                aNextComponents.basicSourceInfo.sourceType = SourceType::EQUIRECTANGULAR_TILES;
 
-                    if (!mContent.matches(MediaContent::Type::VIDEO_TILE))
-                    {
-                        // It is not OMAF partial set, but it is a tile, so it must be enhancement tile, wrapped into OMAF
-                        mContent.addType(MediaContent::Type::VIDEO_ENHANCEMENT);
-                    }
-                    if (mCoveredViewport == OMAF_NULL)
-                    {
-                        mCoveredViewport = OMAF_NEW(mMemoryAllocator, VASTileViewport)();
-                    }
-                    mCoveredViewport->set(coverage.azimuthCenter, coverage.elevationCenter, coverage.azimuthRange, coverage.elevationRange, VASLongitudeDirection::COUNTER_CLOCKWISE);
-                }
-                else if (mSourceType == SourceType::CUBEMAP)
+                if (!mContent.matches(MediaContent::Type::VIDEO_TILE))
                 {
-                    mSourceType = SourceType::CUBEMAP_TILES;
-                    aNextComponents.basicSourceInfo.sourceType = SourceType::CUBEMAP_TILES;
-                    if (mCoveredViewport == OMAF_NULL)
-                    {
-                        mCoveredViewport = OMAF_NEW(mMemoryAllocator, VASTileViewportCube)();
-                    }
-                    mCoveredViewport->set(coverage.azimuthCenter, coverage.elevationCenter, coverage.azimuthRange, coverage.elevationRange, VASLongitudeDirection::COUNTER_CLOCKWISE);
-                    OMAF_LOG_V("Created cubemap tile at (%f, %f), range (%f, %f)", coverage.azimuthCenter, coverage.elevationCenter, coverage.azimuthRange, coverage.elevationRange);
+                    // It is not OMAF partial set, but it is a tile, so it must be enhancement tile, wrapped into OMAF
+                    mContent.addType(MediaContent::Type::VIDEO_ENHANCEMENT);
                 }
+                if (mCoveredViewport == OMAF_NULL)
+                {
+                    mCoveredViewport = OMAF_NEW(mMemoryAllocator, VASTileViewport)();
+                }
+                mCoveredViewport->set(coverage.azimuthCenter, coverage.elevationCenter, coverage.azimuthRange, coverage.elevationRange, VASLongitudeDirection::COUNTER_CLOCKWISE);
             }
-            else
+            else if (mSourceType == SourceType::CUBEMAP)
             {
-                return;
+                mSourceType = SourceType::CUBEMAP_TILES;
+                aNextComponents.basicSourceInfo.sourceType = SourceType::CUBEMAP_TILES;
+                if (mCoveredViewport == OMAF_NULL)
+                {
+                    mCoveredViewport = OMAF_NEW(mMemoryAllocator, VASTileViewportCube)();
+                }
+                mCoveredViewport->set(coverage.azimuthCenter, coverage.elevationCenter, coverage.azimuthRange, coverage.elevationRange, VASLongitudeDirection::COUNTER_CLOCKWISE);
+                OMAF_LOG_V("Created cubemap tile at (%f, %f), range (%f, %f)", coverage.azimuthCenter, coverage.elevationCenter, coverage.azimuthRange, coverage.elevationRange);
             }
+        }
+        else
+        {
+            return;
+        }
     }
 
     bool_t DashAdaptationSetTile::parseVideoQuality(DashComponents& aNextComponents, uint8_t& aQualityLevel, bool_t& aGlobal, DashRepresentation* aLatestRepresentation)

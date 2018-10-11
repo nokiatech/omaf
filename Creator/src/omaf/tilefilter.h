@@ -22,6 +22,15 @@
 
 namespace VDD {
 
+    enum ExtractorMode
+    {
+        INVALID = -1,
+        NO_EXTRACTOR,
+        COMMON_EXTRACTOR,
+        DEDICATED_EXTRACTOR,
+
+        COUNT
+    };
     class TileFilter
     {
     public:
@@ -33,24 +42,30 @@ namespace VDD {
 
         bool parseParamSet(H265InputStream& aInputStream, const OmafTileSets& aTileConfig, const CodedFrameMeta& aInputMeta);
         bool parseAU(H265InputStream& aInputStream, int aExpectedTileCount);
-        void convertToSubpicture(std::uint32_t aConfigIndex, const OmafTileSetConfiguration& aConfig, size_t aAUIndex, std::vector<Views>& aSubPictures, FrameTime aPresTime, int64_t aCodingIndex, FrameDuration aDuration, bool aCreateExtractor);
-        static void rewriteHeader(std::vector<std::uint8_t>& aOldHeader, size_t aOldHeaderOffset, Parser::BitStream& aNewSliceHeader, uint64_t aCtuId, bool aFirstInPicture, 
-            const std::list<H265::SequenceParameterSet*>& aOldSpsList, const std::list<H265::PictureParameterSet*>& aOldPpsList,
-            H265::SequenceParameterSet* aNewSps, H265::PictureParameterSet* aNewPps, uint8_t& aNuhTemporalIdPlus1);
+        void convertToSubpicture(std::uint32_t aConfigIndex, const OmafTileSetConfiguration& aConfig, size_t aAUIndex, std::vector<Views>& aSubPictures, FrameTime aPresTime, int64_t aCodingIndex, FrameDuration aDuration, ExtractorMode aExtractorMode);
 
     private:
+        struct TilePixelRegion
+        {
+            uint64_t top;
+            uint64_t left;
+            uint64_t width;
+            uint64_t height;
+        };
+
         using CbsSpsData = std::list<H265::SequenceParameterSet*>;
         using CbsPpsData = std::list<H265::PictureParameterSet*>;
         using SlcHdrOset = std::vector<H265::sliceHeaderOffset*>;
         using AccessUnit = ParserInterface::AccessUnit;
 		
+        void createSubPictureSliceHeader(std::vector<std::uint8_t>& aOldHeader, size_t aOldHeaderOffset, Parser::BitStream& aNewSliceHeader,
+            const std::list<H265::SequenceParameterSet*>& aOldSpsList, const std::list<H265::PictureParameterSet*>& aOldPpsList,
+            H265::SequenceParameterSet* aNewSps, H265::PictureParameterSet* aNewPps, H265::SliceHeader& aOldHeaderParsed, uint8_t& aNuhTemporalIdPlus1);
         void prepareParamSets(const OmafTileSets& aTileConfig, const CodedFrameMeta& aInputMeta);
-        CodedFrameMeta createMetadata(const OmafTileSetConfiguration& aConfig, FrameTime aPresTime, int64_t aCodingIndex, FrameDuration aDuration, bool aIsIDR, size_t aAUIndex, CbsSpsData& aSps, CbsPpsData& aPps, int aBitrate);
-        CodedFrameMeta createExtractorMetadata(const OmafTileSetConfiguration& aConfig, FrameTime aPresTime, int64_t aCodingIndex, FrameDuration aDuration, size_t aAUIndex, bool aIsIDR);
-        void createRwpk(const OmafTileSetConfiguration& aConfig, CodedFrameMeta& aCodedMeta);
+        CodedFrameMeta createMetadata(const TilePixelRegion& aTile, TrackId aTrackId, FrameTime aPresTime, int64_t aCodingIndex, FrameDuration aDuration, bool aIsIDR, size_t aAUIndex, CbsSpsData& aSps, CbsPpsData& aPps, int aBitrate);
+        CodedFrameMeta createExtractorMetadata(const TilePixelRegion& aTile, FrameTime aPresTime, int64_t aCodingIndex, FrameDuration aDuration, size_t aAUIndex, bool aIsIDR);
+        RegionPacking createRwpk(const TilePixelRegion& aTile);
         void createSpherical(CodedFrameMeta& aCodedMeta);
-        std::uint32_t createProjectionSEI(Parser::BitStream& bitstr, int temporalId);
-        std::uint32_t createRwpkSEI(Parser::BitStream& bitstr, const OmafTileSetConfiguration& aConfig, int temporalId);
 
     private:
         // parameters sets in coded format
@@ -77,8 +92,8 @@ namespace VDD {
         std::uint8_t mQualityRank;
         std::vector<int> mBitratePerSubpicture;
         Projection mProjection;
-        std::uint64_t mTileWidthInCtus;
-        std::uint64_t mNrOfCtusInTile;
+
+        std::vector<TilePixelRegion> mTileRegions;
     };
 
 

@@ -25,8 +25,6 @@ namespace OMAF
     OMAF::Result::Enum convertResult(Private::Error::Enum result);
     OMAF::VideoPlaybackState::Enum convertVideoPlaybackState(Private::VideoProviderState::Enum providerState);
 
-    Private::AudioOutputRange::Enum convertAudioOutputRange(OMAF::AudioOutputRange::Enum range);
-    Private::PlaybackMode::Enum convertAudioPlaybackMode(OMAF::AudioPlaybackMode::Enum mode);
     OMAF::AudioReturnValue::Enum convertAudioResult(Private::AudioReturnValue::Enum nvrReturnValue);
 
     OMAF::StreamType::Enum convertStreamType(Private::StreamType::Enum type);

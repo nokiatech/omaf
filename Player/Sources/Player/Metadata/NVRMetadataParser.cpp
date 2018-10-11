@@ -31,16 +31,23 @@ OMAF_NS_BEGIN
 
     MetadataParser::~MetadataParser()
     {
+        reset();
+    }
+
+    void MetadataParser::reset()
+    {
         for (CoreProviderSources::Iterator it = mVideoSources.begin();
             it != mVideoSources.end(); ++it)
         {
             OMAF_DELETE_HEAP(*it);
         }
+        mVideoSources.clear();
         for (CoreProviderSources::Iterator it = mInactiveVideoSources.begin();
             it != mInactiveVideoSources.end(); ++it)
         {
             OMAF_DELETE_HEAP(*it);
         }
+        mInactiveVideoSources.clear();
     }
 
     const CoreProviderSourceTypes& MetadataParser::getVideoSourceTypes()
@@ -147,9 +154,9 @@ OMAF_NS_BEGIN
      *  Note! This currently supports only cubemap to cubemap mapping; other mappings would require changes up to the renderer level too.
      *  Note2: Framepacked stereo must have the same packing for both channels, with or without constituent picture matching flag set
      */
-    Error::Enum MetadataParser::parseOmafCubemapFaceInfo(const MP4VR::RegionWisePackingProperty& aRwpk, BasicSourceInfo& aBasicSourceInfo)
+    Error::Enum MetadataParser::parseOmafCubemapRegionMetadata(const MP4VR::RegionWisePackingProperty& aRwpk, BasicSourceInfo& aBasicSourceInfo)
     {
-        return OmafMetadata::parseOmafCubemapFaceInfo(aRwpk, aBasicSourceInfo.sourceDirection, aBasicSourceInfo.faceOrder, aBasicSourceInfo.faceOrientation);
+        return OmafMetadata::parseOmafCubemapRegions(aRwpk, aBasicSourceInfo.sourceDirection, aBasicSourceInfo.tiledCubeMap);
     }
 
     bool_t MetadataParser::parseUri(const char_t* uri, BasicSourceInfo& sourceInfo)
@@ -237,22 +244,36 @@ OMAF_NS_BEGIN
         return (sourceInfo.sourceDirection != SourceDirection::INVALID && sourceInfo.sourceType != SourceType::INVALID);
     }
 
-    bool_t MetadataParser::setVideoMetadata(BasicSourceInfo sourceInfo, const VideoInfo& stream)
+    bool_t MetadataParser::setVideoMetadata(BasicSourceInfo sourceInfo, sourceid_t& sourceId, const VideoInfo& stream)
     {
         if (sourceInfo.sourceType == SourceType::IDENTITY || sourceInfo.sourceType == SourceType::IDENTITY_AUXILIARY)
         {
-            return setVideoMetadataPackageMono(0, stream, sourceInfo.sourceType);
+            return setVideoMetadataPackageMono(sourceId, stream, sourceInfo.sourceType);
         }
 
         if (sourceInfo.sourceType == SourceType::CUBEMAP)
         {
-            if (sourceInfo.sourceDirection == SourceDirection::MONO)
+            if (sourceInfo.tiledCubeMap.cubeNumFaces == 0)
             {
-                return setVideoMetadataPackageMonoCubemap(0, stream, sourceInfo);
+                if (sourceInfo.sourceDirection == SourceDirection::MONO)
+                {
+                    return setVideoMetadataPackageMonoCubemap(sourceId++, stream, sourceInfo);
+                }
+                else
+                {
+                    return setVideoMetadataPackageStereoCubemap(sourceId++, sourceId++, stream, stream, sourceInfo);
+                }
             }
             else
             {
-                return setVideoMetadataPackageStereoCubemap(0, 1, stream, stream, sourceInfo);
+                if (sourceInfo.sourceDirection == SourceDirection::MONO)
+                {
+                    return setVideoMetadataPackageMultiResMonoCubemap(sourceId, stream, sourceInfo);
+                }
+                else
+                {
+                    return setVideoMetadataPackageMultiResStereoCubemap(sourceId, stream, stream, sourceInfo);
+                }
             }
         }
 
@@ -267,23 +288,22 @@ OMAF_NS_BEGIN
 
         if (!sourceInfo.erpRegions.isEmpty())
         {
-            sourceid_t sourceId = 0;
             return setVideoMetadataPackageErpRegions(sourceId, stream, sourceInfo);
         }
         else if (sourceInfo.sourceDirection == SourceDirection::MONO)
         {
-            return setVideoMetadataPackageMono(0, stream, sourceInfo.sourceType);
+            return setVideoMetadataPackageMono(sourceId, stream, sourceInfo.sourceType);
         }
 
 
-        sourceid_t leftSource = 0;
-        sourceid_t rightSource = 1;
+        sourceid_t leftSource = sourceId++;
+        sourceid_t rightSource = sourceId++;
 
         if (sourceInfo.sourceDirection == SourceDirection::BOTTOM_TOP ||
             sourceInfo.sourceDirection == SourceDirection::RIGHT_LEFT)
         {
-            leftSource = 1;
-            rightSource = 0;
+            leftSource = rightSource;
+            rightSource--;
         }
 
         return setVideoMetadataPackageStereo(leftSource, rightSource, stream, stream, sourceInfo);
@@ -766,7 +786,65 @@ OMAF_NS_BEGIN
         return true;
     }
 
+    bool_t MetadataParser::setVideoMetadataPackageMultiResMonoCubemap(sourceid_t& aSourceId, const VideoInfo& stream, BasicSourceInfo data)
+    {
+        OMAF_ASSERT(stream.streamId != OMAF_UINT8_MAX, "Stream ID not set");
+        OMAF_LOG_D("Setting to mono cubemap");
+        const int NUM_FACES = 6;
 
+        CubeMapSource *cubeMapSource = OMAF_NEW_HEAP(CubeMapSource);
+        cubeMapSource->sourcePosition = SourcePosition::MONO;
+        cubeMapSource->sourceId = aSourceId++;
+
+        cubeMapSource->cubeMap.cubeYaw = 0;
+        cubeMapSource->cubeMap.cubePitch = 0;
+        cubeMapSource->cubeMap.cubeRoll = 0;
+        cubeMapSource->cubeMap.cubeNumFaces = NUM_FACES;
+
+        float width = 1.f;
+        float height = 1.f;
+
+        //0 - front
+        //1 - left
+        //2 - back
+        //3 - right
+        //4 - up
+        //5 - down
+        //int faceOrder[6] = { 1, 0, 3, 4, 5, 2 };
+
+        for (int i = 0; i < NUM_FACES; ++i)
+        {
+            cubeMapSource->cubeMap.cubeFaces[i].faceIndex = data.tiledCubeMap.cubeFaces[i].faceIndex;
+            cubeMapSource->cubeMap.cubeFaces[i].numCoordinates = data.tiledCubeMap.cubeFaces[i].numCoordinates;
+            for (int j = 0; j < cubeMapSource->cubeMap.cubeFaces[i].numCoordinates; ++j)
+            {
+                cubeMapSource->cubeMap.cubeFaces[i].sections[j].sourceX = data.tiledCubeMap.cubeFaces[i].sections[j].sourceX;
+                cubeMapSource->cubeMap.cubeFaces[i].sections[j].sourceY = data.tiledCubeMap.cubeFaces[i].sections[j].sourceY;
+                cubeMapSource->cubeMap.cubeFaces[i].sections[j].sourceWidth = data.tiledCubeMap.cubeFaces[i].sections[j].sourceWidth;
+                cubeMapSource->cubeMap.cubeFaces[i].sections[j].sourceHeight = data.tiledCubeMap.cubeFaces[i].sections[j].sourceHeight;
+                cubeMapSource->cubeMap.cubeFaces[i].sections[j].originX = data.tiledCubeMap.cubeFaces[i].sections[j].originX;
+                cubeMapSource->cubeMap.cubeFaces[i].sections[j].originY = data.tiledCubeMap.cubeFaces[i].sections[j].originY;
+                cubeMapSource->cubeMap.cubeFaces[i].sections[j].originWidth = data.tiledCubeMap.cubeFaces[i].sections[j].originWidth;
+                cubeMapSource->cubeMap.cubeFaces[i].sections[j].originHeight = data.tiledCubeMap.cubeFaces[i].sections[j].originHeight;
+                cubeMapSource->cubeMap.cubeFaces[i].sections[j].sourceOrientation = data.tiledCubeMap.cubeFaces[i].sections[j].sourceOrientation;
+            }
+        }
+        cubeMapSource->textureRect.x = 0.0f;
+        cubeMapSource->textureRect.y = 0.0f;
+        cubeMapSource->textureRect.w = 1.0f;
+        cubeMapSource->textureRect.h = 1.0f;
+        cubeMapSource->widthInPixels = stream.width;
+        cubeMapSource->heightInPixels = stream.height;
+        cubeMapSource->streamIndex = stream.streamId;
+        addVideoSource(cubeMapSource);
+        return true;
+    }
+
+    bool_t MetadataParser::setVideoMetadataPackageMultiResStereoCubemap(sourceid_t& sourceIdLeft, const VideoInfo& leftStream, const VideoInfo& rightStream, BasicSourceInfo sourceInfo)
+    {
+        //TODO
+        return false;
+    }
 #if OMAF_ENABLE_STREAM_VIDEO_PROVIDER
     bool_t MetadataParser::setVideoMetadataPackageEquirectTile(sourceid_t& sourceId, SourceDirection::Enum sourceDirection, StereoRole::Enum stereoRole, const VASTileViewport& viewport, const VideoInfo& stream)
     {

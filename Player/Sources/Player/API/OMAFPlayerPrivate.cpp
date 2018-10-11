@@ -167,11 +167,6 @@ namespace OMAF
                 {
                     initializeAudioWithDirectRouting(mAudioState.allowExclusiveMode);
                 }
-                else
-                {
-                    initializeAudio(mAudioState.observer, mAudioState.outChannels,
-                                    mAudioState.playbackMode, mAudioState.outputRange);
-                }
             }
 
             if (mElapsedTimeAtSuspend != OMAF_UINT64_MAX)
@@ -272,10 +267,6 @@ namespace OMAF
         {
             mAudioBackend->onRendererReady();
         }
-        else if (mAudioState.observer != OMAF_NULL)
-        {
-            mAudioState.observer->onRendererReady(mAudioRenderer->getInputSampleRate());
-        }
     }
 
     void_t OmafPlayerPrivate::onRendererPlaying()
@@ -283,10 +274,6 @@ namespace OMAF
         if (mAudioState.useDirectRouting && mAudioBackend != OMAF_NULL)
         {
             mAudioBackend->onRendererPlaying();
-        }
-        else if (mAudioState.observer != OMAF_NULL)
-        {
-            mAudioState.observer->onNewSamplesAvailable();
         }
     }
 
@@ -296,10 +283,6 @@ namespace OMAF
         {
             mAudioBackend->onFlush();
         }
-        else if (mAudioState.observer != OMAF_NULL)
-        {
-            mAudioState.observer->onFlush();
-        }
     }
 
     int64_t OmafPlayerPrivate::onGetPlayedTimeUs()
@@ -307,10 +290,6 @@ namespace OMAF
         if (mAudioState.useDirectRouting && mAudioBackend != OMAF_NULL)
         {
             return mAudioBackend->onGetPlayedTimeUs();
-        }
-        else if (mAudioState.observer != OMAF_NULL)
-        {
-            return mAudioState.observer->onGetPlayedTimeUs();
         }
         else
         {
@@ -326,39 +305,6 @@ namespace OMAF
         {
             mAudioBackend->onRendererPaused();
         }
-        else if (mAudioState.observer)
-        {
-            mAudioState.observer->onRendererPaused();
-        }
-    }
-
-    Result::Enum OmafPlayerPrivate::initializeAudio(AudioObserver* observer, int8_t outChannels, AudioPlaybackMode::Enum playbackMode, AudioOutputRange::Enum outputRange)
-    {
-        if (mSuspended)
-        {
-            return OMAF::Result::INVALID_STATE;
-        }
-
-        if (observer == OMAF_NULL)
-        {
-            return Result::INVALID_DATA;
-        }
-        else if (mAudioState.initialized)
-        {
-            return Result::INVALID_STATE;
-        }
-
-        mAudioState.observer = observer;
-        
-        Private::Error::Enum result = mAudioRenderer->init(outChannels, convertAudioPlaybackMode(playbackMode), convertAudioOutputRange(outputRange));
-        
-        if (result == Private::Error::OK)
-        {
-            mAudioState.initialized = true;
-            mAudioState.useDirectRouting = false;
-        }
-        
-        return convertResult(result);
     }
 
     Result::Enum OmafPlayerPrivate::initializeAudioWithDirectRouting(bool_t allowExclusiveMode)
@@ -384,7 +330,7 @@ namespace OMAF
         {
             return Result::NOT_SUPPORTED;
         }
-        Private::Error::Enum result = mAudioRenderer->init(kAudioOutputChannelCount, Private::PlaybackMode::HEADTRACKED_HEADPHONES, Private::AudioOutputRange::INT16);
+        Private::Error::Enum result = mAudioRenderer->init();
 
         if (result == Private::Error::OK)
         {
@@ -423,78 +369,27 @@ namespace OMAF
 
     Result::Enum OmafPlayerPrivate::setAudioLatency(int64_t latencyUs)
     {
-        if (mSuspended)
-        {
-            return OMAF::Result::INVALID_STATE;
-        }
-
-        if (!mAudioState.initialized)
-        {
-            return Result::INVALID_STATE;
-        }
-        if (mAudioState.useDirectRouting)
-        {
-            return Result::INVALID_STATE;
-        }
-        else
-        {
-            return convertResult(mAudioRenderer->setAudioLatency(latencyUs));
-        }
+        return OMAF::Result::NOT_SUPPORTED;
     }
 
     AudioReturnValue::Enum OmafPlayerPrivate::renderSamples(size_t bufferSize, float* samples, size_t& samplesRendered)
     {
-        if (!mAudioState.initialized || mSuspended)
-        {
-            return AudioReturnValue::NOT_INITIALIZED;
-        }
-        
-        if (mAudioState.useDirectRouting)
-        {
-            return AudioReturnValue::INVALID;
-        }
-        else
-        {
-            return convertAudioResult(mAudioRenderer->renderSamples(bufferSize, samples, samplesRendered));
-        }
+        return AudioReturnValue::INVALID;
     }
 
     AudioReturnValue::Enum OmafPlayerPrivate::renderSamples(size_t bufferSize, int16_t* samples, size_t& samplesRendered)
     {
-        if (!mAudioState.initialized || mSuspended)
-        {
-            return AudioReturnValue::INVALID;
-        }
-        if (mAudioState.useDirectRouting)
-        {
-            return AudioReturnValue::INVALID;
-        }
-        else
-        {
-            return convertAudioResult(mAudioRenderer->renderSamples(bufferSize, samples, samplesRendered));
-        }
+        return AudioReturnValue::INVALID;
     }
 
     void_t OmafPlayerPrivate::firstSamplesConsumed()
     {
-        if (!mAudioState.initialized || mSuspended)
-        {
-            return;
-        }
-        
-        if (!mAudioState.useDirectRouting)
-        {
-            mAudioRenderer->playbackStarted();
-        }
+        return;
     }
 
     void_t OmafPlayerPrivate::setHeadTransform(const HeadTransform &headTransform)
     {
-        if (mSuspended)
-        {
-            return;
-        }
-        mAudioRenderer->setHeadTransform(headTransform.orientation);
+        return;
     }
 
     uint32_t OmafPlayerPrivate::createRenderTarget(const RenderTextureDesc* colorAttachment, const RenderTextureDesc* depthStencilAttachment)
@@ -613,6 +508,15 @@ namespace OMAF
         return convertResult(mVideoProvider->stop());
     }
 
+
+    Result::Enum OmafPlayerPrivate::next()
+    {
+        if (mSuspended)
+        {
+            return Result::INVALID_STATE;
+        }
+        return convertResult(mVideoProvider->next());
+    }
 
     Result::Enum OmafPlayerPrivate::loadAuxiliaryVideo(const char *uri)
     {

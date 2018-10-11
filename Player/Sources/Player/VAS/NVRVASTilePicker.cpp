@@ -729,7 +729,7 @@ OMAF_NS_BEGIN
         {
             // number of tiles based decision
             size_t count = selectedTiles.getSize() - maxTiles;
-            OMAF_LOG_V("Removing %zd tiles due to tile count constraints", count);
+//            OMAF_LOG_V("Removing %zd tiles due to tile count constraints", count);
             selectedTiles.removeAt(maxTiles, count);
         }
 

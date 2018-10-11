@@ -20,7 +20,6 @@
 
 #include <mp4vrfiledatatypes.h>
 
-#include "Provider/NVRSources.h"
 #include "Metadata/NVRMetadataParser.h"
 
 #include "Media/NVRMediaFormat.h"

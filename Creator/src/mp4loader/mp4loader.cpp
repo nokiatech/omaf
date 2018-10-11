@@ -21,6 +21,8 @@
 
 #include "mp4loader.h"
 #include "common/utils.h"
+#include "omaf/parser/h265parser.hpp"
+
 
 namespace VDD
 {
@@ -33,7 +35,8 @@ namespace VDD
 
         enum MP4LoaderErrors
         {
-            UnsupportedVRMetadataVersion
+            UnsupportedVRMetadataVersion = MP4VR::MP4VRFileReaderInterface::ALLOCATOR_ALREADY_SET+1,
+            OMAFNonVIInput
         };
 
         const std::pair<int32_t, const char*> kMp4vrErrors[] = {
@@ -54,7 +57,8 @@ namespace VDD
             { MP4VR::MP4VRFileReaderInterface::MEMORY_TOO_SMALL_BUFFER, "MEMORY_TOO_SMALL_BUFFER"},
             { MP4VR::MP4VRFileReaderInterface::INVALID_SEGMENT, "INVALID_SEGMENT"},
             { MP4VR::MP4VRFileReaderInterface::ALLOCATOR_ALREADY_SET, "ALLOCATOR_ALREADY_SET"},
-            { UnsupportedVRMetadataVersion, "Unsupported VR metadata version" }
+            { UnsupportedVRMetadataVersion, "Unsupported VR metadata version" },
+            { OMAFNonVIInput, "Viewport dependent input detected, but not accepted"}
         };
 
         void checkAndThrow(int32_t aRc)
@@ -130,6 +134,7 @@ namespace VDD
                     decoderCodeType == "avc3" ? CodedFormat::H264 :
                     decoderCodeType == "hev1" ? CodedFormat::H265 :
                     decoderCodeType == "hvc1" ? CodedFormat::H265 :
+                    decoderCodeType == "hvc2" ? CodedFormat::H265Extractor :
                     decoderCodeType == "mp4a" ? CodedFormat::AAC :
                     CodedFormat::None;
             }
@@ -300,6 +305,22 @@ namespace VDD
         }
     } // anonymous namespace
 
+    MP4VR::ProjectionFormatProperty MP4LoaderSource::getProjection() const
+    {
+        MP4VR::ProjectionFormatProperty projectionFormat;
+        int32_t rc = mReader->getPropertyProjectionFormat(mTrackInfo->trackId, mTrackInfo->sampleProperties[0].sampleId, projectionFormat);
+        checkAndThrow(rc);
+        return projectionFormat;
+    }
+
+    MP4VR::PodvStereoVideoConfiguration MP4LoaderSource::getFramePacking() const
+    {
+        MP4VR::PodvStereoVideoConfiguration stereoMode;
+        int32_t rc = mReader->getPropertyStereoVideoConfiguration(mTrackInfo->trackId, 0, stereoMode);
+        checkAndThrow(rc);
+        return stereoMode;
+    }
+
     Optional<MP4VR::StereoScopic3DProperty> MP4LoaderSource::getStereoScopic3D() const
     {
         return getVrProperty(*mReader,
@@ -371,9 +392,46 @@ namespace VDD
         }
         if (idrLocations.size() == 1)
         {
+            aIsFixed = false; // meaning that can't really divide to GOPs
             return mTrackInfo->sampleProperties.size;
         }
         return length;
+    }
+
+    bool MP4LoaderSource::getTiles(int& aTilesX, int& aTilesY)
+    {
+        H265::PictureParameterSet pps;
+        std::vector<uint8_t> nalUnitRBSP;
+        H265Parser::convertToRBSP(mFrames.begin()->frameMeta.decoderConfig[ConfigType::PPS], nalUnitRBSP, true);
+        Parser::BitStream bitstr(nalUnitRBSP);
+        H265::NalUnitHeader naluHeader;
+        H265Parser::parseNalUnitHeader(bitstr, naluHeader);
+
+        H265Parser::parsePPS(bitstr, pps);
+        if (pps.mTilesEnabledFlag)
+        {
+            aTilesX = pps.mNumTileColumnsMinus1 + 1;
+            aTilesY = pps.mNumTileRowsMinus1 + 1;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    void MP4LoaderSource::getCtuSize(int& aCtuSize)
+    {
+        H265::SequenceParameterSet sps;
+        std::vector<uint8_t> nalUnitRBSP;
+        H265Parser::convertToRBSP(mFrames.begin()->frameMeta.decoderConfig[ConfigType::SPS], nalUnitRBSP, true);
+        Parser::BitStream bitstr(nalUnitRBSP);
+        H265::NalUnitHeader naluHeader;
+        H265Parser::parseNalUnitHeader(bitstr, naluHeader);
+
+        H265Parser::parseSPS(bitstr, sps);
+
+        aCtuSize = (int)pow(2, (sps.mLog2MinLumaCodingBlockSizeMinus3 + 3) + (sps.mLog2DiffMaxMinLumaCodingBlockSize));
     }
 
     std::vector<Views> MP4LoaderSource::produce()
@@ -430,11 +488,15 @@ namespace VDD
         int32_t rc = mReader->getTrackInformations(tracks);
         checkAndThrow(rc);
         MP4VR::TrackInformation trackInfo;
+
         for (auto& track: tracks)
         {
+            MP4VR::FourCC codec;
+            int32_t rc = mReader->getDecoderCodeType(track.trackId, track.sampleProperties[0].sampleId, codec);
+            checkAndThrow(rc);
             if (track.trackId == aTrackId.get())
             {
-                auto durations = getSampleDurations(track);;
+                auto durations = getSampleDurations(track);
 
                 trackInfo = track;
 
@@ -490,7 +552,6 @@ namespace VDD
                 }
             }
         }
-
         return std::unique_ptr<MP4LoaderSource>(new MP4LoaderSource(mReader, aTrackId, trackInfo, std::move(frames), mVideoNalStartCodes));
     }
 
@@ -501,6 +562,15 @@ namespace VDD
 
         int32_t rc = mReader->getTrackInformations(tracks);
         checkAndThrow(rc);
+
+        for (auto& track : tracks)
+        {
+            auto format = formatOfTrack(*mReader, track);
+            if (format == CodedFormat::H265Extractor)
+            {
+                throw MP4LoaderError(OMAFNonVIInput);
+            }
+        }
 
         for (auto& track: tracks)
         {

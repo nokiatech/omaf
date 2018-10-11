@@ -333,6 +333,7 @@ namespace VDD
          */
         Data(const Data& aData, const Meta& aMeta, const StreamId aStreamId = StreamIdUninitialized);
 
+        Data(const Storage& aStorage, const Meta& aMeta, const Extractors& aExtractor, const StreamId aStreamId);
         Data(const Meta& aMeta, const Extractors& aExtractor, const StreamId aStreamId);
 
         Data(const Data&);

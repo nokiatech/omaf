@@ -25,7 +25,7 @@
 
 OMAF_NS_BEGIN
 
-typedef uint8_t sourceid_t;
+typedef uint32_t sourceid_t;
 typedef uint8_t streamid_t;
 
 namespace SourcePosition
@@ -414,10 +414,11 @@ struct BasicSourceInfo
     uint32_t faceOrder;
     uint32_t faceOrientation;
     RegionPacking erpRegions;
+    VRCubeMap tiledCubeMap;
     Rotation rotation;
 };
 
-typedef FixedArray<streamid_t, 64> Streams;
+typedef FixedArray<streamid_t, 256> Streams;
 typedef FixedArray<CoreProviderSource*, 512> CoreProviderSources;
 typedef FixedArray<SourceType::Enum, 64> CoreProviderSourceTypes;
 

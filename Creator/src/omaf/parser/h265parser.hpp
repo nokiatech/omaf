@@ -32,8 +32,8 @@
 class H265InputStream
 {
 public:
-    H265InputStream(uint8_t*, size_t) {};
-    virtual ~H265InputStream() {};
+    H265InputStream() = default;
+    virtual ~H265InputStream() = default;
 
     virtual uint8_t getNextByte() = 0;
     virtual bool eof() = 0;
@@ -50,8 +50,8 @@ public:
     H265Parser();
     virtual ~H265Parser();
     
-    static void convertByteStreamToRBSP(const std::vector<uint8_t>& byteStr, std::vector<uint8_t>& dest);
-    static int  writeSliceHeader(Parser::BitStream& bitstr, H265::SliceHeader&, H265::H265NalUnitType naluType, H265::SequenceParameterSet& aSps, H265::PictureParameterSet& aPps);
+    static void convertToRBSP(const std::vector<uint8_t>& src, std::vector<uint8_t>& dest, bool byteStreamMode = true);
+    int  writeSliceHeader(Parser::BitStream& bitstr, H265::SliceHeader&, H265::H265NalUnitType naluType, const H265::SequenceParameterSet& aSps, const H265::PictureParameterSet& aPps);
     static std::uint32_t writeEquiProjectionSEINal(Parser::BitStream& bitstr, H265::EquirectangularProjectionSEI& projection, int temporalIdPlus1);
     static std::uint32_t writeCubeProjectionSEINal(Parser::BitStream& bitstr, H265::CubemapProjectionSEI& projection, int temporalIdPlus1);
     static std::uint32_t writeFramePackingSEINal(Parser::BitStream& bitstr, H265::FramePackingSEI& packing, int temporalIdPlus1);
@@ -59,33 +59,35 @@ public:
     static std::uint32_t writeRotationSEINal(Parser::BitStream& bitstr, H265::SphereRotationSEI& packing, int temporalIdPlus1);
     static bool isFirstVclNaluInPic(const std::vector<uint8_t>& nalUnit);
     static bool checkAccessUnitBoundary(const std::vector<uint8_t>& nalUnit, bool isFirstNaluInAU, bool firstVclNaluFound);
+    static int parseNalUnitHeader(Parser::BitStream& bitstr, H265::NalUnitHeader& naluHeader);
+    static int parseSPS(Parser::BitStream& bitstr, H265::SequenceParameterSet& sps);
+    static int  parsePPS(Parser::BitStream& bitstr, H265::PictureParameterSet& pps);
 
     bool parseParamSet(H265InputStream& aInputStream, ParserInterface::AccessUnit& accessUnit);
     bool parseNextAU(H265InputStream& aInputStream, ParserInterface::AccessUnit& accessUnit);
 
-    int parseNalUnit(const std::vector<uint8_t>& nalUnit, H265::NalUnitHeader& naluHeader);
+    int  parseNalUnit(const std::vector<uint8_t>& nalUnit, H265::NalUnitHeader& naluHeader);
     std::list<H265::SequenceParameterSet*>getSpsList();
     std::list<H265::PictureParameterSet*> getPpsList();
-    static int parseNalUnitHeader(Parser::BitStream& bitstr, H265::NalUnitHeader& naluHeader);
     void writeSPS(Parser::BitStream& mOutFile, H265::SequenceParameterSet& sps, bool rbsp);
     void writePPS(Parser::BitStream& bitstr, H265::PictureParameterSet& pps, bool rbsp);
-    static int parseSliceHeader(Parser::BitStream& bitstr, H265::SliceHeader& slice, H265::H265NalUnitType naluType, const std::list<H265::SequenceParameterSet*>& aSpsList, const std::list<H265::PictureParameterSet*>& aPpsList);
+    int parseSliceHeader(Parser::BitStream& bitstr, H265::SliceHeader& slice, H265::H265NalUnitType naluType, const std::list<H265::SequenceParameterSet*>& aSpsList, const std::list<H265::PictureParameterSet*>& aPpsList);
     void getSliceHeaderOffset(std::vector<H265::sliceHeaderOffset*>&);
     void getSliceHeaderList(std::vector <H265::SliceHeader>&);
 
 private:
-    static int  writeShortTermRefPicSet(Parser::BitStream& bitstr, const std::vector<H265::ShortTermRefPicSetDerived>& rpsList, H265::ShortTermRefPicSet& rps, const unsigned int stRpsIdx, const unsigned int numShortTermRefPicSets);
+    int  writeShortTermRefPicSet(Parser::BitStream& bitstr, const std::vector<H265::ShortTermRefPicSetDerived>& rpsList, H265::ShortTermRefPicSet& rps, const unsigned int stRpsIdx, const unsigned int numShortTermRefPicSets);
     static void writeRbspTrailingBits(Parser::BitStream& bitstr);
     static bool isVclNaluType(H265::H265NalUnitType naluType);
     static void insertEPB(std::vector<uint8_t>& payload);
-    static H265::SequenceParameterSet* findSps(unsigned int spsId, const std::list<H265::SequenceParameterSet*>& aSpsList);
-    static H265::PictureParameterSet* findPps(unsigned int ppsId, const std::list<H265::PictureParameterSet*>& aPpsList);
+    H265::SequenceParameterSet* findSps(unsigned int spsId, const std::list<H265::SequenceParameterSet*>& aSpsList);
+    H265::PictureParameterSet* findPps(unsigned int ppsId, const std::list<H265::PictureParameterSet*>& aPpsList);
     static void writeSEINalHeader(Parser::BitStream& bitstr, H265::H265SEIType payloadType, unsigned int payloadSize, int temporalIdPlus1);
-    static unsigned int ceilLog2(unsigned int x);
+    unsigned int ceilLog2(unsigned int x);
     static int parseShortTermRefPicSet(Parser::BitStream& bitstr, const std::vector<H265::ShortTermRefPicSetDerived>& rpsList, H265::ShortTermRefPicSet& rps, unsigned int stRpsIdx, unsigned int numShortTermRefPicSets);
     static int deriveRefPicSetParams(const std::vector<H265::ShortTermRefPicSetDerived>& rpsList, const H265::ShortTermRefPicSet& rps, H265::ShortTermRefPicSetDerived& rpsDerived, unsigned int stRpsIdx);
-    static int parseRefPicListsModification(Parser::BitStream& bitstr, const H265::SliceHeader& slice, H265::RefPicListsModification& refPicListsMod);
-    static int parsePredWeightTable(Parser::BitStream& bitstr, H265::SequenceParameterSet& sps, H265::SliceHeader& slice, H265::PredWeightTable& pwTable);
+    int parseRefPicListsModification(Parser::BitStream& bitstr, const H265::SliceHeader& slice, H265::RefPicListsModification& refPicListsMod);
+    int parsePredWeightTable(Parser::BitStream& bitstr, H265::SequenceParameterSet& sps, H265::SliceHeader& slice, H265::PredWeightTable& pwTable);
 
 private:
     int  writeScalingListData(Parser::BitStream& bitstr, H265::ScalingListData& scalingList);
@@ -102,17 +104,17 @@ private:
     void removePps(unsigned int ppsId);
     void getRefPicIndices(std::vector<unsigned int>& refPicIndices, const std::vector<H265::Picture*>& mRefPicList0, const std::vector<H265::Picture*>& mRefPicList1);
     bool isUniquePicIndex(const std::vector<unsigned int>& refPicIndices, unsigned int picIndex);
-    int parseProfileTierLevel(Parser::BitStream& bitstr, H265::ProfileTierLevel& ptl, unsigned int maxNumSubLayersMinus1);
-    int parseScalingListData(Parser::BitStream& bitstr, H265::ScalingListData& scalingList);
-    void setVuiDefaults(H265::ProfileTierLevel& ptl, H265::VuiParameters& vui);
-    int parseVuiParameters(Parser::BitStream& bitstr, H265::VuiParameters& vui);
+    static int parseProfileTierLevel(Parser::BitStream& bitstr, H265::ProfileTierLevel& ptl, unsigned int maxNumSubLayersMinus1);
+    static int parseScalingListData(Parser::BitStream& bitstr, H265::ScalingListData& scalingList);
+    static void setVuiDefaults(H265::ProfileTierLevel& ptl, H265::VuiParameters& vui);
+    static int parseVuiParameters(Parser::BitStream& bitstr, H265::VuiParameters& vui);
     int parseHrdParameters(Parser::BitStream& bitstr, H265::HrdParameters& hrd, unsigned int commonInfPresentFlag, unsigned int maxNumSubLayersMinus1);
     int parseSubLayerHrd(Parser::BitStream& bitstr, H265::SubLayerHrdParameters& hrd, int cpbCnt, unsigned int subPicHrdParamsPresentFlag);
-    int parseSPS(Parser::BitStream& bitstr, H265::SequenceParameterSet& sps);
-    int parsePPS(Parser::BitStream& bitstr, H265::PictureParameterSet& pps);
-    H265::H265NalUnitType readNextNalUnit(H265InputStream& aInputStream, std::vector<uint8_t>& nalUnit);
     static H265::H265NalUnitType getH265NalUnitType(const std::vector<uint8_t>& nalUnit);
-    
+
+public:
+    static H265::H265NalUnitType readNextNalUnit(H265InputStream& aInputStream, std::vector<uint8_t>& nalUnit);
+
 private:
     std::vector<H265::SliceHeader> mSliceHeaderList;
     std::vector<H265::Picture*> mRefPicList0;

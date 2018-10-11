@@ -277,7 +277,8 @@ OMAF_LOG_ZONE(VASTileViewport);
             }
             else
             {
-			    OMAF_ASSERT(false, "Cubemap tile wrap around +-180 not supported atm");
+                //TODO this seem to occur now with directional extractors
+			    //OMAF_ASSERT(false, "Cubemap tile wrap around +-180 not supported atm");
             }
         }
         return 0.f;

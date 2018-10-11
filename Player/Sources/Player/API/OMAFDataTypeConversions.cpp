@@ -44,21 +44,7 @@ namespace OMAF
         }
     }
     
-    Private::AudioOutputRange::Enum convertAudioOutputRange(AudioOutputRange::Enum omafRange)
-    {
-        switch (omafRange)
-        {
-            case OMAF::AudioOutputRange::INVALID:    return Private::AudioOutputRange::INVALID;
-            case OMAF::AudioOutputRange::COUNT:      return Private::AudioOutputRange::COUNT;
-                
-            case OMAF::AudioOutputRange::FLOAT_1:    return Private::AudioOutputRange::FLOAT_1;
-            case OMAF::AudioOutputRange::FLOAT_16:   return Private::AudioOutputRange::FLOAT_16;
-            case OMAF::AudioOutputRange::INT16:      return Private::AudioOutputRange::INT16;
-  
-            default:                                return Private::AudioOutputRange::INVALID;
-        }
-    }
-    
+   
     OMAF::AudioReturnValue::Enum convertAudioResult(Private::AudioReturnValue::Enum nvrReturnValue)
     {
         switch (nvrReturnValue)
@@ -73,20 +59,6 @@ namespace OMAF
             case Private::AudioReturnValue::NOT_INITIALIZED:    return OMAF::AudioReturnValue::NOT_INITIALIZED;
 
             default:                                        return OMAF::AudioReturnValue::INVALID;
-        }
-    }
-    
-    Private::PlaybackMode::Enum convertAudioPlaybackMode(AudioPlaybackMode::Enum omafMode)
-    {
-        switch (omafMode)
-        {
-            case OMAF::AudioPlaybackMode::INVALID:                   return Private::PlaybackMode::INVALID;
-            case OMAF::AudioPlaybackMode::COUNT:                     return Private::PlaybackMode::COUNT;
-                
-            case OMAF::AudioPlaybackMode::HEADPHONES:                return Private::PlaybackMode::HEADPHONES;
-            case OMAF::AudioPlaybackMode::HEADTRACKED_HEADPHONES:    return Private::PlaybackMode::HEADTRACKED_HEADPHONES;
-
-            default:                                                return Private::PlaybackMode::INVALID;
         }
     }
     

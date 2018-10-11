@@ -253,6 +253,13 @@ namespace StreamSegmenter
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
+        struct VideoFramePacking : public MPDNode
+        {
+            std::uint8_t packingType;
+
+            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
         //------------------------------------------------------------------------------
         //
         // Common attributes from Dash spec 5.3.7
@@ -456,8 +463,8 @@ namespace StreamSegmenter
             // sub elements
             Utils::Optional<std::string> stereoId;
 
-            // @note add support for VideoFramePacking
-            // Utils::Optional<VideoFramePacking> videoFramePacking;
+            // 
+            Utils::Optional<VideoFramePacking> videoFramePacking;
 
             // @note add support for Roles
             // std::list<std::string> roles;

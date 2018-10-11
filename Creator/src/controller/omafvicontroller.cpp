@@ -103,7 +103,7 @@ namespace VDD
             labeledMP4VRWriter.second->finalizePipeline();
         }
 
-        mDash.setupMpd();
+        mDash.setupMpd("");
 
         setupDebug();
 

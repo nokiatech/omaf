@@ -874,21 +874,21 @@ namespace StreamSegmenter
         {
             FrameData sampleData;
 
-            if (!!sampleConstructor)
+            if (!sampleConstructor && !inlineConstructor)
             {
-                sampleData.push_back(0);  // constructor_type 0 ISO/IEC FDIS 14496-15:2014(E) A.7.2
-                auto sampleBody = sampleConstructor->toFrameData();
-                sampleData.insert(sampleData.end(), sampleBody.begin(), sampleBody.end());
+                throw std::runtime_error("Either sampleConstruct or inlineConstruct must be set for ExtractorSample");
             }
-            else if (!!inlineConstructor)
+            if (!!inlineConstructor)
             {
                 sampleData.push_back(2);  // constructor_type 2
                 auto sampleBody = inlineConstructor->toFrameData();
                 sampleData.insert(sampleData.end(), sampleBody.begin(), sampleBody.end());
             }
-            else
+            if (!!sampleConstructor)
             {
-                throw std::runtime_error("Either sampleConstruct or inlineConstruct must be set for ExtractorSample");
+                sampleData.push_back(0);  // constructor_type 0 ISO/IEC FDIS 14496-15:2014(E) A.7.2
+                auto sampleBody = sampleConstructor->toFrameData();
+                sampleData.insert(sampleData.end(), sampleBody.begin(), sampleBody.end());
             }
 
             return sampleData;

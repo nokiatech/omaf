@@ -84,7 +84,9 @@ OMAF_NS_BEGIN
         virtual Error::Enum updateMPD(DashComponents dashComponents);
 
         virtual Error::Enum startDownload(time_t startTime);
-        virtual Error::Enum startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId);
+        virtual Error::Enum startDownload(time_t startTime, uint32_t aExpectedPingTimeMs);
+        virtual Error::Enum startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode);
+        virtual Error::Enum startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode, uint32_t aExpectedPingTimeMs);
         virtual Error::Enum stopDownload();
         virtual Error::Enum stopDownloadAsync(bool_t aReset);
 
@@ -167,7 +169,7 @@ OMAF_NS_BEGIN
         virtual uint8_t getNrQualityLevels() const;
         virtual DashRepresentation* getRepresentationForBitrate(uint32_t bitrate);
 
-        virtual bool_t isReadyToSwitch(MP4MediaStream& aStream) const;
+        virtual bool_t isReadyToSignalEoS(MP4MediaStream& aStream) const;
         // DashRepresentationObserver
     public:
         void_t onSegmentDownloaded(DashRepresentation* representation);

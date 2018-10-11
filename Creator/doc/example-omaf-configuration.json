@@ -1,0 +1,41 @@
+{
+    // "video" is must
+    "video": {
+		"common" : {
+            "projection" : "equirectangular",	// or cubemap; currently only the default OMAF cubemap format is supported
+            "output_mode" : "MultiQ"  		    // Mode of VD: MultiQ == single resolution, multiple bitrates, "5K" == 5K unequal resolution (Annex D.6.2/example 2), "6K" == 6K unequal resolution (Annex D.6.3)
+        },
+        "bg": {
+            "filename": "foo_qp27.mp4",
+            "quality": 5		// 1...255 where 1 is the best; if not given, defaults to 1
+        },
+        "fg": {
+            "filename": "foo_qp23.mp4",
+            "quality": 1
+		}
+		// add as many as needed
+    },
+    // "dash" is alternative to "mp4". Creates all tracks separately in segments (for all inputs) and one for the extractor track
+    // if both are given, only dash output is generated
+    "dash": {
+        "output_name_base" : "foo",		// Basename for the DASH output files
+        "mpd": {
+            "filename": "$Name$.mpd"	// optional, default is $Name$.mpd. $Name$ expands to the value of "output_name_base" or if it is not given, to "output_mode"
+        },
+        "media": {
+            "subsegments_per_segment": 1, // optional, defaults to 1. If more than 1, 1 GOP is mapped to a subsegment, otherwise 1 GOP is mapped to a segment
+            "segment_name": {
+                // $Name$ expands to the value of "output_name_base" or if it is not given, to "output_mode"
+                // $Segment$ expands to MPD's "$Number$" or "init" depending on the segment type. Using MPD's $Number$ directly here is not allowed.
+                "video":         "$Name$.video.$Segment$.mp4",
+                "audio":         "$Name$.audio.$Segment$.mp4",
+                "extractor":     "$Name$.extractor.$Segment$.mp4"
+            }
+        }
+    },
+    // "mp4" is alternative to "dash". Creates a single mp4 with all tracks (one per tile) and the extractor track
+    "mp4": {
+        "filename": "foo.mp4",
+    }
+    
+}

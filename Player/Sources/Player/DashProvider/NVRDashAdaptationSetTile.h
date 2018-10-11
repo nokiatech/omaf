@@ -29,7 +29,7 @@ OMAF_NS_BEGIN
 
         virtual ~DashAdaptationSetTile();
 
-        static bool_t isTile(DashComponents aDashComponents, SupportingAdaptationSetIds& aSupportingIds);
+        static bool_t isTile(DashComponents aDashComponents, AdaptationSetBundleIds& aSupportingIds);
         static bool_t isTile(DashComponents aDashComponents, RepresentationDependencies& aDependingRepresentations);
 
         virtual AdaptationSetType::Enum getType() const;
@@ -41,7 +41,7 @@ OMAF_NS_BEGIN
 
     public: // new
 
-        virtual bool_t processSegmentDownloadTile(uint32_t aNextSegmentId);
+        virtual bool_t processSegmentDownloadTile(uint32_t aNextSegmentId, bool_t aCanSwitchRepresentations);
         virtual bool_t selectQuality(uint8_t aQualityLevel, uint8_t aNrQualityLevels, uint32_t aStartingFromSegment);
         // called by extractor for supporting sets if dependencyId based collection of tiles is used
         virtual bool_t selectRepresentation(DependableRepresentations& aDependencies, uint32_t aNextNeededSegment);
@@ -50,6 +50,7 @@ OMAF_NS_BEGIN
         // called by extractor for supporting sets if dependencyId based collection of tiles is used
         virtual bool_t prepareForSwitch(uint32_t aNextNeededSegment, bool_t aGoToBackground);
         virtual bool_t readyToSwitch(uint32_t aNextNeededSegment);
+        virtual void_t setBufferingTime(uint32_t aExpectedPingTimeMs);
 
     protected: // from DashAdaptationSet
         virtual Error::Enum doInitialize(DashComponents aDashComponents, uint32_t& aInitializationSegmentId);

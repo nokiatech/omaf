@@ -121,16 +121,33 @@ OMAF_NS_BEGIN
         mDecoderConfigInfoBuffer.clear();
         mDecoderConfigInfoBuffer.reAllocate(size);
         outSize = 0;
-        for (DecoderConfigMap::Iterator it = mDecoderConfigInfoMap.begin(); it != mDecoderConfigInfoMap.end(); ++it)
+        DecoderConfigMap::ConstIterator it = mDecoderConfigInfoMap.find(DecoderSpecInfoType::AudioSpecificConfig);
+        if (it != DecoderConfigMap::InvalidIterator)
         {
-            // the order is not checked and matched, we rely that the info-packets come in the order they are expected to go out (e.g. video SPS before PPS)
-            DataBuffer<uint8_t>* info = *it;
-
-            if (info != OMAF_NULL)
+            memcpy(mDecoderConfigInfoBuffer.getDataPtr() + outSize, (*it)->getDataPtr(), (*it)->getSize());
+            outSize += (*it)->getSize();
+        }
+        else
+        {
+            it = mDecoderConfigInfoMap.find(DecoderSpecInfoType::HEVC_VPS);
+            if (it != DecoderConfigMap::InvalidIterator)
             {
-                memcpy(mDecoderConfigInfoBuffer.getDataPtr()+outSize, info->getDataPtr(), info->getSize());
-                outSize += info->getSize();
+                memcpy(mDecoderConfigInfoBuffer.getDataPtr() + outSize, (*it)->getDataPtr(), (*it)->getSize());
+                outSize += (*it)->getSize();
             }
+            it = mDecoderConfigInfoMap.find(DecoderSpecInfoType::AVC_HEVC_SPS);
+            if (it != DecoderConfigMap::InvalidIterator)
+            {
+                memcpy(mDecoderConfigInfoBuffer.getDataPtr() + outSize, (*it)->getDataPtr(), (*it)->getSize());
+                outSize += (*it)->getSize();
+            }
+            it = mDecoderConfigInfoMap.find(DecoderSpecInfoType::AVC_HEVC_PPS);
+            if (it != DecoderConfigMap::InvalidIterator)
+            {
+                memcpy(mDecoderConfigInfoBuffer.getDataPtr() + outSize, (*it)->getDataPtr(), (*it)->getSize());
+                outSize += (*it)->getSize();
+            }
+
         }
         mDecoderConfigInfoBuffer.setSize(outSize);
         return mDecoderConfigInfoBuffer.getDataPtr();

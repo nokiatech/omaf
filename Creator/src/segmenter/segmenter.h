@@ -122,6 +122,8 @@ namespace VDD
 
         virtual std::vector<Views> process(const Views& data) override;
 
+        virtual std::string getGraphVizDescription() override;
+
     protected:
         std::vector<Views> doProcess(const Views& data);
 

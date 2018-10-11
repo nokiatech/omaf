@@ -17,8 +17,6 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
 project(OmafCreator LANGUAGES CXX C)
 
-
-
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -161,6 +159,50 @@ include_directories("${PROJECT_BINARY_DIR}")
 include_directories("../../Mp4/srcs/api")
 include_directories("../../Mp4/srcs/api/reader")
 
+# heif includes and libs
+add_library(heif_static STATIC IMPORTED GLOBAL)
+set(HEIF_LIB_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../../Lib/${CMAKE_SYSTEM_NAME}/Release")
+set(HEIF_LIB_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/../../Lib/${CMAKE_SYSTEM_NAME}/Debug")
+set(HEIF_INCLUDE_APICPP "${CMAKE_CURRENT_SOURCE_DIR}/../../../heif/srcs/api-cpp")
+set(HEIF_INCLUDE_API "${CMAKE_CURRENT_SOURCE_DIR}/../../../heif/srcs/api")
+
+if(MSVC)
+    if (MSVC_VERSION EQUAL 1800)
+        set(VSVERSION VS2013)
+    elseif (MSVC_VERSION EQUAL 1900)
+        set(VSVERSION VS2015)
+    elseif (MSVC_VERSION EQUAL 1910)
+        set(VSVERSION VS2017)
+    elseif (MSVC_VERSION EQUAL 1911)
+        set(VSVERSION VS2017)
+    elseif (MSVC_VERSION EQUAL 1914)
+        set(VSVERSION VS2017)
+    else()
+        message(FATAL_ERROR "Unsupported visual studio version!" ${MSVC_VERSION})
+    endif()
+    
+    set(HEIF_LIB_RELEASE "${HEIF_LIB_RELEASE}/${VSVERSION}")
+    set(HEIF_LIB_DEBUG "${HEIF_LIB_DEBUG}/${VSVERSION}")
+endif()
+
+set_target_properties(heif_static PROPERTIES IMPORTED_LOCATION_DEBUG "${HEIF_LIB_DEBUG}/${CMAKE_STATIC_LIBRARY_PREFIX}heif_static${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set_target_properties(heif_static PROPERTIES IMPORTED_LOCATION_RELEASE "${HEIF_LIB_RELEASE}/${CMAKE_STATIC_LIBRARY_PREFIX}heif_static${CMAKE_STATIC_LIBRARY_SUFFIX}")
+
+add_library(heif_writer_static STATIC IMPORTED GLOBAL)
+set_target_properties(heif_writer_static PROPERTIES IMPORTED_LOCATION_DEBUG "${HEIF_LIB_DEBUG}/${CMAKE_STATIC_LIBRARY_PREFIX}heif_writer_static${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set_target_properties(heif_writer_static PROPERTIES IMPORTED_LOCATION_RELEASE "${HEIF_LIB_RELEASE}/${CMAKE_STATIC_LIBRARY_PREFIX}heif_writer_static${CMAKE_STATIC_LIBRARY_SUFFIX}")
+
+add_library(heifpp_static STATIC IMPORTED GLOBAL)
+set_target_properties(heifpp_static PROPERTIES IMPORTED_LOCATION_DEBUG "${HEIF_LIB_DEBUG}/${CMAKE_STATIC_LIBRARY_PREFIX}heifpp${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set_target_properties(heifpp_static PROPERTIES IMPORTED_LOCATION_RELEASE "${HEIF_LIB_RELEASE}/${CMAKE_STATIC_LIBRARY_PREFIX}heifpp${CMAKE_STATIC_LIBRARY_SUFFIX}")
+
+message("heifpp_static PROPERTIES IMPORTED_LOCATION_RELEASE ${HEIF_LIB_RELEASE}/${CMAKE_STATIC_LIBRARY_PREFIX}heifpp${CMAKE_STATIC_LIBRARY_SUFFIX}")
+
+include_directories("${HEIF_INCLUDE_APICPP}")
+include_directories("${HEIF_INCLUDE_API}/common")
+include_directories("${HEIF_INCLUDE_API}/reader")
+include_directories("${HEIF_INCLUDE_API}/writer")
+
 add_library(mp4vr_static STATIC IMPORTED GLOBAL)
 set_target_properties(mp4vr_static PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../../Mp4/lib/${CMAKE_SYSTEM_NAME}/${CMAKE_BUILD_TYPE}/${CMAKE_STATIC_LIBRARY_PREFIX}mp4vr_static${CMAKE_STATIC_LIBRARY_SUFFIX}")
 set_target_properties(mp4vr_static PROPERTIES IMPORTED_LOCATION_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/../../Mp4/lib/${CMAKE_SYSTEM_NAME}/Debug/${CMAKE_STATIC_LIBRARY_PREFIX}mp4vr_static${CMAKE_STATIC_LIBRARY_SUFFIX}")
@@ -180,8 +222,6 @@ add_library(streamsegmenter_static_fpic STATIC IMPORTED GLOBAL)
 set_target_properties(streamsegmenter_static_fpic PROPERTIES IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../../Mp4/lib/${CMAKE_SYSTEM_NAME}/${CMAKE_BUILD_TYPE}/${CMAKE_STATIC_LIBRARY_PREFIX}streamsegmenter_static_fpic${CMAKE_STATIC_LIBRARY_SUFFIX}")
 set_target_properties(streamsegmenter_static_fpic PROPERTIES IMPORTED_LOCATION_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/../../Mp4/lib/${CMAKE_SYSTEM_NAME}/Debug/${CMAKE_STATIC_LIBRARY_PREFIX}streamsegmenter_static_fpic${CMAKE_STATIC_LIBRARY_SUFFIX}")
 set_target_properties(streamsegmenter_static_fpic PROPERTIES IMPORTED_LOCATION_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../../Mp4/lib/${CMAKE_SYSTEM_NAME}/Release/${CMAKE_STATIC_LIBRARY_PREFIX}streamsegmenter_static_fpic${CMAKE_STATIC_LIBRARY_SUFFIX}")
-
-
 
 message(STATUS "System name       : ${CMAKE_SYSTEM_NAME}")
 message(STATUS "Project Name      : ${PROJECT_NAME}")

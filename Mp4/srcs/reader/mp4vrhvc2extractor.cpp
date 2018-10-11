@@ -19,7 +19,7 @@
 namespace Hvc2Extractor
 {
     bool parseExtractorNal(const DataVector& NalData,
-                           ExtNalDat& extNalDat,
+                           ExtractorSample& extractorSample,
                            uint8_t lengthSizeMinus1,
                            uint64_t& extractionSize)
     {
@@ -58,6 +58,7 @@ namespace Hvc2Extractor
             counter = counter - 2;  // 2 bytes read;
             if (extNalHdr.nal_unit_type == 49)
             {
+                ExtractorSample::Extractor extractor;
                 for (; counter > 0; counter--)
                 {
                     std::uint8_t constructor_type = (uint8_t) nalUnits.readBits(8);
@@ -66,7 +67,7 @@ namespace Hvc2Extractor
                     {
                     case 0:
                         logInfo() << "Sample Construct" << std::endl;
-                        ExtNalDat::SampleConstruct sampleConstruct;
+                        ExtractorSample::SampleConstruct sampleConstruct;
                         sampleConstruct.order_idx        = (uint8_t) order_idx;
                         sampleConstruct.constructor_type = (uint8_t) constructor_type;
                         sampleConstruct.track_ref_index  = (uint8_t) nalUnits.readBits(8);
@@ -83,12 +84,12 @@ namespace Hvc2Extractor
                         {
                             extractionSize += sampleConstruct.data_length;
                         }
-                        extNalDat.sampleConstruct.push_back(sampleConstruct);
+                        extractor.sampleConstruct.push_back(sampleConstruct);
                         order_idx = order_idx + 1;
                         break;
                     case 2:
                         logInfo() << "Inline Construct" << std::endl;
-                        ExtNalDat::InlineConstruct inlineConstruct;
+                        ExtractorSample::InlineConstruct inlineConstruct;
                         inlineConstruct.order_idx        = (uint8_t) order_idx;
                         inlineConstruct.constructor_type = (uint8_t) constructor_type;
                         inlineConstruct.data_length      = (uint8_t) nalUnits.readBits(8);
@@ -97,13 +98,20 @@ namespace Hvc2Extractor
                             inlineConstruct.inline_data.push_back((uint8_t) nalUnits.readBits(8));
                         }
                         inlineSizes += inlineConstruct.data_length;
-                        extNalDat.inlineConstruct.push_back(inlineConstruct);
+                        extractor.inlineConstruct.push_back(inlineConstruct);
                         counter   = counter - inlineConstruct.data_length - 1;  // Bytes read in inline construct
                         order_idx = order_idx + 1;
                         break;
                     }
                 }
+                extractorSample.extractors.push_back(extractor);
                 extractors++;
+            }
+            else
+            {
+                // ignore it. It may be e.g. SEI NAL for OMAF, but we don't need it there.
+                logInfo() << "Other than extractor NAL found, type: " << extNalHdr.nal_unit_type << std::endl;
+                nalUnits.skipBytes(counter);
             }
         }
         if (extractors)

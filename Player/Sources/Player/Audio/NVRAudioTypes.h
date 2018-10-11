@@ -40,43 +40,4 @@ OMAF_NS_BEGIN
             COUNT
         };
     }
-    
-    namespace AudioOutputRange
-    {
-        // AudioRenderer supports int16 and float32 output. This enum indicates the value range of
-        // audio sample amplitude. Use also the correct renderSamples-variant
-        enum Enum
-        {
-            INVALID = -1,
-            
-            // Output samples are floats, from -1 to +1
-            FLOAT_1 = 0,
-            
-            // Output samples are floats, from -32767f to +32768f   (input is anyway int16 so max for floats is the same)
-            FLOAT_16,
-            
-            // Output samples are integers, from -32767 to 32768
-            INT16,
-            
-            COUNT
-        };
-    }
-
-    // Playback is enabled for headphones, headphones with head orientation tracking support,
-    // and for multichannel loudspeaker setups (2 to N).
-    namespace PlaybackMode {
-        enum Enum
-        {
-            INVALID = -1,
-
-            // Output is processed for headphone listening
-            HEADPHONES,
-            // Output is processed for headphone listening with head-tracking support
-            HEADTRACKED_HEADPHONES,
-            // Output is processed for a loudspeaker setup (2-8 output channels)
-            LOUDSPEAKERS,
-
-            COUNT
-        };
-    }
 OMAF_NS_END

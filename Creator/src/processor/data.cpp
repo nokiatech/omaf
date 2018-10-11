@@ -637,6 +637,14 @@ namespace VDD
         mStorage = aData.mStorage;
     }
 
+    Data::Data(const Storage& aStorage, const Meta& aFrameMeta, const Extractors& aExtractor, const StreamId aStreamId)
+        : mStorage(aStorage.clone())
+        , mMeta(aFrameMeta)
+        , mExtractors(std::move(aExtractor))
+        , mStreamId(aStreamId)
+    {
+    }
+
     Data::Data(const Meta& aFrameMeta, const Extractors& aExtractor, const StreamId aStreamId)
         : mStorage(new EmptyDataReference)
         , mMeta(aFrameMeta)

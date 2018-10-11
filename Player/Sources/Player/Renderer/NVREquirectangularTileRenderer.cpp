@@ -76,7 +76,7 @@ OMAF_NS_BEGIN
 
         bool_t useMask = renderMask != TextureID::Invalid;
 
-        for (size_t i=0,endi= sources.getSize();i<endi; ++i)
+        for (size_t i = 0, endi = sources.getSize(); i < endi; ++i)
         {
             EquirectangularTileSource* source = (EquirectangularTileSource*)sources.at(i);
 
@@ -91,7 +91,7 @@ OMAF_NS_BEGIN
 #endif // DEBUG_DRAW_TILES
             }
 
-            //get a correct mesh for the tile
+            //get a correct mesh for the tile. TODO the map becomes relatively large in multi-resolution RWPK case, where a frame can consist of e.g 16-24 tiles, and there can be as many directions, so 256-576 elements in the map
             EquirectangularMesh* mesh;
             auto viewElement = mGeometryMap.find(source->sourceId);
 
@@ -129,17 +129,26 @@ OMAF_NS_BEGIN
             Matrix44 viewProjectionMatrix = renderSurface.projection * viewMatrix;
             Matrix44 mvp = viewProjectionMatrix * makeMatrix44(source->extrinsicRotation);
 
-            //crop the y-border in top-bottom formats to get rid of flickering lines
-            float borderCrop = 0.f;
-            if(source->textureRect.h<1.f)
+
+            // crop borders to mitigate flickering lines in case the texture is not full width or height
+            float borderCropX = 0.f;
+            float borderCropY = 0.f;
+            if (source->textureRect.w < 1.f)
             {
-                borderCrop = (1.f / source->videoFrame.height) * 0.5f; //half a pixel is enough
+                borderCropX = (1.f / source->videoFrame.width) * 0.5f;
+            }
+            if (source->textureRect.h < 1.f)
+            {
+                borderCropY = (1.f / source->videoFrame.height) * 0.5f; //half a pixel is enough
             }
 
             //pass the texture rectangle information to the shader
-            Matrix44 vtm = source->videoFrame.matrix * makeTranslation(source->textureRect.x, source->textureRect.y + borderCrop, 0) * makeScale(source->textureRect.w, source->textureRect.h - (borderCrop*2.f), 1);
-            selectedShader.setDefaultVideoShaderConstants(mvp, vtm);
+            Matrix44 vtm = source->videoFrame.matrix *
+                makeTranslation(source->textureRect.x + borderCropX, source->textureRect.y + borderCropY, 0) *
+                makeScale(source->textureRect.w - (borderCropX*2.f), source->textureRect.h - (borderCropY*2.f), 1);
 
+            selectedShader.setDefaultVideoShaderConstants(mvp, vtm);
+			
             if (useMask)
             {
                 selectedShader.bindMaskTexture(renderMask, renderingParameters.clearColor);

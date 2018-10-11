@@ -15,7 +15,6 @@
 #
 
 set +x
-@echo off
 
 function usage() {
  	echo ''
@@ -95,6 +94,7 @@ configure() {
     local api_level=$1
     local abi=$2
     local build_type=$3
+    local build_src_dir=${4:-../../../../srcs}
     cmake \
       -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
       -DANDROID_NATIVE_API_LEVEL=$api_level                           \
@@ -103,7 +103,7 @@ configure() {
       -DANDROID_STL_FORCE_FEATURES=ON                                 \
       -DCMAKE_BUILD_TYPE=$build_type                                  \
       -DNO_TESTS=1                                                    \
-      ../../../../srcs                                                \
+      $build_src_dir                                                  \
       -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--exclude-libs=c++_static.a
 }
 
@@ -126,6 +126,28 @@ configure_and_build() {
 # echo compilation commands
 set -x
 
+if [ ! -f ../Lib/Android/$BUILDTYPE/$ANDROIDVERSION/libdash.so ]; then
+    LIBDASHBUILDDIR=android/$BUILDTYPEDIR/$ANDROIDVERSION
+    DSTDIR=$ORIGDIR/../Lib/Android/$BUILDTYPE/$ANDROIDVERSION
+    cd $ORIGDIR/../../libdash/libdash
+    rm -fr $LIBDASHBUILDDIR
+    configure_and_build $LIBDASHBUILDDIR android-23 $ANDROIDVERSION $BUILDTYPE ../../../libdash
+    mkdir -p $DSTDIR
+    cp $LIBDASHBUILDDIR/libdash*.so $DSTDIR
+    cd $ORIGDIR
+fi
+
+if [ ! -f ../Lib/Android/$BUILDTYPE/$ANDROIDVERSION/libheifpp.a ]; then
+    HEIFBUILDDIR=android/$BUILDTYPEDIR/$ANDROIDVERSION
+    DSTDIR=$ORIGDIR/../Lib/Android/$BUILDTYPE/$ANDROIDVERSION
+    cd $ORIGDIR/../../heif
+    rm -fr $HEIFBUILDDIR
+    configure_and_build $HEIFBUILDDIR android-23 $ANDROIDVERSION $BUILDTYPE ../../..
+    mkdir -p $DSTDIR
+    cp $HEIFBUILDDIR/srcs/lib/* $DSTDIR
+    cd $ORIGDIR
+fi
+
 if [ "$BUILDMP4" == "YES" ]; then
     MP4BUILDDIR=android/$BUILDTYPEDIR/$ANDROIDVERSION
     DSTDIR=$ORIGDIR/../Mp4/lib/android/$BUILDTYPEDIR/$ANDROIDVERSION
@@ -146,20 +168,6 @@ if [ "$BUILDPLAYER" == "YES" ]; then
         echo "Please download OpenGL extension headers, see OpenGLExt/readme.txt"
         exit 1
     fi
-
-    # build libdash
-    cd $ORIGDIR/../../libdash/libdash
-    LIBDASHBUILDDIR=android-build-$BUILDTYPE/$ANDROIDVERSION
-    rm -fr $LIBDASHBUILDDIR
-    mkdir -p $LIBDASHBUILDDIR
-    cd $LIBDASHBUILDDIR
-    cmake -G "Unix Makefiles" \
-        -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
-        -DANDROID_NATIVE_API_LEVEL=android-23 \
-        -DANDROID_ABI=$ANDROIDVERSION \
-        -DANDROID_STL=c++_shared \
-        -DCMAKE_BUILD_TYPE=$BUILDTYPE ../../libdash
-    cmake --build . -- -j6
 
     # build PLayer lib
     DSTDIR=$ORIGDIR/../../libdash/lib/android/$BUILDTYPEDIR/$ANDROIDVERSION

@@ -440,6 +440,8 @@ OMAF_NS_BEGIN
 
         FixedArray<VideoRenderer*, 32> preparedRenderers;
 
+        // signal provider that it must not be modified
+        mCoreProvider->enter();
         const CoreProviderSources& sources = mCoreProvider->getSources();
 
         for (CoreProviderSources::ConstIterator sit = sources.begin(); sit != sources.end(); ++sit)
@@ -505,6 +507,8 @@ OMAF_NS_BEGIN
             }
         }
 
+        // free provider for modifications
+        mCoreProvider->leave();
         RenderBackend::popDebugMarker();
     }
 

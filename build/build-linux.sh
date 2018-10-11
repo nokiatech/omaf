@@ -70,6 +70,20 @@ done
 # echo compilation commands
 set -x
 
+if [ ! -f ../Lib/Linux/$BUILDTYPEDIR/libheifpp.a ]; then
+    HEIFBUILDDIR=linux/$BUILDTYPE
+    DSTDIR=$ORIGDIR/../Lib/Linux/$BUILDTYPEDIR
+    cd $ORIGDIR/../../heif
+    rm -fr $HEIFBUILDDIR
+    mkdir -p $HEIFBUILDDIR
+    cd $HEIFBUILDDIR
+    cmake . -G "Unix Makefiles" ../.. -DCMAKE_BUILD_TYPE=${BUILDTYPE^^}
+    make -j6
+    mkdir -p $DSTDIR
+    cp srcs/lib/* $DSTDIR
+    cd $ORIGDIR
+fi
+
 if [ "$BUILDMP4" == "YES" ]; then
     MP4BUILDDIR=linux/$BUILDTYPE
     DSTDIR=$ORIGDIR/../Mp4/lib/Linux/$BUILDTYPEDIR

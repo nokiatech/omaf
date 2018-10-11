@@ -47,7 +47,7 @@ namespace VDD
     private:
         const Config mConfig;
         bool mEnd = false;  //< Have we received the empty frame signal in the end?
-        bool mStart = false; // Have we created OMAF SEI in the beginning of the stream?
+        bool mFirst = true; // Have we created OMAF SEI in the beginning of the stream?
     };
 }
 

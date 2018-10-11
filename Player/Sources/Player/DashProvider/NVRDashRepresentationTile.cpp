@@ -27,6 +27,7 @@ OMAF_NS_BEGIN
 
     DashRepresentationTile::DashRepresentationTile()
         : DashRepresentation()
+        , mSegments(mMemoryAllocator, 10)
     {
         mInitializeIndependently = false;
     }
@@ -104,9 +105,10 @@ OMAF_NS_BEGIN
         return DashRepresentation::startDownloadABR(overrideSegmentId);
     }
 
-    Error::Enum DashRepresentationTile::handleInputSegment(DashSegment* aSegment)
+    Error::Enum DashRepresentationTile::handleInputSegment(DashSegment* aSegment, bool_t& aReadyForReading)
     {
         // store as cannot be parsed alone
+        aReadyForReading = false;
         mSegments.add(aSegment);
         return Error::OK;
     }

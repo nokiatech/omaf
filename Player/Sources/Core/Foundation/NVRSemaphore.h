@@ -53,7 +53,7 @@ class Semaphore
     public:
     
         // Creates OS semaphore with initial count.
-        Semaphore(uint32_t initialCount = 0);
+        Semaphore(uint32_t initialCount = 1);
     
         // Destroys OS semaphore.
         ~Semaphore();

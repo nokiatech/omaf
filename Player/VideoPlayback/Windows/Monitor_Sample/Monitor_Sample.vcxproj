@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -55,21 +55,20 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\..\Sources;..\..\..\..\OpenGLExt;%(AdditionalIncludeDirectories);.\x64\Debug</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\Sources;..\..\..\..\OpenGLExt;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>.\x64\Debug</AdditionalLibraryDirectories>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);OMAFPlayerd.lib</AdditionalDependencies>
-      <IgnoreSpecificDefaultLibraries>OMAFPlayer.lib</IgnoreSpecificDefaultLibraries>
+      <AdditionalLibraryDirectories>
+      </AdditionalLibraryDirectories>
     </Link>
     <PreBuildEvent>
       <Command>@echo off
 echo Copy binaries
 echo OMAF Player Engine binaries
-copy  ..\..\..\Lib\Windows\Debug\win32_x64\*.dll .\x64\Debug
-copy  ..\..\..\Lib\Windows\Debug\win32_x64\*.lib .\x64\Debug</Command>
+copy  ..\..\..\Lib\Windows\Release\win32_x64\*.dll .
+copy  ..\..\..\Lib\Windows\Release\win32_x64\*.lib .</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -81,21 +80,22 @@ copy  ..\..\..\Lib\Windows\Debug\win32_x64\*.lib .\x64\Debug</Command>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\..\Sources;..\..\..\..\OpenGLExt;%(AdditionalIncludeDirectories);.\x64\Release</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\Sources;..\..\..\..\OpenGLExt;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>.\x64\Release</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>
+      </AdditionalLibraryDirectories>
     </Link>
     <PreBuildEvent>
       <Command>@echo off
 echo Copy binaries
 echo OMAF Player Engine binaries
-copy  ..\..\..\Lib\Windows\Release\win32_x64\*.dll .\x64\Release
-copy  ..\..\..\Lib\Windows\Release\win32_x64\*.lib .\x64\Release</Command>
+copy  ..\..\..\Lib\Windows\Release\win32_x64\*.dll .
+copy  ..\..\..\Lib\Windows\Release\win32_x64\*.lib .</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

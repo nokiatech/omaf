@@ -19,6 +19,7 @@
 #include "Foundation/NVRFileSystem.h"
 
 #include "DashProvider/NVRDashProvider.h"
+#include "HeifProvider/NVRHeifProvider.h"
 
 #include "Foundation/NVRLogger.h"
 
@@ -27,6 +28,7 @@ OMAF_NS_BEGIN
 
     const FixedString16 MPD_SUFFIX = FixedString16(".mpd");
     const FixedString16 MP4_SUFFIX = FixedString16(".mp4");
+    const FixedString16 HEIF_SUFFIX = FixedString16(".heic");
     const FixedString16 HTTP_PREFIX = "http://";
     const FixedString16 HTTPS_PREFIX = "https://";
     const FixedString32 MPD_FORMAT = "format=mpd-time-csf";
@@ -93,6 +95,14 @@ OMAF_NS_BEGIN
         return Error::OK;
     }
 
+    void VideoProvider::enter() {
+        mProviderImpl->enter();
+    }
+
+    void VideoProvider::leave() {
+        mProviderImpl->leave();
+    }
+
     VideoProviderState::Enum VideoProvider::getState() const
     {
         if (mProviderImpl != OMAF_NULL)
@@ -127,6 +137,10 @@ OMAF_NS_BEGIN
             if (isOfflineVideoSource(source))
             {
                 mProviderImpl = OMAF_NEW_HEAP(MP4VRProvider)();
+            }
+            else if (isOfflineImageSource(source))
+            {
+                mProviderImpl = OMAF_NEW_HEAP(HeifProvider)();
             }
             else
             {
@@ -188,6 +202,16 @@ OMAF_NS_BEGIN
         {
             return mProviderImpl->pause();
         }
+        return Error::INVALID_STATE;
+    }
+
+    Error::Enum VideoProvider::next()
+    {
+        if (mProviderImpl != OMAF_NULL)
+        {
+            return mProviderImpl->next();
+        }
+
         return Error::INVALID_STATE;
     }
 
@@ -348,9 +372,15 @@ OMAF_NS_BEGIN
     {
         return source.findFirst(HTTP_PREFIX) != Npos || source.findFirst(HTTPS_PREFIX) != Npos;
     }
+
     bool_t VideoProvider::isOfflineVideoSource(const PathName &source) const
     {
         return source.findFirst(MP4_SUFFIX) != Npos;
+    }
+
+    bool_t VideoProvider::isOfflineImageSource(const PathName &source) const
+    {
+        return source.findFirst(HEIF_SUFFIX) != Npos;
     }
 
 OMAF_NS_END

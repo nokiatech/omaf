@@ -17,9 +17,9 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
 add_subdirectory(parser)
 
-set_sources(OMAFVDPROC_SRCS)
+set_sources(OMAF_SRCS)
 
-message(STATUS "OMAF VD processor files   : ${OMAFVDPROC_SRCS}")
+message(STATUS "OMAF-specific files   : ${OMAF_SRCS}")
 
-make_library(omafvdproc ${OMAFVDPROC_SRCS})
-target_link_libraries(omafvdproc h265parser)
+make_library(omaf ${OMAF_SRCS})
+target_link_libraries(omaf h265parser)

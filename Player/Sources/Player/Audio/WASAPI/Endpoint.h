@@ -15,18 +15,23 @@
 #pragma once
 
 #include "NVRNamespace.h"
-#include "Foundation/NVRHashMap.h"
-#include "Foundation/NVRFixedArray.h"
-
-//#include "Metadata/NVRMetadataContainer.h"
+#include "Platform/OMAFDataTypes.h"
 
 OMAF_NS_BEGIN
-typedef uint8_t sourceid_t;
-typedef uint8_t streamid_t;
-
-    #define MAX_IMAGE_SOURCES 8
-
-    typedef FixedArray<sourceid_t, MAX_IMAGE_SOURCES> ImageSources;
-
-//    typedef HashMap<sourceid_t, AudioMetadataContainer*> AudioSourceMetadataMap;
+class AudioRendererAPI;
+namespace WASAPIImpl
+{
+    class Context;
+    class Endpoint
+    {
+    public:
+        virtual ~Endpoint() {};
+        virtual bool_t init(int32_t aSamplerate, int32_t aChannels) = 0;
+        virtual int64_t latencyUs() = 0;
+        virtual void stop() = 0;
+        virtual void pause() = 0;
+        virtual uint64_t position() = 0;
+        virtual bool_t newsamples(AudioRendererAPI* audio, bool_t push) = 0;
+    };
+}
 OMAF_NS_END

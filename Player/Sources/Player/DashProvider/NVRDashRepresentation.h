@@ -58,7 +58,7 @@ OMAF_NS_BEGIN
 
         virtual Error::Enum startDownload(time_t startDownloadTime);
         virtual Error::Enum startDownloadABR(uint32_t overrideSegmentId);
-        virtual Error::Enum startDownloadWithOverride(uint64_t overridePTS, uint32_t overrideSegmentId);
+        virtual Error::Enum startDownloadWithOverride(uint64_t overridePTS, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode);
         virtual Error::Enum stopDownload();
         virtual Error::Enum stopDownloadAsync(bool_t aReset);
 
@@ -71,7 +71,7 @@ OMAF_NS_BEGIN
         void processSegmentDownload();
         void_t processSegmentIndexDownload(uint32_t segmentId);
 
-        bool_t isDone();//when all packets and segments are used up.. and not downloading more.. 
+        virtual bool_t isDone();//when all packets and segments are used up.. and not downloading more.. 
 
         uint32_t getWidth() const;
         uint32_t getHeight() const;
@@ -125,6 +125,7 @@ OMAF_NS_BEGIN
         virtual const char_t* isAssociatedTo() const;
 
         void_t setCacheFillMode(bool_t autoFill);
+        void_t setBufferingTime(uint32_t aExpectedPingTimeMs);
 
         virtual void_t setNotSupported();
         virtual bool_t getIsSupported();
@@ -145,10 +146,11 @@ OMAF_NS_BEGIN
         void_t onCacheWarning();
 
     protected:
-        virtual Error::Enum handleInputSegment(DashSegment* aSegment);
+        virtual Error::Enum handleInputSegment(DashSegment* aSegment, bool_t& aReadyForReading);
         virtual void_t seekWhenSegmentAvailable();
 
     protected:
+        MemoryAllocator& mMemoryAllocator;
         DashRepresentationObserver *mObserver;
         MP4VideoStreams mVideoStreams;
         MP4AudioStreams mAudioStreams;
@@ -158,6 +160,8 @@ OMAF_NS_BEGIN
         bool_t mInitializeIndependently; // separate vs common init
         BasicSourceInfo mBasicSourceInfo;
         uint64_t mSeekToUsWhenDLComplete;
+        bool_t mDownloading;
+        DashSegmentStream *mSegmentStream;
 
     private:
         dash::mpd::ISegmentTemplate* getSegmentTemplate(DashComponents dashComponents);
@@ -166,21 +170,15 @@ OMAF_NS_BEGIN
 
     private:
 
-        MemoryAllocator& mMemoryAllocator;
-
         bool_t mOwnsParserInstance;
         MP4VRParser* mParser;
         DashRepresentation* mAssociatedToRepresentation;
 
         bool_t mInitialized;
 
-        DashSegmentStream *mSegmentStream;
-
         DashStreamType::Enum mStreamType;
 
         uint32_t mLastSegmentId;
-
-        bool_t mDownloading;
 
         bool_t mMetadataCreated;
         SegmentContent mSegmentContent;

@@ -80,9 +80,9 @@ struct DecoderConfig : public VideoInfo
     , vpsSize(other.vpsSize)
     {
         MemoryCopy(configInfoData, other.configInfoData, configInfoSize);
+        MemoryCopy(vpsData, other.vpsData, vpsSize);
         MemoryCopy(spsData, other.spsData, spsSize);
         MemoryCopy(ppsData, other.ppsData, ppsSize);
-        MemoryCopy(vpsData, other.vpsData, vpsSize);
     }
 
     DecoderConfig& operator = (const DecoderConfig& other)
@@ -97,14 +97,15 @@ struct DecoderConfig : public VideoInfo
         configInfoSize = other.configInfoSize;
         MemoryCopy(configInfoData, other.configInfoData, configInfoSize);
         
+        vpsSize = other.vpsSize;
+        MemoryCopy(vpsData, other.vpsData, vpsSize);
+
         spsSize = other.spsSize;
         MemoryCopy(spsData, other.spsData, spsSize);
         
         ppsSize = other.ppsSize;
         MemoryCopy(ppsData, other.ppsData, ppsSize);
         
-        vpsSize = other.vpsSize;
-        MemoryCopy(vpsData, other.vpsData, vpsSize);
         return *this;
     }
 };

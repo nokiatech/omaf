@@ -60,6 +60,10 @@ namespace VDD
         Audio
     };
 
+    using StreamAndTrack = std::pair<StreamId, TrackId>;
+    using StreamAndTrackIds = std::list<StreamAndTrack>;
+
+
     /** Determine a filename component for the given pipeline output. Note: defined in controller.cpp */
     std::string filenameComponentForPipelineOutput(PipelineOutput aOutput);
 

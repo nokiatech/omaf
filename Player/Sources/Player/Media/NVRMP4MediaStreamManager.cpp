@@ -141,7 +141,7 @@ OMAF_LOG_ZONE(MP4MediaStreamManager);
     {
         return mMediaFormatParser->isEOS(mAudioStreams, mVideoStreams);
     }
-    bool_t MP4MediaStreamManager::isReadyToSwitch(MP4MediaStream& aStream) const
+    bool_t MP4MediaStreamManager::isReadyToSignalEoS(MP4MediaStream& aStream) const
     {
         return false;
     }

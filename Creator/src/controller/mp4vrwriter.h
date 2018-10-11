@@ -32,8 +32,6 @@ namespace VDD
     enum class PipelineMode : int;
     enum class PipelineOutput : int;
 
-    using StreamAndTrack = std::pair<StreamId, TrackId>;
-    using StreamAndTrackIds = std::list<StreamAndTrack>;
     struct VRVideoConfig
     {
         StreamAndTrackIds ids;
@@ -52,7 +50,6 @@ namespace VDD
         struct Config
         {
             StreamSegmenter::Segmenter::Duration segmentDuration;
-            std::string filenameTemplate;
             bool fragmented;
             std::shared_ptr<Log> log;
         };

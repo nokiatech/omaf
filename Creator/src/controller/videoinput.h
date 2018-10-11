@@ -95,6 +95,11 @@ namespace VDD
 
         VideoGOP gopDuration;
 
+        bool tiles;
+        int tilesX;
+        int tilesY;
+        int ctuSize;
+
         VideoFileProperties() = default;
     };
 
@@ -121,6 +126,12 @@ namespace VDD
 
         virtual bool setupGenericVRVideoInput(ControllerOps& aOps, ControllerConfigure& aConfigure,
             GenericVRVideo aGenericVRVideo,
+            MP4Loader& aMP4Loader,
+            std::string aInputLabel,
+            VideoProcessingMode aProcessingMode);
+
+        virtual bool setupOMAFVRVideoInput(ControllerOps& aOps, ControllerConfigure& aConfigure,
+            VideoInput::GenericVRVideo aGenericVRVideo,
             MP4Loader& aMP4Loader,
             std::string aInputLabel,
             VideoProcessingMode aProcessingMode);

@@ -47,7 +47,7 @@ namespace VDD
         /** @brief Implements the common part of MPD configuration. The stream-specific parts are
          * implemented by makeDashSegmenterConfig called from the three functions below.
          */
-        virtual void setupMpd();
+        virtual void setupMpd(const std::string& aName);
 
         /** @brief Write MPD; collect progress information from aViews[0]
         * Protects for concurrency with mMpdWritingMutex
@@ -76,8 +76,8 @@ namespace VDD
             TrackId& aTrackId,
             Optional<StreamId> aStreamId);
 
-        static void addAdditionalVideoTracksToInitConfig(TrackId aExtractorTrackId, SegmenterInit::Config& aInitConfig, const TileFilter::OmafTileSets& aTileConfig, FrameDuration aTimeScale);
-
+        static void addAdditionalVideoTracksToExtractorInitConfig(TrackId aExtractorTrackId, SegmenterInit::Config& aInitConfig, const TileFilter::OmafTileSets& aTileConfig, FrameDuration aTimeScale);
+        static void addPartialAdaptationSetsToMultiResExtractor(const TileDirectionConfig& aDirection, std::list<StreamId>& aAdSetIds);
     private:
         StreamSegmenter::MPDTree::OmafMPDRoot mMpd;
     };

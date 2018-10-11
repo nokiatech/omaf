@@ -16,12 +16,11 @@
 #include "NVRNamespace.h"
 #include "Platform/OMAFDataTypes.h"
 #include "Foundation/NVRFixedQueue.h"
-
+#include "Provider/NVRCoreProviderSources.h"
 #include <mp4vrfiledatatypes.h>
 #include <mp4vrfilereaderinterface.h>
 
 #include "Media/NVRMP4MediaPacketQueue.h"
-#include "Provider/NVRSources.h"
 
 #include "NVRErrorCodes.h"
 
