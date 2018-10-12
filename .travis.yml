@@ -63,9 +63,15 @@ before_script:
       bash ./build-linux.sh debug
     ) || [ ! -z "$ANDROID_NDK" ]'
   - '[ ! -z "$ANDROID_NDK" ] && (
-      bash ./build-android.sh abiv7 debug &&
-      bash ./build-android.sh abiv8 debug &&
-      bash ./build-android.sh abiv7 &&
+      bash ./build-android.sh abiv7 debug
+    ) || [ -z "$ANDROID_NDK" ]'
+  - '[ ! -z "$ANDROID_NDK" ] && (
+      bash ./build-android.sh abiv8 debug
+    ) || [ -z "$ANDROID_NDK" ]'
+  - '[ ! -z "$ANDROID_NDK" ] && (
+      bash ./build-android.sh abiv7
+    ) || [ -z "$ANDROID_NDK" ]'
+  - '[ ! -z "$ANDROID_NDK" ] && (
       bash ./build-android.sh abiv8
     ) || [ -z "$ANDROID_NDK" ]'
   - popd
