@@ -27,8 +27,7 @@ matrix:
       env:
         - MATRIX_ENV="CC=gcc-6 && CXX=g++-6"
     - env:
-        - PATH=/opt/cmake-3.6.3-Linux-x86_64/bin:$PATH
-        - ANDROID_NDK=/opt/android-ndk-r14b
+        - ANDROID_NDK=/opt/android-ndk-r17c
         - MATRIX_ENV=""
 
 # language environment overrides some of the user env values set in matrix so they are reapplied here
@@ -36,10 +35,8 @@ before_install:
   - eval "${MATRIX_ENV}"
   - pushd .
   - if [ ! -z "$ANDROID_NDK" ]; then mkdir -p /opt; fi 
-  - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; wget https://dl.google.com/android/repository/android-ndk-r14b-linux-x86_64.zip; fi 
-  - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; wget  https://cmake.org/files/v3.6/cmake-3.6.3-Linux-x86_64.tar.gz; fi
-  - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; unzip -q android-ndk-r14b-linux-x86_64.zip; fi
-  - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; tar zxf cmake-3.6.3-Linux-x86_64.tar.gz; fi
+  - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; wget https://dl.google.com/android/repository/android-ndk-r17c-linux-x86_64.zip; fi 
+  - if [ ! -z "$ANDROID_NDK" ]; then cd /opt; unzip -q android-ndk-r17c-linux-x86_64.zip; fi
   - popd
   - export
   - cmake --version
@@ -82,10 +79,8 @@ script:
       [ -x Creator/bin/Linux/Debug/omafvd ] && 
       [ -x Creator/bin/Linux/Release/omafvd ] && 
       Creator/bin/Linux/Debug/omafvi --help && 
-      Creator/bin/Linux/Debug/omafvd --help && 
       Creator/bin/Linux/Debug/omafimage --help && 
       Creator/bin/Linux/Release/omafvi --help &&
-      Creator/bin/Linux/Release/omafvd --help &&
       Creator/bin/Linux/Release/omafimage --help 
     ) || [ ! -z "$ANDROID_NDK" ]'
   - '[ ! -z "$ANDROID_NDK" ] && ( 

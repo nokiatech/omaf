@@ -49,10 +49,14 @@ namespace VDD {
             {
                 processExtractors(tiles);
             }
-            if (extractorReadyForEoS())
+            if (mExtractorCache.find(data.at(0).getStreamId()) != mExtractorCache.end())
             {
-                // as tileproducers won't send any extractor after endOfStream, we should have now flushed the cache
-                createEoS(tiles);
+                mExtractorCache[data.at(0).getStreamId()].push_back(std::move(data.at(0)));
+                if (extractorReadyForEoS())
+                {
+                    // as tileproducers won't send any extractor after endOfStream, we should have now flushed the cache
+                    createEoS(tiles);
+                }
             }
         }
         else
@@ -108,21 +112,23 @@ namespace VDD {
     }
     bool TileProxy::extractorReadyForEoS() const
     {
+        if (mExtractorCache.size() < mTileCount)
+        {
+            return false;
+        }
         for (auto& item : mExtractorCache)
         {
-            if (item.second.size() > 0)
+            if (item.second.size() == 0)
+            {
+                return false;
+            }
+            else if (!item.second.front().isEndOfStream())
             {
                 return false;
             }
         }
-        if (mExtractorCache.empty())
-        {
-            return false;
-        }
-        else
-        {
-            return true;
-        }
+        // all input should have EoS?
+        return true;
     }
 
     Data TileProxy::collectExtractors()

@@ -17,21 +17,21 @@ set STARTTIME=%TIME%
 set ORIGCD=%CD%
 call :getargc argc %*
 if %argc%==0 (
- 	echo: 
- 	echo Usage:
- 	echo Run either one combination of SDK commands or one command from the Other commands
- 	echo If an option is omitted from SDK commands it runs automatically both
+    echo: 
+    echo Usage:
+    echo Run either one combination of SDK commands or one command from the Other commands
+    echo If an option is omitted from SDK commands it runs automatically both
     echo "<script> debug vs2015" creates cmakes and builds vs2015 debug binaries
- 	echo "<script> external" builds external binaries
- 	echo: 
- 	echo SDK commands
- 	echo "generate || build"
- 	echo "debug    || release"
- 	echo "vs2013   || vs2015  || vs2017  || abiv7 || abiv8 || android"
- 	echo:
- 	echo Other commands
- 	echo "all ^ clean"
- 	echo:    
+    echo "<script> external" builds external binaries
+    echo: 
+    echo SDK commands
+    echo "generate || build"
+    echo "debug    || release"
+    echo "vs2013   || vs2015  || vs2017  || abiv7 || abiv8 || android"
+    echo:
+    echo Other commands
+    echo "all ^ clean"
+    echo:    
     exit /B 1
 )
 
@@ -43,8 +43,8 @@ REM Echo commands instead of executing
 REM set DEBUG_PRINT=YES
 
 if '%DEBUG_PRINT%' == 'YES' (
- 	echo Echoing commands
- 	set DEBUG_COMMAND=echo
+    echo Echoing commands
+    set DEBUG_COMMAND=echo
 ) ELSE (
     set DEBUG_COMMAND=
 )
@@ -170,9 +170,16 @@ if '%VS2013%%VS2015%%VS2017%%ANDROID%'=='NONONONO' (
 
 if '%NINJA%'=='YES' (
     REM check if ninja can be found.
+    
     set MAKE_BIN="%CD%\ninja.exe"
     call :checkninja !MAKE_BIN!
-    if NOT !ERRORLEVEL! EQU 0 goto :error_exit
+    if NOT !ERRORLEVEL! EQU 0 (
+        WHERE ninja > nul
+        IF !ERRORLEVEL! NEQ 0 (
+            echo "ERROR: Ninja not found in path!"
+            goto :error_exit
+        )
+    )
 
     REM ninja requested.. fix VS builds..
     if '%VS2013%'=='YES' (
@@ -204,23 +211,18 @@ if '%ANDROID%'=='YES' (
         echo "ANDROID_NDK is not set"
         exit /B 1
     )    
-    set ANDROID_NATIVE_API_LEVEL=android-23
+    set ANDROID_NATIVE_API_LEVEL=android-24
     set ANDROID_STL=c++_shared
     if '%NINJA%'=='YES' (
         set ANDROID_GENERATOR="Ninja"
+        set ANDROID_PARAMETERS=-DCMAKE_TOOLCHAIN_FILE=%ANDROID_NDK%\build\cmake\android.toolchain.cmake -DCMAKE_ANDROID_STL_TYPE=!ANDROID_STL! -DANDROID_NATIVE_API_LEVEL=!ANDROID_NATIVE_API_LEVEL!
     ) else (
         set ANDROID_GENERATOR="MinGW Makefiles"
         set MAKE_BIN="%ANDROID_NDK%\prebuilt\windows-x86_64\bin\make.exe"
         call :checkmake !MAKE_BIN!
         if NOT !ERRORLEVEL! EQU 0 goto :error_exit
-    )
-    if '%CMAKE_TOOLCHAIN%'=='YES' (
-        echo Using CMAKE pre-installed toolchain
-        set ANDROID_PARAMETERS=-DCMAKE_ANDROID_NDK=c:/NDK/r11c -DCMAKE_SYSTEM_NAME=Android -DCMAKE_ANDROID_STL_TYPE=!ANDROID_STL! -DCMAKE_SYSTEM_VERSION=23 -DCMAKE_MAKE_PROGRAM=!MAKE_BIN!
-    ) else (
-        echo Using our custom hack patched toolchain
         set ANDROID_PARAMETERS=-DCMAKE_TOOLCHAIN_FILE=android.toolchain.cmake -DANDROID_STL=!ANDROID_STL! -DANDROID_NATIVE_API_LEVEL=!ANDROID_NATIVE_API_LEVEL! -DCMAKE_MAKE_PROGRAM=!MAKE_BIN!
-    )    
+    )  
 )
 
 echo:
@@ -338,7 +340,7 @@ for %%p in (WINDOWS ANDROID) do (
                 if '!%%c!'=='YES' (
                     set FINAL_GENERATOR=!GENERATOR_%%a!
                     set SDK_FINAL_PARAMETERS=-G!FINAL_GENERATOR! !SDK_PARAMETERS_%%a! !EXTRA_PARAMETERS!
-					set SDK_FINAL_PARAMETERS=!SDK_FINAL_PARAMETERS! -DINSTALLER=NO
+                    set SDK_FINAL_PARAMETERS=!SDK_FINAL_PARAMETERS! -DINSTALLER=NO
                     
                     if '%%c'=='CLEAN' (
                         for %%t in (DEBUG RELEASE) do (
@@ -376,7 +378,7 @@ for %%p in (WINDOWS ANDROID) do (
                                         echo Generating %%p %%a %%t
                                         set final=!CMAKE_GENERATE_NO_IDE_%%t!
                                     )
-									echo From %ORIGCD% 
+                                    echo From %ORIGCD% 
                                     echo -----------------------------------------------------
                                     %DEBUG_COMMAND% mkdir !BUILD_PATH_%%a_%%t!
                                     %DEBUG_COMMAND% cd !BUILD_PATH_%%a_%%t!

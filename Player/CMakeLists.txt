@@ -141,8 +141,8 @@ if (TARGET_OS_WINDOWS)
 		)
 else()
 	set(OMAF_COMMON_DEPS ${OMAF_COMMON_DEPS}
-		$<$<CONFIG:Debug>:${CMAKE_SOURCE_DIR}/../../libdash/lib/${OMAF_EXT_PATH_DEBUG_PREFIX}/libdashd.${dashsuffix}>
-		$<$<CONFIG:Release>:${CMAKE_SOURCE_DIR}/../../libdash/lib/${OMAF_EXT_PATH_RELEASE_PREFIX}/libdash.${dashsuffix}>
+		$<$<CONFIG:Debug>:${CMAKE_SOURCE_DIR}/../Lib/${LIB_TARGET_NAME}/Debug/${ANDROID_ABI}/libdash.${dashsuffix}>
+		$<$<CONFIG:Release>:${CMAKE_SOURCE_DIR}/../Lib/${LIB_TARGET_NAME}/Release/${ANDROID_ABI}/libdash.${dashsuffix}>
 		)
 
 	set(OMAF_COMMON_DEPS ${OMAF_COMMON_DEPS}
@@ -183,6 +183,12 @@ if (TARGET_OS_WINDOWS)
 			file(APPEND "${SDK_INSTALL_SCRIPT}" "if %errorlevel% neq 0 goto :cmEnd\n")
 			file(APPEND "${SDK_INSTALL_SCRIPT}" "\"${CMAKE_COMMAND}\" -E copy \"${CMAKE_PDB_OUTPUT_DIRECTORY}/OMAFPlayerd.pdb\" \"${API_LIB}/Debug/win32_x64/\"\n")
 			file(APPEND "${SDK_INSTALL_SCRIPT}" "if %errorlevel% neq 0 goto :cmEnd\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "\"${CMAKE_COMMAND}\" -E copy \"${CMAKE_SOURCE_DIR}/../Mp4/lib/Windows/Debug/mp4vr_shared.dll\" \"${API_LIB}/Debug/win32_x64/\"\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "if %errorlevel% neq 0 goto :cmEnd\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "\"${CMAKE_COMMAND}\" -E copy \"${CMAKE_SOURCE_DIR}/../Lib/Windows/Debug/${VSVERSION}/dash.dll\" \"${API_LIB}/Debug/win32_x64/\"\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "if %errorlevel% neq 0 goto :cmEnd\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "\"${CMAKE_COMMAND}\" -E copy \"${CMAKE_SOURCE_DIR}/../Lib/Windows/Debug/${VSVERSION}/heif_shared.dll\" \"${API_LIB}/Debug/win32_x64/\"\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "if %errorlevel% neq 0 goto :cmEnd\n")
 		else()
 			file(APPEND "${SDK_INSTALL_SCRIPT}" "\"${CMAKE_COMMAND}\" -E make_directory \"${API_LIB}/Release/win32_x64/\"\n")
 			file(APPEND "${SDK_INSTALL_SCRIPT}" "\"${CMAKE_COMMAND}\" -E copy \"${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/OMAFPlayer.dll\" \"${API_LIB}/Release/win32_x64/\"\n")
@@ -190,6 +196,12 @@ if (TARGET_OS_WINDOWS)
 			file(APPEND "${SDK_INSTALL_SCRIPT}" "\"${CMAKE_COMMAND}\" -E copy \"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/OMAFPlayer.lib\" \"${API_LIB}/Release/win32_x64/\"\n")
 			file(APPEND "${SDK_INSTALL_SCRIPT}" "if %errorlevel% neq 0 goto :cmEnd\n")
 			file(APPEND "${SDK_INSTALL_SCRIPT}" "\"${CMAKE_COMMAND}\" -E copy \"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/OMAFPlayer.pdb\" \"${API_LIB}/Release/win32_x64/\"\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "if %errorlevel% neq 0 goto :cmEnd\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "\"${CMAKE_COMMAND}\" -E copy \"${CMAKE_SOURCE_DIR}/../Mp4/lib/Windows/Release/mp4vr_shared.dll\" \"${API_LIB}/Release/win32_x64/\"\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "if %errorlevel% neq 0 goto :cmEnd\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "\"${CMAKE_COMMAND}\" -E copy \"${CMAKE_SOURCE_DIR}/../Lib/Windows/Release/${VSVERSION}/dash.dll\" \"${API_LIB}/Release/win32_x64/\"\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "if %errorlevel% neq 0 goto :cmEnd\n")
+			file(APPEND "${SDK_INSTALL_SCRIPT}" "\"${CMAKE_COMMAND}\" -E copy \"${CMAKE_SOURCE_DIR}/../Lib/Windows/Release/${VSVERSION}/heif_shared.dll\" \"${API_LIB}/Release/win32_x64/\"\n")
 			file(APPEND "${SDK_INSTALL_SCRIPT}" "if %errorlevel% neq 0 goto :cmEnd\n")
 		endif()
 	else()

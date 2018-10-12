@@ -78,7 +78,8 @@ Cmake-based build scripts are provided.
 A CMake installation is required, minimum v 3.5 and for android 3.6.3 is maximum and recommended
 * For Linux gcc 6+ is required
 * For Windows, Visual Studio 2015 or 2017 installation is expected
-* For Android player build, both Windows and Linux can be used. Further, Android NDK (r17) must be installed in addition to Android SDK (28).
+* For Android player build, both Windows and Linux can be used. Further, Android NDK (r17) must be installed in addition to Android SDK (28). 
+* If building Android on Windows, Ninja.exe build tool is also needed. Download the tool here: https://github.com/ninja-build/ninja/releases and add it to the %PATH% variable.
 * The Creator can be built on Linux, and Linux can also be used to build player for Android.
 
 First clone the [LibDASH](https://github.com/nokia/libdash) to the root of your work area.

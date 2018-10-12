@@ -1,0 +1,22 @@
+
+------ license start marker -----
+
+This file is part of Nokia OMAF implementation
+
+Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+
+Contact: omaf@nokia.com
+
+This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+subsidiaries. All rights are reserved.
+
+Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+written consent of Nokia.
+
+------ license end marker -----
+
+The original image was shared by Bob Dass, and shared in Flickr:
+https://www.flickr.com/photos/54144402@N03/17163130335/in/photolist-s9DwGg-nHzM7f-25DwcBG-nrhcwB-nru6Tg-nHw2Rr-nJAWcn-obNZTK-rsuse-nKiX76-24CreHS-o5ChYc-FncrD8-nruVRv-nKxTu8-6kn5Qp-nKyffB-nHwwbH-ov3rop-nHLvwZ-nHFpzV-nKMt7x-nHxGXF-5fk8U4-nqkpzL-nKMtYc-5iQ8B9-ZRtuVr-mAgTN-nHYrfi-nJ12zi-nr2fwe-nHWER9-DP8n8v-gVvTgW-4FhsXx-Sw9nY3-okVAZu-S8JcFm-n5h1hV-Xh7FKP-cdwBAG-HS4rg1-CD6GW9-CwJ44x-KG3R4z-FSkuaE-omSjEo-ks6Mp3-JAfeCh
+It was re-encoded and encapsulated for OMAF format.
+The picture was shared under Creative Commons license:
+https://creativecommons.org/licenses/by/2.0/

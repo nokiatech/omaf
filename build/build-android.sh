@@ -19,9 +19,9 @@ set +x
 function usage() {
  	echo ''
  	echo 'Usage:'
-    echo 'Set ANDROID_NDK environment variable to point to your android-ndk-r14b directory'
+    echo 'Set ANDROID_NDK environment variable to point to your android-ndk-r16b directory'
     echo 'which contains unpacked android ndk downloaded from'
-    echo 'https://dl.google.com/android/repository/android-ndk-r14b-linux-x86_64.zip'
+    echo 'https://developer.android.com/ndk/downloads/older_releases'
  	echo ''
  	echo 'Run script and select android abi version which should be compiled.'
  	echo 'NOTE: building creator for android is not supported'
@@ -131,7 +131,7 @@ if [ ! -f ../Lib/Android/$BUILDTYPE/$ANDROIDVERSION/libdash.so ]; then
     DSTDIR=$ORIGDIR/../Lib/Android/$BUILDTYPE/$ANDROIDVERSION
     cd $ORIGDIR/../../libdash/libdash
     rm -fr $LIBDASHBUILDDIR
-    configure_and_build $LIBDASHBUILDDIR android-23 $ANDROIDVERSION $BUILDTYPE ../../../libdash
+    configure_and_build $LIBDASHBUILDDIR android-24 $ANDROIDVERSION $BUILDTYPE ../../../libdash
     mkdir -p $DSTDIR
     cp $LIBDASHBUILDDIR/libdash*.so $DSTDIR
     cd $ORIGDIR
@@ -142,7 +142,7 @@ if [ ! -f ../Lib/Android/$BUILDTYPE/$ANDROIDVERSION/libheifpp.a ]; then
     DSTDIR=$ORIGDIR/../Lib/Android/$BUILDTYPE/$ANDROIDVERSION
     cd $ORIGDIR/../../heif
     rm -fr $HEIFBUILDDIR
-    configure_and_build $HEIFBUILDDIR android-23 $ANDROIDVERSION $BUILDTYPE ../../..
+    configure_and_build $HEIFBUILDDIR android-24 $ANDROIDVERSION $BUILDTYPE ../../..
     mkdir -p $DSTDIR
     cp $HEIFBUILDDIR/srcs/lib/* $DSTDIR
     cd $ORIGDIR
@@ -152,7 +152,7 @@ if [ "$BUILDMP4" == "YES" ]; then
     MP4BUILDDIR=android/$BUILDTYPEDIR/$ANDROIDVERSION
     DSTDIR=$ORIGDIR/../Mp4/lib/android/$BUILDTYPEDIR/$ANDROIDVERSION
     cd $ORIGDIR/../Mp4/build
-    configure_and_build $MP4BUILDDIR android-23 $ANDROIDVERSION $BUILDTYPE
+    configure_and_build $MP4BUILDDIR android-24 $ANDROIDVERSION $BUILDTYPE
     mkdir -p $DSTDIR
     cp $MP4BUILDDIR/lib/* $DSTDIR
     cd $ORIGDIR
@@ -170,10 +170,6 @@ if [ "$BUILDPLAYER" == "YES" ]; then
     fi
 
     # build PLayer lib
-    DSTDIR=$ORIGDIR/../../libdash/lib/android/$BUILDTYPEDIR/$ANDROIDVERSION
-    mkdir -p $DSTDIR
-    cp libdash.so $DSTDIR/$LIBDAHSFILENAME
-
     cd $ORIGDIR/../Player
     bash ./build-android.sh ${BUILDTYPE,,} $ANDROIDSHORTVERSION clean
     bash ./build-android.sh ${BUILDTYPE,,} $ANDROIDSHORTVERSION

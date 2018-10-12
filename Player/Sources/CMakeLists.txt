@@ -88,6 +88,9 @@ list(SORT sources)
 # Create platform source filters
 set(source_filter_patterns "Windows" "Android")
 
+# Create audio backend source filters
+set(source_filter_patterns ${source_filter_patterns} "OpenSL" "WASAPI")
+
 # Create graphics backend feature source filters
 set(source_filter_patterns ${source_filter_patterns} "OpenGL" "Null" "D3D11")
 
@@ -95,8 +98,10 @@ set(source_filter_patterns ${source_filter_patterns} "OpenGL" "Null" "D3D11")
 # Exclude platforms
 if (TARGET_OS_WINDOWS)
     list(REMOVE_ITEM source_filter_patterns "Windows")
+    list(REMOVE_ITEM source_filter_patterns "WASAPI")
 elseif(TARGET_OS_ANDROID)
     list(REMOVE_ITEM source_filter_patterns "Android")
+    list(REMOVE_ITEM source_filter_patterns "OpenSL")
 endif()
 
 # Exclude graphics backends
