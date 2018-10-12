@@ -49,6 +49,7 @@ install:
   - pushd .
   - cd ..
   - git clone https://github.com/nokia/libdash.git
+  - git clone --single-branch -b OMAF https://github.com/nokiatech/heif.git
   - popd
   - pushd .
   - cd OpenGLExt
@@ -76,8 +77,16 @@ script:
   - '[ -z "$ANDROID_NDK" ] && ( 
       [ -x Creator/bin/Linux/Debug/omafvi ] && 
       [ -x Creator/bin/Linux/Release/omafvi ] && 
+      [ -x Creator/bin/Linux/Debug/omafimage ] && 
+      [ -x Creator/bin/Linux/Release/omafimage ] && 
+      [ -x Creator/bin/Linux/Debug/omafvd ] && 
+      [ -x Creator/bin/Linux/Release/omafvd ] && 
       Creator/bin/Linux/Debug/omafvi --help && 
-      Creator/bin/Linux/Release/omafvi --help 
+      Creator/bin/Linux/Debug/omafvd --help && 
+      Creator/bin/Linux/Debug/omafimage --help && 
+      Creator/bin/Linux/Release/omafvi --help &&
+      Creator/bin/Linux/Release/omafvd --help &&
+      Creator/bin/Linux/Release/omafimage --help 
     ) || [ ! -z "$ANDROID_NDK" ]'
   - '[ ! -z "$ANDROID_NDK" ] && ( 
       [ -f Player/Lib/Android/Release/armeabi-v7a/libdash.so ] && 
