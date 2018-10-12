@@ -23,12 +23,21 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - g++-6
+            - g++-7
       env:
-        - MATRIX_ENV="CC=gcc-6 && CXX=g++-6"
+        - MATRIX_ENV="CC=gcc-7 && CXX=g++-7"
     - env:
         - ANDROID_NDK=/opt/android-ndk-r17c
-        - MATRIX_ENV=""
+        - MATRIX_ENV="BUILD_ABI=abiv7 && BUILD_TYPE=debug && LIBDIR=Debug/armeabi-v7a  && PLAYER_LIB=libOMAFPlayerd"
+    - env:
+        - ANDROID_NDK=/opt/android-ndk-r17c
+        - MATRIX_ENV="BUILD_ABI=abiv7 && BUILD_TYPE= && LIBDIR=Release/armeabi-v7a  && PLAYER_LIB=libOMAFPlayer"
+    - env:
+        - ANDROID_NDK=/opt/android-ndk-r17c
+        - MATRIX_ENV="BUILD_ABI=abiv8 && BUILD_TYPE=debug && LIBDIR=Debug/arm64-v8a && PLAYER_LIB=libOMAFPlayerd"
+    - env:
+        - ANDROID_NDK=/opt/android-ndk-r17c
+        - MATRIX_ENV="BUILD_ABI=abiv8 && BUILD_TYPE= && LIBDIR=Release/arm64-v8a && PLAYER_LIB=libOMAFPlayer"
 
 # language environment overrides some of the user env values set in matrix so they are reapplied here
 before_install:
@@ -63,16 +72,7 @@ before_script:
       bash ./build-linux.sh debug
     ) || [ ! -z "$ANDROID_NDK" ]'
   - '[ ! -z "$ANDROID_NDK" ] && (
-      bash ./build-android.sh abiv7 debug
-    ) || [ -z "$ANDROID_NDK" ]'
-  - '[ ! -z "$ANDROID_NDK" ] && (
-      bash ./build-android.sh abiv8 debug
-    ) || [ -z "$ANDROID_NDK" ]'
-  - '[ ! -z "$ANDROID_NDK" ] && (
-      bash ./build-android.sh abiv7
-    ) || [ -z "$ANDROID_NDK" ]'
-  - '[ ! -z "$ANDROID_NDK" ] && (
-      bash ./build-android.sh abiv8
+      bash ./build-android.sh $BUILD_ABI $BUILD_TYPE
     ) || [ -z "$ANDROID_NDK" ]'
   - popd
 
@@ -90,17 +90,8 @@ script:
       Creator/bin/Linux/Release/omafimage --help 
     ) || [ ! -z "$ANDROID_NDK" ]'
   - '[ ! -z "$ANDROID_NDK" ] && ( 
-      [ -f Player/Lib/Android/Release/armeabi-v7a/libdash.so ] && 
-      [ -f Player/Lib/Android/Release/armeabi-v7a/libmp4vr_shared.so ] && 
-      [ -f Player/Lib/Android/Release/armeabi-v7a/libOMAFPlayer.so ] && 
-      [ -f Player/Lib/Android/Release/arm64-v8a/libdash.so ] && 
-      [ -f Player/Lib/Android/Release/arm64-v8a/libmp4vr_shared.so ] && 
-      [ -f Player/Lib/Android/Release/arm64-v8a/libOMAFPlayer.so ] && 
-      [ -f Player/Lib/Android/Debug/armeabi-v7a/libdashd.so ] && 
-      [ -f Player/Lib/Android/Debug/armeabi-v7a/libmp4vr_shared.so ] && 
-      [ -f Player/Lib/Android/Debug/armeabi-v7a/libOMAFPlayerd.so ] && 
-      [ -f Player/Lib/Android/Debug/arm64-v8a/libdashd.so ] && 
-      [ -f Player/Lib/Android/Debug/arm64-v8a/libmp4vr_shared.so ] && 
-      [ -f Player/Lib/Android/Debug/arm64-v8a/libOMAFPlayerd.so ]
+      [ -f Player/Lib/Android/$LIBDIR/libdash.so ] && 
+      [ -f Player/Lib/Android/$LIBDIR/libmp4vr_shared.so ] && 
+      [ -f Player/Lib/Android/$LIBDIR/$PLAYER_LIB.so ]
     ) || [ -z "$ANDROID_NDK" ]'
 
