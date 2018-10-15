@@ -83,16 +83,17 @@ A CMake installation is required, minimum v 3.5 and for android 3.6.3 is maximum
 * The Creator can be built on Linux, and Linux can also be used to build player for Android.
 
 First clone the [LibDASH](https://github.com/nokia/libdash) to the root of your work area.
-Then clone the [HEIF](https://github.com/nokiatech/heif) to the root of your work area and check-out OMAFv1 branch.
-And finally clone this repository to the same place, i.e. root of your work area, so that the three cloned repositories are adjacent to each other.
+Then clone the OMAF branch of [HEIF](https://github.com/nokiatech/heif) to the root of your work area.
+And finally clone this OMAF repository to the same place, i.e. root of your work area, so that the three cloned repositories are adjacent to each other.
 For example:
 
     `mkdir omaf-build`
     `cd omaf-build`
     `git clone https://github.com/nokia/libdash`
     `git clone --single-branch -b OMAF https://github.com/nokiatech/heif.git`
+    `git clone https://github.com/nokiatech/omaf.git`
 
-Build libdash and heif as instructed in their README.md and then go to `OMAF/Build`.
+Build libdash as instructed in its README.md and then go to `OMAF/Build`.
 Execute `build-visualstudio.bat` or some other build script depending on your platform. It will echo the detailed usage allowing to select which parts to compile. 
 
 The Creator binary should appear in `/Creator/bin/{OS}/{Debug/Release}/`
