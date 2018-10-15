@@ -23,9 +23,25 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
           packages:
+            - g++-6
+      env:
+        - MATRIX_ENV="CC=gcc-6 && CXX=g++-6"
+    - addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
             - g++-7
       env:
         - MATRIX_ENV="CC=gcc-7 && CXX=g++-7"
+    - addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-8
+      env:
+        - MATRIX_ENV="CC=gcc-8 && CXX=g++-8"
     - env:
         - ANDROID_NDK=/opt/android-ndk-r17c
         - MATRIX_ENV="BUILD_ABI=abiv7 && BUILD_TYPE=debug && LIBDIR=Debug/armeabi-v7a  && PLAYER_LIB=libOMAFPlayerd"
@@ -56,6 +72,8 @@ install:
   - cd ..
   - git clone https://github.com/nokia/libdash.git
   - git clone --single-branch -b OMAF https://github.com/nokiatech/heif.git
+  - echo "PATCHING HEIF CUSTOM ALLOCATOR TO WORK WITH TRAVIS stdlibc++"
+  - sed -i.old '1s;^;#define HEIF_GCC_ALLOCATOR_FIX 1;' heif/srcs/common/customallocator.hpp
   - popd
   - pushd .
   - cd OpenGLExt
