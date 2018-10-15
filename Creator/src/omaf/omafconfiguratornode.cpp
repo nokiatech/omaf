@@ -97,7 +97,7 @@ namespace VDD
 
     void OmafConfiguratorNode::createProjectionSEI(const Data& input, std::vector<uint8_t>& seiNal)
     {
-        // input is in NAL unit format: length + data (with EPB). However we need just the NAL header (2 bytes), so EPB is not relevant
+        // input is in NAL unit format: length + data (with EPB). However we need just the NAL header (2 bytes), so EPB is not relevant, and hence we get RBSP just by copying the data to bitstr
         const std::uint8_t* inputNAL = static_cast<const std::uint8_t*>(input.getCPUDataReference().address[0]);
         Parser::BitStream bitstr;
         for (int i = 4; i < 7; i++)
@@ -106,6 +106,7 @@ namespace VDD
         }
         H265::NalUnitHeader naluHeader;
         H265Parser::parseNalUnitHeader(bitstr, naluHeader);
+        bitstr.clear();
 
         std::uint32_t length = OMAF::createProjectionSEI(bitstr, naluHeader.mNuhTemporalIdPlus1);
         Parser::BitStream seiLengthField;

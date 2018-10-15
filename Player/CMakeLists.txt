@@ -131,8 +131,8 @@ endif()
 
 if (TARGET_OS_WINDOWS)
 	set(OMAF_COMMON_DEPS ${OMAF_COMMON_DEPS}
-		$<$<CONFIG:Debug>:${CMAKE_SOURCE_DIR}/../../libdash/Lib/${OMAF_EXT_PATH_DEBUG_PREFIX}/dash.${dashsuffix}>
-		$<$<CONFIG:Release>:${CMAKE_SOURCE_DIR}/../../libdash/Lib/${OMAF_EXT_PATH_RELEASE_PREFIX}/dash.${dashsuffix}>
+		$<$<CONFIG:Debug>:${CMAKE_SOURCE_DIR}/../Lib/Windows/Debug/${VSVERSION}/dash.${dashsuffix}>
+		$<$<CONFIG:Release>:${CMAKE_SOURCE_DIR}/../Lib/Windows/Release/${VSVERSION}/dash.${dashsuffix}>
 		)
 
 	set(OMAF_COMMON_DEPS ${OMAF_COMMON_DEPS}

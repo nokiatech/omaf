@@ -403,8 +403,16 @@ OMAF_NS_BEGIN
             bool_t isLastRow = ((row+1) * height) >= gridHeight;
             uint32_t lastColWidth = gridWidth % width;
             uint32_t lastRowHeight = gridHeight % height;
-            uint32_t currentTileHeight = isLastRow ? lastRowHeight : height;
-            uint32_t currentTileWidth = isLastCol ? lastColWidth : width;
+            uint32_t currentTileHeight = height;
+            uint32_t currentTileWidth = width;
+            if (isLastCol && lastColWidth > 0)
+            {
+                currentTileWidth = lastColWidth;
+            }
+            if (isLastRow && lastRowHeight > 0)
+            {
+                currentTileHeight = lastRowHeight;
+            }
 
             // projected place for tile in 0..1 coordinates
             float32_t projectedTop = float32_t(row*height) / gridHeight;

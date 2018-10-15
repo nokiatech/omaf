@@ -368,7 +368,7 @@ OMAF_NS_BEGIN
                     // There is rwpk property, we should get face info from fileformat rwpk box. 
                     // In our current design, this is however not that relevant piece of info, since we need that info for the extractor track (we are in tile track here), so we check the existence of rwpk anyway
                 }
-                else if (rwpk = Error::OK_NO_CHANGE)
+                else if (rwpk == Error::OK_NO_CHANGE)
                 {
                     // Default OMAF face order is "LFRDBU", with 2nd row faces rotated right
                     aNextComponents.basicSourceInfo.faceOrder = DEFAULT_OMAF_FACE_ORDER;       // a coded representation of LFRDBU
