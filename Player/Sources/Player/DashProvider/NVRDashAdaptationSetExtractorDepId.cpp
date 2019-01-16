@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -124,12 +124,17 @@ OMAF_NS_BEGIN
         if (mNextRepresentation != OMAF_NULL && mCurrentRepresentation != mNextRepresentation)
         {
             bool_t doTheSwitch = false;
+            uint32_t doneSegmentId = 0;
+            if (!((DashRepresentationExtractor*)mCurrentRepresentation)->isDone(doneSegmentId))
+            {
+                return false;
+            }
             if (!mNextRepresentation->isBuffering())
             {
                 DashSegment* segment = mNextRepresentation->peekSegment();
                 if (segment != OMAF_NULL)
                 {
-                    if (segment->getSegmentId() == mNextSegmentToBeConcatenated)
+                    if (segment->getSegmentId() == doneSegmentId + 1)
                     {
                         doTheSwitch = true;
                     }
@@ -173,6 +178,7 @@ OMAF_NS_BEGIN
                         {
                             (*supp)->selectRepresentation((*dRepr).dependendableRepresentations, aNextNeededSegment);
                         }
+                        //TODO estimated segment could be a lowest common one
                         return prepareForSwitch(aNextNeededSegment, false);
                     }
                 }
@@ -181,9 +187,35 @@ OMAF_NS_BEGIN
         return false;
     }
 
+    bool_t DashAdaptationSetExtractorDepId::readyToSwitch(DashRepresentation* aRepresentation, uint32_t aNextNeededSegment)
+    {
+        if (aNextNeededSegment < mTargetNextSegmentId)
+        {
+            //TODO this is to avoid cases where some set has segments until aNextNeededSegment-1 from previous time it was under preparation, and target was aNextNeededSegment+1; some cleanup of old segments could be useful but when? Now it is done only after swithing to this.
+            return false;
+        }
+        if (DashAdaptationSetViewportDep::readyToSwitch(mCurrentRepresentation, aNextNeededSegment))
+        {
+            for (SupportingAdaptationSets::Iterator it = mSupportingSets.begin(); it != mSupportingSets.end(); ++it)
+            {
+                if (!(*it)->readyToSwitch((*it)->getNextRepresentation(), aNextNeededSegment))
+                {
+                    OMAF_LOG_V("not ready to switch to %d due to %s", aNextNeededSegment, (*it)->getCurrentRepresentationId().getData());
+                    return false;
+                }
+            }
+            return true;
+        }
+        else
+        {
+            OMAF_LOG_V("not ready to switch to %d due to extractor %s", aNextNeededSegment, getCurrentRepresentationId().getData());
+            return false;
+        }
+    }
+
     void_t DashAdaptationSetExtractorDepId::doSwitchRepresentation()
     {
-        //deactivate old representations decoder..
+        //deactivate old representation ..
         mCurrentRepresentation->clearDownloadedContent();
 #ifdef OMAF_PLATFORM_ANDROID
         OMAF_LOG_V("%d Switch done from %d to %d", Time::getClockTimeMs(), mCurrentRepresentation->getBitrate(), mNextRepresentation->getBitrate());

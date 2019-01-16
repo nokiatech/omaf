@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -81,28 +81,29 @@ OMAF_NS_BEGIN
          * @param mediaUri The media URI to open.
          * @return true if successful, false otherwise.
          */
-        virtual Error::Enum openInput(const PathName& mediaUri, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams);
+        virtual Error::Enum openInput(const PathName& mediaUri, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams, MP4MetadataStreams& aMetadataStreams);
 
 #if OMAF_ENABLE_STREAM_VIDEO_PROVIDER
         virtual Error::Enum openSegmentedInput(MP4Segment* mp4Segment, bool_t aClientAssignVideoStreamId);
-        virtual Error::Enum addSegment(MP4Segment* mp4Segment, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams);
+        virtual Error::Enum addSegment(MP4Segment* mp4Segment, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams, MP4MetadataStreams& aMetadataStreams);
         virtual Error::Enum addSegmentIndex(MP4Segment* mp4Segment);
         virtual Error::Enum hasSegmentIndexFor(uint32_t segmentId, uint64_t presentationTimeUs);
         virtual Error::Enum getSegmentIndexFor(uint32_t segmentId, uint64_t presentationTimeUs, SubSegment& subSegment);
-        virtual Error::Enum removeSegment(uint32_t initSegmentId, uint32_t segmentId, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams);
+        virtual Error::Enum removeSegment(uint32_t initSegmentId, uint32_t segmentId, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams, MP4MetadataStreams& aMetadataStreams);
         virtual bool_t getNewestSegmentId(uint32_t initSegmentId, uint32_t& segmentId);
         virtual uint64_t getReadPositionUs(MP4VideoStreams& videoStreams, uint32_t& segmentIndex);
         virtual bool_t readyForSegment(MP4VideoStreams& videoStreams, uint32_t aSegmentId);
 
-        uint32_t releaseSegmentsUntil(uint32_t segmentId, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams);
-        void_t releaseUsedSegments(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams);
-        bool_t releaseAllSegments(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams);
+        uint32_t releaseSegmentsUntil(uint32_t segmentId, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams, MP4MetadataStreams& aMetadataStreams);
+        void_t releaseUsedSegments(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams, MP4MetadataStreams& aMetadataStreams);
+        bool_t releaseAllSegments(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams, MP4MetadataStreams& aMetadataStreams);
         bool_t hasSegmentIndexForSegmentId(uint32_t segmentId);
 #endif
         /**
          * Returns read frame as a MediaPacket.
          */
         virtual Error::Enum readFrame(MP4MediaStream& stream, bool_t& segmentChanged, int64_t currentTimeUs = -1);
+        virtual Error::Enum readTimedMetadataFrame(MP4MediaStream& stream, bool_t& aSegmentChanged, int64_t currentTimeUs);
 
         virtual Error::Enum readInitialMetadata(const PathName& mediaUri, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams);
 
@@ -135,9 +136,9 @@ OMAF_NS_BEGIN
         virtual bool_t isEOS(const MP4AudioStreams& audioStreams, const MP4VideoStreams& videoStreams) const;
 
     protected:
-        virtual Error::Enum prepareFile(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams, uint32_t initSegmentId = 0);
-        virtual Error::Enum createStreams(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams, FileFormatType::Enum fileFormat);
-        virtual Error::Enum updateStreams(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams);
+        virtual Error::Enum prepareFile(MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams, uint32_t initSegmentId = 0);
+        virtual Error::Enum createStreams(MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams, FileFormatType::Enum fileFormat);
+        virtual Error::Enum updateStreams(MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams);
 
         virtual bool_t readAACAudioMetadata(MP4AudioStream& stream);
 

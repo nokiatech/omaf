@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -46,6 +46,8 @@ DashProvider::~DashProvider()
     mDownloadManager->clearDownloadedContent();
     destroyInstance();
     OMAF_DELETE_HEAP(mDownloadManager);
+
+    // then calls ~ProviderBase
 }
 
 const CoreProviderSourceTypes& DashProvider::getSourceTypes()
@@ -281,6 +283,9 @@ void_t DashProvider::parserThreadCallback()
         }
 
         setState(VideoProviderState::LOADED);
+
+        bool_t invoRead = false;
+
         while(1)
         {
 
@@ -466,6 +471,11 @@ void_t DashProvider::parserThreadCallback()
                     }
                 }
 
+            }
+
+            if (!invoRead)
+            {
+                invoRead = retrieveInitialViewingOrientation(mDownloadManager, -1); // -1 == read the next (first) available metadata frame
             }
 
             bool_t buffering = true;

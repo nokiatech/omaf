@@ -2,7 +2,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -37,7 +37,7 @@ add_definitions(-DUSE_FIRST_OMAF_HEIF_GITHUB_RELEASE)
 if (MSVC)
 
 	set(ENABLE_GRAPHICS_API_D3D11 ON)
-	set(ENABLE_GRAPHICS_API_OPENGL ON)
+	set(ENABLE_GRAPHICS_API_OPENGL OFF)
 	
 	add_definitions(-DOMAF_AUDIO_BACKEND_WASAPI)
 

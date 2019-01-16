@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -231,12 +231,16 @@ void_t DashVideoDownloaderExtractorDepId::checkVASVideoStreams(uint64_t currentP
 
         if (selectionUpdated)
         {
-            uint32_t segmentIndex = mVideoBaseAdaptationSet->peekNextSegmentId();   // this does not and should not consider any download latencies, since we may have the right segment already cached from previous tile switches
             if (!additionalTiles.isEmpty())
             {
                 OMAF_LOG_V("Tile selection updated, select representations accordingly");
                 // dependencyId based extractor, so extractor contains the coverage info
-                ((DashAdaptationSetExtractorDepId*)mVideoBaseAdaptationSet)->selectRepresentation(&additionalTiles.front()->getCoveredViewport(), segmentIndex);
+                uint32_t nextProcessedSegment = ((DashAdaptationSetExtractor*)mVideoBaseAdaptationSet)->getNextProcessedSegmentId();
+                if (((DashAdaptationSetExtractorDepId*)mVideoBaseAdaptationSet)->selectRepresentation(&additionalTiles.front()->getCoveredViewport(), nextProcessedSegment))
+                {
+                    mStreamUpdateNeeded = updateVideoStreams();
+                    mVideoStreamsChanged = true;    //trigger also renderer thread to update streams
+                }
             }
         }
         else if (mStreamUpdateNeeded)
@@ -245,6 +249,12 @@ void_t DashVideoDownloaderExtractorDepId::checkVASVideoStreams(uint64_t currentP
             mVideoStreamsChanged = true;    //trigger also renderer thread to update streams
         }
     }
+}
+
+bool_t DashVideoDownloaderExtractorDepId::isReadyToSignalEoS(MP4MediaStream& aStream) const
+{
+    // in dependency case, we should not signal EOS when switching extractor representations, since we reuse video decoder
+    return false;
 }
 
 

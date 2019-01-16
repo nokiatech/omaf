@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -27,7 +27,7 @@ OMAF_NS_BEGIN
 
         virtual void_t createVideoSource(sourceid_t& sourceId, SourceType::Enum sourceType, StereoRole::Enum channel);
 
-        bool_t isDone();
+        bool_t isDone(uint32_t& aSegmentId);
         bool_t readyForSegment(uint32_t aId);
         Error::Enum parseConcatenatedMediaSegment(DashSegment *aSegment);
 

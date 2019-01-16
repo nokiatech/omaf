@@ -1,17 +1,15 @@
 apply plugin: 'com.android.application'
-
 def root = "../../../../"
 def assetsRoot = "../Assets/"
 def playerLibs = root + "Lib/Android/Release/"
 def playerHeaders = root + "Sources/"
-
 android {
     compileSdkVersion 28
-    buildToolsVersion "28.0.2"
+    buildToolsVersion '28.0.2'
 
     defaultConfig {
         applicationId "com.nokia.omaf.sample.videoplayback.handheld"
-        minSdkVersion 24
+        minSdkVersion 23
         targetSdkVersion 28
 
         externalNativeBuild {
@@ -28,10 +26,10 @@ android {
     }
 
     buildTypes {
-        debug{
+        debug {
             debuggable true
         }
-        release{
+        release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -49,4 +47,8 @@ android {
             path "CMakeLists.txt"
         }
     }
+}
+
+dependencies {
+    implementation 'com.android.support:support-v4:28.+'
 }

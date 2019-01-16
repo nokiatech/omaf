@@ -2,7 +2,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -35,24 +35,13 @@ endif()
 add_definitions(-D_CRT_SECURE_NO_WARNINGS -DTARGET_OS_WINDOWS)
 
 
-if (MSVC_VERSION EQUAL 1800)
-    set(VSVERSION VS2013)
-elseif (MSVC_VERSION EQUAL 1900)
+if (MSVC_VERSION EQUAL 1900)
     set(VSVERSION VS2015)
-elseif (MSVC_VERSION EQUAL 1910)
-    set(VSVERSION VS2017)
-elseif (MSVC_VERSION EQUAL 1911)
-    set(VSVERSION VS2017)
-elseif (MSVC_VERSION EQUAL 1912)
-    set(VSVERSION VS2017)
-elseif (MSVC_VERSION EQUAL 1913)
-    set(VSVERSION VS2017)
-elseif (MSVC_VERSION EQUAL 1914)
+elseif (MSVC_VERSION GREATER 1900)
     set(VSVERSION VS2017)
 else()
     message(FATAL_ERROR "Unsupported visual studio version!" ${MSVC_VERSION})
 endif()
-
 
 #make sure that we dont link release crt in debug builds... this should be removed, and all debug/release conflicts erased!
 set(CMAKE_STATIC_LINKER_FLAGS_DEBUG "${CMAKE_STATIC_LINKER_FLAGS_DEBUG} /NODEFAULTLIB:msvcrt")

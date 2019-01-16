@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -297,6 +297,10 @@ OMAF_NS_BEGIN
             mContent.addType(MediaContent::Type::VIDEO_EXTRACTOR);
             return true;
         }
+        else if (aCodec.find("invo") != std::string::npos)
+        {
+            mContent.addType(MediaContent::Type::METADATA_INVO);
+        }
         return false;
     }
 
@@ -463,13 +467,9 @@ OMAF_NS_BEGIN
     {
         if (mCurrentRepresentation != OMAF_NULL)
         {
-            float32_t currFactor = mCurrentRepresentation->getDownloadSpeedFactor();
-            if (mNextRepresentation != OMAF_NULL)
-            {
-                return (mNextRepresentation->getDownloadSpeedFactor() + currFactor)/2.0f;
-            }
+            return mCurrentRepresentation->getDownloadSpeedFactor();
         }
-        return 0.0f;
+        return 1.0f;
     }
 
     Error::Enum DashAdaptationSet::startDownload(time_t startTime)
@@ -487,32 +487,34 @@ OMAF_NS_BEGIN
 
     Error::Enum DashAdaptationSet::startDownload(time_t startTime, uint32_t aExpectedPingTimeMs)
     {
+        OMAF_UNUSED_VARIABLE(aExpectedPingTimeMs); // is used in some other variant
         return startDownload(startTime);
     }
 
-    Error::Enum DashAdaptationSet::startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode)
+    Error::Enum DashAdaptationSet::startDownloadFromTimestamp(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode)
     {
         OMAF_LOG_V("startDownload ad set %d with override %d", mAdaptationSetId, overrideSegmentId);
         if (mNextRepresentation != OMAF_NULL)
         {
-            return mNextRepresentation->startDownloadWithOverride(overridePTSUs, overrideSegmentId, aMode);
+            return mNextRepresentation->startDownloadFromTimestamp(overridePTSUs, overrideSegmentId, aMode);
         }
         else
         {
-            return mCurrentRepresentation->startDownloadWithOverride(overridePTSUs, overrideSegmentId, aMode);
+            return mCurrentRepresentation->startDownloadFromTimestamp(overridePTSUs, overrideSegmentId, aMode);
         }
     }
 
-    Error::Enum DashAdaptationSet::startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode, uint32_t aExpectedPingTimeMs)
+    Error::Enum DashAdaptationSet::startDownloadFromSegment(uint32_t& aTargetDownloadSegmentId, uint32_t aNextToBeProcessedSegmentId, uint32_t aExpectedPingTimeMs)
     {
-        OMAF_LOG_V("startDownload ad set %d with override %d", mAdaptationSetId, overrideSegmentId);
+        OMAF_UNUSED_VARIABLE(aExpectedPingTimeMs); // is used in some other variant
+        OMAF_LOG_V("startDownload ad set %d with override %d", mAdaptationSetId, aTargetDownloadSegmentId);
         if (mNextRepresentation != OMAF_NULL)
         {
-            return mNextRepresentation->startDownloadWithOverride(overridePTSUs, overrideSegmentId, aMode);
+            return mNextRepresentation->startDownloadFromSegment(aTargetDownloadSegmentId, aNextToBeProcessedSegmentId);
         }
         else
         {
-            return mCurrentRepresentation->startDownloadWithOverride(overridePTSUs, overrideSegmentId, aMode);
+            return mCurrentRepresentation->startDownloadFromSegment(aTargetDownloadSegmentId, aNextToBeProcessedSegmentId);
         }
     }
 
@@ -531,17 +533,17 @@ OMAF_NS_BEGIN
         return mCurrentRepresentation->stopDownload();
     }
 
-    Error::Enum DashAdaptationSet::stopDownloadAsync(bool_t aReset)
+    Error::Enum DashAdaptationSet::stopDownloadAsync(bool_t aAbort, bool_t aReset)
     {
         OMAF_LOG_V("stopDownloadAsync for %d", mAdaptationSetId);
         mDownloadStartTime = INVALID_START_TIME;
         if (mNextRepresentation)
         {
-            mNextRepresentation->stopDownloadAsync(aReset);
+            mNextRepresentation->stopDownloadAsync(true, aReset);
 
             mNextRepresentation = OMAF_NULL;
         }
-        return mCurrentRepresentation->stopDownloadAsync(aReset);
+        return mCurrentRepresentation->stopDownloadAsync(aAbort, aReset);
     }
 
     bool_t DashAdaptationSet::supportsSubSegments() const
@@ -590,6 +592,11 @@ OMAF_NS_BEGIN
         return mCurrentRepresentation;
     }
 
+    DashRepresentation* DashAdaptationSet::getNextRepresentation()
+    {
+        return mNextRepresentation;
+    }
+
     bool_t DashAdaptationSet::isAssociatedToRepresentation(RepresentationId& aAssociatedTo)
     {
         aAssociatedTo = mCurrentRepresentation->getSegmentContent().associatedToRepresentationId;
@@ -616,6 +623,10 @@ OMAF_NS_BEGIN
         return mCurrentRepresentation->getCurrentAudioStreams();
     }
 
+    const MP4MetadataStreams& DashAdaptationSet::getCurrentMetadataStreams()
+    {
+        return mCurrentRepresentation->getCurrentMetadataStreams();
+    }
     Error::Enum DashAdaptationSet::readNextVideoFrame(int64_t currentTimeUs)
     {
         bool_t segmentChanged = false;
@@ -631,6 +642,17 @@ OMAF_NS_BEGIN
     {
         bool_t segmentChanged = false;
         Error::Enum result = mCurrentRepresentation->readNextAudioFrame(segmentChanged);
+        if (segmentChanged)
+        {
+            mCurrentRepresentation->releaseOldSegments();
+        }
+        return result;
+    }
+
+    Error::Enum DashAdaptationSet::readMetadataFrame(int64_t currentTimeUs)
+    {
+        bool_t segmentChanged = false;
+        Error::Enum result = mCurrentRepresentation->readMetadataFrame(segmentChanged, currentTimeUs);
         if (segmentChanged)
         {
             mCurrentRepresentation->releaseOldSegments();
@@ -682,7 +704,7 @@ OMAF_NS_BEGIN
 
     const CoreProviderSources& DashAdaptationSet::getVideoSources()
     {
-        // taken from MPD / NVR metadata
+        // taken from MPD / OMAF metadata
         return mCurrentRepresentation->getVideoSources();
     }
 
@@ -782,28 +804,17 @@ OMAF_NS_BEGIN
         else
         {
             // no segments cached yet, start from 0
+            OMAF_LOG_D("getReadPositionUs no mCurrentRepresentation!");
             segmentIndex = INVALID_SEGMENT_INDEX;
             return 0;
         }
     }
 
-    uint32_t DashAdaptationSet::getLastSegmentId() const
+    uint32_t DashAdaptationSet::getLastSegmentId(bool_t aIncludeSegmentInDownloading) const
     {
         if (mCurrentRepresentation)
         {
-            return mCurrentRepresentation->getLastSegmentId();
-        }
-        else
-        {
-            return INVALID_SEGMENT_INDEX;
-        }
-    }
-
-    uint32_t DashAdaptationSet::getSegmentId()
-    {
-        if (mCurrentRepresentation)
-        {
-            return mCurrentRepresentation->getSegmentId();
+            return mCurrentRepresentation->getLastSegmentId(aIncludeSegmentInDownloading);
         }
         else
         {
@@ -859,7 +870,7 @@ OMAF_NS_BEGIN
         return (mDashType == DashType::DASH_WITH_VIDEO_METADATA || mDashType == DashType::OMAF);
     }
 
-    void_t DashAdaptationSet::onSegmentDownloaded(DashRepresentation *representation)
+    void_t DashAdaptationSet::onSegmentDownloaded(DashRepresentation *representation, float32_t aSpeedFactor)
     {
         if (representation == mCurrentRepresentation)
         {
@@ -867,18 +878,17 @@ OMAF_NS_BEGIN
             if (mContent.matches(MediaContent::Type::HAS_VIDEO))
             {
                 // Check if download speed is too low
-                float32_t currentDownloadSpeedFactor = representation->getDownloadSpeedFactor();
 
                 if (mContent.matches(MediaContent::Type::VIDEO_ENHANCEMENT))
                 {
-                    if (currentDownloadSpeedFactor > 0.f && currentDownloadSpeedFactor < 1.2f)
+                    if (aSpeedFactor > 0.f && aSpeedFactor < 1.2f)
                     {
                         mObserver.onDownloadProblem(IssueType::ENH_LAYER_DELAYED);
                     }
                 }
                 else
                 {
-                    if (currentDownloadSpeedFactor > 0.f && currentDownloadSpeedFactor < 1.2f) // separating gives a possibility to have dedicated criteria for both layers
+                    if (aSpeedFactor > 0.f && aSpeedFactor < 1.2f) // separating gives a possibility to have dedicated criteria for both layers
                     {
                         mObserver.onDownloadProblem(IssueType::BASELAYER_DELAYED);
                     }
@@ -989,11 +999,7 @@ OMAF_NS_BEGIN
     {
         //deactivate old representations decoder..
         mCurrentRepresentation->clearDownloadedContent();
-#ifdef OMAF_PLATFORM_ANDROID
-        OMAF_LOG_V("%d Switch done from %d to %d", Time::getClockTimeMs(), mCurrentRepresentation->getBitrate(), mNextRepresentation->getBitrate());
-#else
-        OMAF_LOG_V("%lld Switch done from %s (%d) to %s (%d)", Time::getClockTimeMs(), mCurrentRepresentation->getId(), mCurrentRepresentation->getBitrate(), mNextRepresentation->getId(), mNextRepresentation->getBitrate());
-#endif
+        OMAF_LOG_V("%d Switch done from %s (%d) to %s (%d)", Time::getClockTimeMs(), mCurrentRepresentation->getId(), mCurrentRepresentation->getBitrate(), mNextRepresentation->getId(), mNextRepresentation->getBitrate());
         mCurrentRepresentation = mNextRepresentation;
         mNextRepresentation = OMAF_NULL;
     }
@@ -1105,7 +1111,7 @@ OMAF_NS_BEGIN
         if (active)
         {
             uint32_t segmentIndex = mCurrentRepresentation->getLastSegmentId() + 1;
-            mCurrentRepresentation->stopDownloadAsync(false);
+            mCurrentRepresentation->stopDownloadAsync(false, false);    // don't abort
             if (mNextRepresentation != OMAF_NULL)
             {
                 OMAF_LOG_V("NextRepresentation %s was downloading, stop it", mNextRepresentation->getId());
@@ -1116,7 +1122,7 @@ OMAF_NS_BEGIN
             if (!mContent.matches(MediaContent::Type::VIDEO_ENHANCEMENT))//What if it is enhancement? When it starts?
             {
                 OMAF_LOG_V("Start downloading next %s index %d", mNextRepresentation->getId(), segmentIndex);
-                mNextRepresentation->startDownloadABR(segmentIndex);
+                mNextRepresentation->startDownloadFromSegment(segmentIndex, false);
             }
         }
         else
@@ -1222,7 +1228,7 @@ OMAF_NS_BEGIN
             }
             else
             {
-                return 1;
+                return INVALID_SEGMENT_INDEX;
             }
         }
         return getLastSegmentId();

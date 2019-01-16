@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -27,6 +27,11 @@ static const uint32_t DEFAULT_DOWNLOAD_TIME = 1000;
 static const uint32_t MIN_DOWNLOAD_TIME = 500;
 static const uint32_t DEFAULT_SEGMENT_SIZE = 1000*1000;
 
+// declare static members
+float32_t DashSegmentStream::sAvgDownloadSpeedFactor;
+DownloadSpeedFactors DashSegmentStream::sDownloadSpeedFactors;
+size_t DashSegmentStream::sDownloadsSinceLastFactor;
+
 
 DashSegmentStream::DashSegmentStream(
     uint32_t bandwidth, DashComponents dashComponents, uint32_t aInitializationSegmentId, DashSegmentStreamObserver* observer)
@@ -48,7 +53,6 @@ DashSegmentStream::DashSegmentStream(
     , mSegmentIndexConnection(OMAF_NULL)
     , mSegmentIndex(OMAF_NULL)
     , mObserver(observer)
-    , mDownloadSpeedFactor(0.0f)
     , mCachedSegmentCount(0)
     , mDownloadRetryCounter(0)
     , mMaxAvgDownloadTimeMs(0)
@@ -77,6 +81,11 @@ DashSegmentStream::DashSegmentStream(
     mSegmentConnection->setHttpDataProcessor(this);
     mSegmentIndexConnection = Http::createHttpConnection(mMemoryAllocator);
 
+    // DashSegmentStreams are created when starting a new playback. Hence it is safe to reset the value here for a new playback instance, as all resets will be completed before any download takes place.
+    // Value 0.0f would mean infite speed, so let's use a more realistic one as default value (2 ^= 1 sec segment downloaded in 0.5 sec).
+    sAvgDownloadSpeedFactor = 2.0f;
+    sDownloadSpeedFactors.clear();
+    sDownloadsSinceLastFactor = 0;
 }
 
 DashSegmentStream::~DashSegmentStream()
@@ -203,6 +212,10 @@ void_t DashSegmentStream::clearDownloadedSegments()
 
 void_t DashSegmentStream::stopDownload()
 {
+    if (mState == DashSegmentStreamState::DOWNLOADING_MEDIA_SEGMENT_BEFORE_STOP)
+    {
+        processDownloadingMediaSegment();
+    }
     if (mRunning)
     {
         //abort downloads..
@@ -232,42 +245,30 @@ void_t DashSegmentStream::stopDownload()
     downloadStopped();
 }
 
-void_t DashSegmentStream::stopDownloadAsync()
+void_t DashSegmentStream::stopDownloadAsync(bool_t aAbort)
 {
     if (mRunning)
     {
-        //abort downloads..
-        const HttpConnectionState::Enum& state = mSegmentConnection->getState().connectionState;
-        mSegmentConnection->abortRequest();
-        if (mSegmentConnection->hasCompleted())
+        if (aAbort)
         {
-            OMAF_LOG_V("[%p] Abort completed", this);
-            // completed
-            if (mState == DashSegmentStreamState::DOWNLOADING_INIT_SEGMENT)
+            //abort downloads..
+            mSegmentConnection->abortRequest();
+            if (mSegmentConnection->hasCompleted())
             {
-                OMAF_DELETE_HEAP(mInitializeSegment);
-                mInitializeSegment = NULL;
-            }
+                OMAF_LOG_V("[%p] Abort completed", this);
+                // completed
+                if (mState == DashSegmentStreamState::DOWNLOADING_INIT_SEGMENT)
+                {
+                    OMAF_DELETE_HEAP(mInitializeSegment);
+                    mInitializeSegment = NULL;
+                }
 
-            //only abortion of media segment download should be notified right? (since all the impls do subtract one from the current segment index, which does not contain the init segment.)
-            //mNextSegment is the currently downloading/downloaded(but not yet processed) ie. the aborted download.
-            if (mNextSegment) downloadAborted();
+                //only abortion of media segment download should be notified right? (since all the impls do subtract one from the current segment index, which does not contain the init segment.)
+                //mNextSegment is the currently downloading/downloaded(but not yet processed) ie. the aborted download.
+                if (mNextSegment) downloadAborted();
 
-            OMAF_DELETE_HEAP(mNextSegment);
-            mNextSegment = OMAF_NULL;
-
-            mDownloadStartTime = INVALID_START_TIME;
-            mState = DashSegmentStreamState::IDLE;//drop to idle..
-            mRunning = false;
-        }
-        else
-        {
-            OMAF_LOG_V("[%p] Abort not completed", this);
-            if (mState == DashSegmentStreamState::DOWNLOADING_INIT_SEGMENT)
-            {
-                mSegmentConnection->waitForCompletion();
-                OMAF_DELETE_HEAP(mInitializeSegment);
-                mInitializeSegment = NULL;
+                OMAF_DELETE_HEAP(mNextSegment);
+                mNextSegment = OMAF_NULL;
 
                 mDownloadStartTime = INVALID_START_TIME;
                 mState = DashSegmentStreamState::IDLE;//drop to idle..
@@ -275,8 +276,36 @@ void_t DashSegmentStream::stopDownloadAsync()
             }
             else
             {
-                OMAF_LOG_D("[%p] stopDownloadAsync - keep state in ABORTING", this);
-                mState = DashSegmentStreamState::ABORTING;
+                OMAF_LOG_V("[%p] Abort not completed", this);
+                if (mState == DashSegmentStreamState::DOWNLOADING_INIT_SEGMENT)
+                {
+                    mSegmentConnection->waitForCompletion();
+                    OMAF_DELETE_HEAP(mInitializeSegment);
+                    mInitializeSegment = NULL;
+
+                    mDownloadStartTime = INVALID_START_TIME;
+                    mState = DashSegmentStreamState::IDLE;//drop to idle..
+                    mRunning = false;
+                }
+                else
+                {
+                    OMAF_LOG_D("[%p] stopDownloadAsync - keep state in ABORTING", this);
+                    mState = DashSegmentStreamState::ABORTING;
+                }
+            }
+        }
+        else
+        {
+            if (mState == DashSegmentStreamState::DOWNLOADING_MEDIA_SEGMENT)
+            {
+                // else wait for the current download to complete
+                OMAF_LOG_D("[%p] stopDownloadAsync - stop after download completed", this);
+                mState = DashSegmentStreamState::DOWNLOADING_MEDIA_SEGMENT_BEFORE_STOP;
+            }
+            else
+            {
+                mState = DashSegmentStreamState::IDLE;//drop to idle..
+                mRunning = false;
             }
         }
     }
@@ -308,16 +337,16 @@ void_t DashSegmentStream::startDownload(time_t downloadStartTime, bool_t aIsInde
     startDownloader(downloadStartTime, INVALID_SEGMENT_INDEX, aIsIndependent);
 }
 
-void_t DashSegmentStream::startDownloadABR(uint32_t overrideSegmentId, bool_t aIsIndependent)
+void_t DashSegmentStream::startDownloadFromSegment(uint32_t overrideSegmentId, bool_t aIsIndependent)
 {
-    startDownloadWithOverride(overrideSegmentId, aIsIndependent);
+    startDownloadFrom(overrideSegmentId, aIsIndependent);
 }
 
-void_t DashSegmentStream::startDownloadWithOverride(uint32_t overrideSegmentId, bool_t aIsIndependent)
+void_t DashSegmentStream::startDownloadFrom(uint32_t overrideSegmentId, bool_t aIsIndependent)
 {
     // This call is done always when the playback is already ongoing, after ABR switch. Hence to minimize any buffering notes, use a smaller threshold for cache.
     mInitialCachedSegments = min((uint32_t)INITIAL_CACHE_SIZE_IN_ABR, mMaxCachedSegments);
-    OMAF_LOG_V("Initial cache %d", mInitialCachedSegments);
+    OMAF_LOG_V("Initial cache target: %d, current: %d", mInitialCachedSegments, mCachedSegmentCount);
     mDownloadByteRange = { 0, 0 };
     if (overrideSegmentId == 0)
     {
@@ -348,6 +377,13 @@ void_t DashSegmentStream::startDownloader(time_t downloadStartTime, uint32_t ove
         mDownloadStartTime = INVALID_START_TIME;
 
         mState = DashSegmentStreamState::IDLE;
+    }
+    else if (mState == DashSegmentStreamState::DOWNLOADING_MEDIA_SEGMENT_BEFORE_STOP)
+    {
+        int32_t startTime = Time::getClockTimeMs();
+        mSegmentConnection->waitForCompletion();
+        OMAF_LOG_D("Restarting while async stop waiting for completion (not aborted), waited %d ms", Time::getClockTimeMs() - startTime);
+        processDownloadingMediaSegment();
     }
     else if (mRunning)
     {
@@ -530,7 +566,7 @@ void_t DashSegmentStream::processDownloadingMediaSegment()
 
         mState = DashSegmentStreamState::IDLE;
 
-        if (mObserver->onMediaSegmentDownloaded(newSegment) != Error::OK)
+        if (mObserver->onMediaSegmentDownloaded(newSegment, (float32_t)mSegmentDurationInMs/downloadTimeMs) != Error::OK)
         {
             // The segment could not be parsed. 
             // newSegment is deleted in observer
@@ -696,7 +732,7 @@ void_t DashSegmentStream::processSegmentDownload(bool_t aForcedCacheUpdate)
 
             if (mCachedSegmentCount >= mMaxCachedSegments)
             {
-                //NVR_LOG_E("[%p] cache full %d %d", this, mCachedSegmentCount, mMaxCachedSegments);
+                //OMAF_LOG_E("%s cache full %d %d", mDashComponents.representation->GetId().c_str(), mCachedSegmentCount, mMaxCachedSegments);
                 return;
             }
         }
@@ -714,8 +750,8 @@ void_t DashSegmentStream::processSegmentDownload(bool_t aForcedCacheUpdate)
         {
             // report buffering warning to bitrate controller
             mObserver->onCacheWarning();
-            //TODO should have some filter before increasing to avoid excessive increase in short time
-            //mMaxCachedSegments++;
+            // check avg download time and update cache if necessary
+            getAvgDownloadTimeMs();
             OMAF_LOG_W("Running out of cache!");
         }
 
@@ -757,6 +793,12 @@ void_t DashSegmentStream::processSegmentDownload(bool_t aForcedCacheUpdate)
         {
             OMAF_LOG_V("[%p] abort still not completed", this);
         }
+        break;
+    }
+    case DashSegmentStreamState::DOWNLOADING_MEDIA_SEGMENT_BEFORE_STOP:
+    {
+        processDownloadingMediaSegment();
+        mRunning = false;
         break;
     }
     default:
@@ -866,58 +908,52 @@ void_t DashSegmentStream::updateDownloadTime(int64_t newDownloadTime)
     }
     mDownloadTimesInMs.add(newDownloadTime);
 
-    mDownloadSpeedFactor = 0.f;
-    if (mDownloadTimesInMs.getSize() > 1)
+    float32_t factor = (float32_t)mSegmentDurationInMs / newDownloadTime;
+    if (sDownloadSpeedFactors.getSize() == sDownloadSpeedFactors.getCapacity())
     {
-        FixedArray<float32_t, 3> factors;
-        uint32_t avgTimeMs = 0;
+        sDownloadSpeedFactors.removeAt(0, 1);
+    }
+    sDownloadSpeedFactors.add(factor);
+    sDownloadsSinceLastFactor++;
+}
 
-        float32_t segmentDurationInMs = (float32_t)mSegmentDurationInMs;
-        for (DownloadTimes::ConstIterator it = mDownloadTimesInMs.begin();
-             it != mDownloadTimesInMs.end(); ++it)
+float32_t DashSegmentStream::getDownloadSpeed()
+{
+    if ((sDownloadSpeedFactors.getSize() > 1 && sDownloadSpeedFactors.getSize() <= 5) 
+        || (sDownloadSpeedFactors.getSize() > 5 && sDownloadsSinceLastFactor > 5))
+    {
+        // sort the factors in increasing order, to get median of them
+        DownloadSpeedFactors orderedFactors;
+        for (DownloadSpeedFactors::ConstIterator it = sDownloadSpeedFactors.begin();
+            it != sDownloadSpeedFactors.end(); ++it)
         {
-            float32_t factor = segmentDurationInMs / (*it);
-            avgTimeMs += (uint32_t)(*it);
-
             bool_t added = false;
-            for (size_t i = 0; i < factors.getSize(); i++)
+            for (size_t i = 0; i < orderedFactors.getSize(); i++)
             {
-                if (factor > factors.at(i))
+                if ((*it) > orderedFactors.at(i))
                 {
-                    factors.add(factor, i);
+                    orderedFactors.add(*it, i);
                     added = true;
                     break;
                 }
             }
             if (!added)
             {
-                factors.add(factor);
+                // add to the end
+                orderedFactors.add(*it);
             }
         }
-        size_t n = factors.getSize() / 2;
-        mDownloadSpeedFactor = factors.at(n);
-        if (factors.getSize() % 2 == 0)
-        {
-            mDownloadSpeedFactor += factors.at(n-1);
-            mDownloadSpeedFactor /= 2;
-        }
-
-        OMAF_LOG_V("New downloadSpeedFactor: %f", mDownloadSpeedFactor);
-
-        avgTimeMs /= factors.getSize();
-        if (avgTimeMs > mMaxAvgDownloadTimeMs)
-        {
-            mMaxAvgDownloadTimeMs = avgTimeMs;
-            mMaxCachedSegments = max(mMaxCachedSegments, (uint32_t)ceil(3.f*mMaxAvgDownloadTimeMs / mSegmentDurationInMs));
-            OMAF_LOG_V("Increase cache limit to %d, avg download time ms %d", mMaxCachedSegments, avgTimeMs);
-        }
-
+        // take one of the worst ones, excluding the very worst ones as outliers?
+        size_t n = orderedFactors.getSize() - 4;
+        sAvgDownloadSpeedFactor = orderedFactors.at(n);
+        sDownloadsSinceLastFactor = 0;
+        OMAF_LOG_V("New downloadSpeedFactor: %f", sAvgDownloadSpeedFactor);
     }
-}
-
-float32_t DashSegmentStream::getDownloadSpeed()
-{
-    return mDownloadSpeedFactor;
+    else if (!sDownloadSpeedFactors.isEmpty())
+    {
+        sAvgDownloadSpeedFactor = sDownloadSpeedFactors.front();
+    }
+    return sAvgDownloadSpeedFactor;
 }
 
 uint32_t DashSegmentStream::getAvgDownloadTimeMs()
@@ -939,6 +975,12 @@ uint32_t DashSegmentStream::getAvgDownloadTimeMs()
         }
     }
     avgTimeMs = max(MIN_DOWNLOAD_TIME, (uint32_t)(avgTimeMs / count) + 100); // add 100 ms safety margin, and use 500 ms as the minimum
+    if (avgTimeMs > mMaxAvgDownloadTimeMs)
+    {
+        mMaxAvgDownloadTimeMs = avgTimeMs;
+        mMaxCachedSegments = max(mMaxCachedSegments, (uint32_t)ceil(3.f*avgTimeMs / mSegmentDurationInMs));
+        OMAF_LOG_V("Increase cache limit to %d, avg download time ms %d", mMaxCachedSegments, avgTimeMs);
+    }
     return avgTimeMs;
 }
 
@@ -974,7 +1016,12 @@ const DashSegmentStreamState::Enum DashSegmentStream::state()
 
 bool_t DashSegmentStream::isDownloading()
 {
-    return (mState == DashSegmentStreamState::DOWNLOADING_MEDIA_SEGMENT || mState == DashSegmentStreamState::ABORTING);
+    return (mState == DashSegmentStreamState::DOWNLOADING_MEDIA_SEGMENT || mState == DashSegmentStreamState::ABORTING || mState == DashSegmentStreamState::DOWNLOADING_MEDIA_SEGMENT_BEFORE_STOP);
+}
+
+bool_t DashSegmentStream::isCompletingDownload()
+{
+    return (mState == DashSegmentStreamState::DOWNLOADING_MEDIA_SEGMENT || mState == DashSegmentStreamState::DOWNLOADING_MEDIA_SEGMENT_BEFORE_STOP);
 }
 
 bool_t DashSegmentStream::isActive()
@@ -1000,7 +1047,8 @@ void_t DashSegmentStream::setCacheFillMode(bool_t autoFill)
 void_t DashSegmentStream::setBufferingTime(uint32_t aExpectedPingTimeMs)
 {
     // Set initial value based on round-trip delay measured from MPD; will be updated if average download time is more than expected or we run out of cache
-    mMaxCachedSegments = max(RUNTIME_CACHE_DURATION_MS/mSegmentDurationInMs, min(mMaxCachedSegments, (uint32_t)ceil(20.f*aExpectedPingTimeMs/mSegmentDurationInMs)));
+    // 2 is min to have things running, as in practice there is 1 always in the parsing
+    mMaxCachedSegments = max(2u, max(RUNTIME_CACHE_DURATION_MS/mSegmentDurationInMs, min(mMaxCachedSegments, (uint32_t)ceil(20.f*aExpectedPingTimeMs/mSegmentDurationInMs))));
     OMAF_LOG_V("MaxCachedSegments based on MPD ping time %d -> %d", aExpectedPingTimeMs, mMaxCachedSegments);
 }
 

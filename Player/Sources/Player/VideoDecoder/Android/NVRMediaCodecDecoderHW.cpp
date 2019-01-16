@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,27 +13,198 @@
  * written consent of Nokia.
  */
 #include "NVRMediaCodecDecoderHW.h"
-#include "Foundation/NVRLogger.h"
-#include "Foundation/NVRAssert.h"
-#include "Foundation/NVRTime.h"
 #include "Foundation/Android/NVRAndroid.h"
+#include "Foundation/NVRAssert.h"
 #include "Foundation/NVRDeviceInfo.h"
+#include "Foundation/NVRLogger.h"
+#include "Foundation/NVRTime.h"
+
+#include "Foundation/NVRFixedArray.h"
 
 OMAF_NS_BEGIN
 
 OMAF_LOG_ZONE(MediaCodecDecoderHW)
 
-MediaCodecDecoderHW::MediaCodecDecoderHW(FrameCache &frameCache)
-: mInputEOS(false)
-, mState(DecoderHWState::INVALID)
-, mFrameCache(frameCache)
-, mMediaCodec(OMAF_NULL)
+const size_t MAX_ALLOCATED_CODECS = 10;
+
+/**
+ * Helper class to handle AMediaCodecs stored in codec pool safely.
+ *
+ * Friend of CodecPool.
+ */
+class CodecPool;
+class CodecEntry
+{
+public:
+    // Codec instance allocated, flushing and stopping is done when codec is returned to pool
+    AMediaCodec* codec;
+
+    // Frame index of the last frame that has been decoded successfully
+    // (for making it available when stream reach EOS) and codec is released
+    ssize_t lastDecodedFrameIndex;
+
+    /**
+     * Creates codec for given mime type
+     */
+    CodecEntry(MimeType aType)
+        : mFree(true)
+    {
+        mType = aType;
+        codec = AMediaCodec_createDecoderByType(mType.getData());
+        OMAF_ASSERT(codec != NULL, "Could not create video decoder!");
+    }
+
+    /**
+     * Recreate codec with different mime type if old mime type doesn't match with the new one
+     */
+    void_t setMimeType(MimeType newType)
+    {
+        if (newType != mType)
+        {
+            AMediaCodec_flush(codec);
+            AMediaCodec_stop(codec);
+            AMediaCodec_delete(codec);
+            codec = AMediaCodec_createDecoderByType(newType.getData());
+            OMAF_ASSERT(codec != NULL, "Could not create video decoder!");
+        }
+    }
+
+private:
+    friend class CodecPool;
+
+    /**
+     * Releases codec to be free again and updates last decoded frame to be available in
+     * decoders image stream to allow SurfaceTexture->updateTexImage() read the image data.
+     *
+     * Also flushes and stops the codec.
+     */
+    void_t releaseCodec()
+    {
+        // release and update for being able to be fetched by updateTexImage, looks like buffer can
+        // be read at anytime, even after flushing
+        if (lastDecodedFrameIndex >= 0)
+        {
+            media_status_t status = AMediaCodec_releaseOutputBuffer(codec, lastDecodedFrameIndex, true);
+            if (status != AMEDIA_OK)
+            {
+                OMAF_LOG_E("MediaCodec releaseOutputBuffer failed with status = %d", status);
+                OMAF_ASSERT(false, "Release output buffer failed!");
+            }
+        }
+
+        media_status_t status = AMediaCodec_stop(codec);
+        if (status != AMEDIA_OK)
+        {
+            OMAF_LOG_E("MediaCodec stop failed with status = %d", status);
+            OMAF_ASSERT(false, "Stop failed!");
+        }
+        lastDecodedFrameIndex = -1;
+        mFree = true;
+    }
+
+    MimeType mType;
+    bool_t mFree;
+};
+
+class CodecPool
+{
+public:
+    /**
+     * Gets codec from pool.
+     *
+     * @param type MimeType of codec to fetch
+     * @return Wrapper for using codec safely. NULL if pool is full.
+     */
+    CodecEntry* get(MimeType type)
+    {
+        // get free codec
+        auto freeCodec = findFreeCodec(type);
+
+        // if not found, allocate new if still room
+        if (freeCodec == OMAF_NULL && mAllocatedCodecs.getSize() < MAX_ALLOCATED_CODECS)
+        {
+            freeCodec = OMAF_NEW_HEAP(CodecEntry)(type);
+            mAllocatedCodecs.add(freeCodec);
+        }
+
+        // find any type of free codec to return
+        if (freeCodec == OMAF_NULL)
+        {
+            freeCodec = findFirstFreeCodec();
+        }
+
+        // mark codec used and verify its mime type
+        if (freeCodec != OMAF_NULL)
+        {
+            freeCodec->setMimeType(type);
+            freeCodec->mFree = false;
+            return freeCodec;
+        }
+        else
+        {
+            // pool was full
+            return OMAF_NULL;
+        }
+    }
+
+    /**
+     * Returns codec to the pool and release its output buffers for use.
+     *
+     * @param codec Pointer to CodecEntry got from CodecPool::get()
+     */
+    void_t release(CodecEntry* codec)
+    {
+        codec->releaseCodec();
+    }
+
+private:
+    // returns index of free codec to use for given mime type or NULL if not found
+    CodecEntry* findFreeCodec(MimeType type)
+    {
+        // find free codec at first
+        for (int32_t i = 0; i < mAllocatedCodecs.getSize(); i++)
+        {
+            auto entry = mAllocatedCodecs.at(i);
+            if (entry->mFree && entry->mType == type)
+            {
+                return entry;
+            }
+        }
+        return OMAF_NULL;
+    }
+
+    // returns index of first free codec of any mime type or -1 if none found
+    CodecEntry* findFirstFreeCodec()
+    {
+        for (int32_t i = 0; i < mAllocatedCodecs.getSize(); i++)
+        {
+            auto entry = mAllocatedCodecs.at(i);
+            if (entry->mFree)
+            {
+                return entry;
+            }
+        }
+        return OMAF_NULL;
+    }
+
+    typedef FixedArray<CodecEntry*, MAX_ALLOCATED_CODECS> CodecAllocationList;
+
+    CodecAllocationList mAllocatedCodecs;
+};
+
+static CodecPool codecPool;
+
+MediaCodecDecoderHW::MediaCodecDecoderHW(FrameCache& frameCache)
+    : mInputEOS(false)
+    , mState(DecoderHWState::INVALID)
+    , mFrameCache(frameCache)
+    , mCodec(OMAF_NULL)
 {
 }
 
 MediaCodecDecoderHW::~MediaCodecDecoderHW()
 {
-    OMAF_ASSERT(mMediaCodec == OMAF_NULL, "Decoder not shutdown");
+    OMAF_ASSERT(mCodec == OMAF_NULL, "Decoder not shutdown");
 }
 
 const MimeType& MediaCodecDecoderHW::getMimeType() const
@@ -58,17 +229,10 @@ OutputTexture& MediaCodecDecoderHW::getOutputTexture()
 
 Error::Enum MediaCodecDecoderHW::createInstance(const MimeType& mimeType)
 {
+    OMAF_LOG_I("Creating MediaCodecDecoderHW (not initializing codec yet) decoder for mime type: %s",
+               mMimeType.getData());
     OMAF_ASSERT(mState == DecoderHWState::INVALID, "Incorrect state");
-    OMAF_ASSERT(mMediaCodec == OMAF_NULL, "Codec already created");
-    OMAF_LOG_I("Creating video decoder for mime type: %s", mMimeType.getData());
     mMimeType = mimeType;
-    mMediaCodec = AMediaCodec_createDecoderByType(mMimeType.getData());
-    if (mMediaCodec == NULL)
-    {
-        OMAF_LOG_E("Could not create video decoder!");
-        mState = DecoderHWState::ERROR_STATE;
-        return Error::OPERATION_FAILED;
-    }
     mState = DecoderHWState::IDLE;
     return Error::OK;
 }
@@ -76,39 +240,6 @@ Error::Enum MediaCodecDecoderHW::createInstance(const MimeType& mimeType)
 Error::Enum MediaCodecDecoderHW::initialize(const DecoderConfig& config)
 {
     OMAF_ASSERT(config.mimeType == mMimeType, "Incorrect mimetype");
-    if (mState != DecoderHWState::IDLE)
-    {
-        // Video size doesn't match so we need to reinitialize the decoder
-        if (config.width != mDecoderConfig.width
-            || config.height != mDecoderConfig.height)
-        {
-            deinitialize();
-
-            if (!DeviceInfo::deviceCanReconfigureVideoDecoder())
-            {
-                OMAF_LOG_D("Have to reinstantiate video decoder");
-                uint32_t timeBefore = Time::getClockTimeMs();
-                // recreate the decoder for now - until we know why reusing it doesn't work always
-                AMediaCodec_delete(mMediaCodec);
-                mMediaCodec = OMAF_NULL;
-                mState = DecoderHWState::INVALID;
-                mMediaCodec = AMediaCodec_createDecoderByType(mMimeType.getData());
-                if (mMediaCodec == NULL)
-                {
-                    OMAF_LOG_E("Could not create video decoder!");
-                    mState = DecoderHWState::ERROR_STATE;
-                    return Error::OPERATION_FAILED;
-                }
-                OMAF_LOG_V("Recreate decoder took %d ms", Time::getClockTimeMs() - timeBefore);
-            }
-        }
-        else
-        {
-            // Reusing an already running decoder, just update the stream id
-            mDecoderConfig.streamId = config.streamId;
-            return Error::OK;
-        }
-    }
     mDecoderConfig = config;
     mState = DecoderHWState::INITIALIZED;
     return Error::OK;
@@ -121,24 +252,18 @@ bool_t MediaCodecDecoderHW::isEOS()
 
 void_t MediaCodecDecoderHW::deinitialize()
 {
-    OMAF_ASSERT(mMediaCodec != OMAF_NULL, "No decoder created");
     flush();
-    media_status_t status = AMediaCodec_stop(mMediaCodec);
-    if (status != AMEDIA_OK)
-    {
-        OMAF_LOG_E("MediaCodec stop failed with status = %d", status);
-        OMAF_ASSERT(false, "Stop failed!");
-    }
     mInputEOS = false;
     mState = DecoderHWState::IDLE;
-
 }
 
 void_t MediaCodecDecoderHW::flush()
 {
-    if (mState == DecoderHWState::STARTED || mState == DecoderHWState::EOS)
+    // some frame and decoder flushing for seeking
+    mFrameCache.flushFrames(mDecoderConfig.streamId);
+    if (mCodec)
     {
-        media_status_t status = AMediaCodec_flush(mMediaCodec);
+        AMediaCodec_flush(mCodec->codec);
     }
     mInputEOS = false;
     if (mState == DecoderHWState::EOS)
@@ -147,13 +272,19 @@ void_t MediaCodecDecoderHW::flush()
     }
 }
 
+void_t MediaCodecDecoderHW::freeCodec()
+{
+    if (mCodec != OMAF_NULL)
+    {
+        codecPool.release(mCodec);
+        mCodec = OMAF_NULL;
+    }
+}
+
 void_t MediaCodecDecoderHW::destroyInstance()
 {
     OMAF_ASSERT(mState == DecoderHWState::IDLE, "Wrong state");
-    OMAF_ASSERT(mMediaCodec != OMAF_NULL, "MediaCodec handle already destroyed");
-
-    AMediaCodec_delete(mMediaCodec);
-    mMediaCodec = OMAF_NULL;
+    freeCodec();
     mState = DecoderHWState::INVALID;
 
     if (mOutputTexture.surface != OMAF_NULL)
@@ -184,12 +315,11 @@ void_t MediaCodecDecoderHW::setInputEOS()
 
     // Send an EOS flag in the input buffer.
     // We know all frames have been processed when it comes out from the output side.
-    ssize_t inbufIndex = AMediaCodec_dequeueInputBuffer(mMediaCodec, 1000);
+    ssize_t inbufIndex = AMediaCodec_dequeueInputBuffer(mCodec->codec, 1000);
 
     if (inbufIndex >= 0)
     {
-        media_status_t status = AMediaCodec_queueInputBuffer(mMediaCodec,
-                                                             (size_t)inbufIndex, 0, 0, OMAF_UINT64_MAX,
+        media_status_t status = AMediaCodec_queueInputBuffer(mCodec->codec, (size_t) inbufIndex, 0, 0, OMAF_UINT64_MAX,
                                                              AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
 
         if (status == AMEDIA_OK)
@@ -208,6 +338,7 @@ void_t MediaCodecDecoderHW::setInputEOS()
     return;
 }
 
+// NOTE: probably should be refactored to be done inside the pool if required
 Error::Enum MediaCodecDecoderHW::configureCodec()
 {
     uint32_t timeBefore = Time::getClockTimeMs();
@@ -221,21 +352,25 @@ Error::Enum MediaCodecDecoderHW::configureCodec()
 
     if (mMimeType == VIDEO_H264_MIME_TYPE)
     {
-        // H.264 configuration is put in 1 buffer (https://developer.android.com/reference/android/media/MediaCodec.html)
+        // H.264 configuration is put in 1 buffer
+        // (https://developer.android.com/reference/android/media/MediaCodec.html)
         AMediaFormat_setBuffer(androidMediaFormat, "csd-0", mDecoderConfig.spsData, mDecoderConfig.spsSize);
         AMediaFormat_setBuffer(androidMediaFormat, "csd-1", mDecoderConfig.ppsData, mDecoderConfig.ppsSize);
     }
     else if (mMimeType == VIDEO_HEVC_MIME_TYPE)
     {
-        // HEVC/H.265 configuration is put in 1 buffer (https://developer.android.com/reference/android/media/MediaCodec.html)
-        AMediaFormat_setBuffer(androidMediaFormat, "csd-0", mDecoderConfig.configInfoData, mDecoderConfig.configInfoSize);
+        // HEVC/H.265 configuration is put in 1 buffer
+        // (https://developer.android.com/reference/android/media/MediaCodec.html)
+        AMediaFormat_setBuffer(androidMediaFormat, "csd-0", mDecoderConfig.configInfoData,
+                               mDecoderConfig.configInfoSize);
     }
 
     OMAF_LOG_V("configureCodec for %d x %d", mDecoderConfig.width, mDecoderConfig.height);
     AMediaFormat_setInt32(androidMediaFormat, AMEDIAFORMAT_KEY_WIDTH, mDecoderConfig.width);
     AMediaFormat_setInt32(androidMediaFormat, AMEDIAFORMAT_KEY_HEIGHT, mDecoderConfig.height);
 
-    media_status_t status = AMediaCodec_configure(mMediaCodec, androidMediaFormat, mOutputTexture.nativeWindow, NULL, 0);
+    media_status_t status =
+        AMediaCodec_configure(mCodec->codec, androidMediaFormat, mOutputTexture.nativeWindow, NULL, 0);
 
     if (status != AMEDIA_OK)
     {
@@ -255,7 +390,7 @@ Error::Enum MediaCodecDecoderHW::configureCodec()
 Error::Enum MediaCodecDecoderHW::startCodec()
 {
     OMAF_ASSERT(mState == DecoderHWState::CONFIGURED, "Decoder HW in wrong state");
-    media_status_t status = AMediaCodec_start(mMediaCodec);
+    media_status_t status = AMediaCodec_start(mCodec->codec);
 
     if (status != AMEDIA_OK)
     {
@@ -269,8 +404,20 @@ Error::Enum MediaCodecDecoderHW::startCodec()
     return Error::OK;
 }
 
-DecodeResult::Enum MediaCodecDecoderHW::decodeFrame(streamid_t stream, MP4VRMediaPacket *packet, bool_t seeking)
+DecodeResult::Enum MediaCodecDecoderHW::decodeFrame(streamid_t stream, MP4VRMediaPacket* packet, bool_t seeking)
 {
+    // try to reserve hardware codec from pool
+    if (mCodec == OMAF_NULL)
+    {
+        mCodec = codecPool.get(mMimeType);
+    }
+
+    // if not able to get codec, stop...
+    if (mCodec == OMAF_NULL)
+    {
+        return DecodeResult::NOT_READY;
+    }
+
     if (mState == DecoderHWState::ERROR_STATE)
     {
         return DecodeResult::DECODER_ERROR;
@@ -281,6 +428,7 @@ DecodeResult::Enum MediaCodecDecoderHW::decodeFrame(streamid_t stream, MP4VRMedi
     }
     if (!(mState == DecoderHWState::CONFIGURED || mState == DecoderHWState::STARTED))
     {
+        freeCodec();
         return DecodeResult::NOT_READY;
     }
     if (mState == DecoderHWState::CONFIGURED)
@@ -288,6 +436,8 @@ DecodeResult::Enum MediaCodecDecoderHW::decodeFrame(streamid_t stream, MP4VRMedi
         Error::Enum result = startCodec();
         if (result != Error::OK)
         {
+            freeCodec();
+            OMAF_LOG_E("Starting codec failed. Should never happen!");
             return DecodeResult::DECODER_ERROR;
         }
     }
@@ -307,12 +457,12 @@ DecodeResult::Enum MediaCodecDecoderHW::decodeFrame(streamid_t stream, MP4VRMedi
 
     while (mediaPacketConsumed == false)
     {
-        ssize_t inbufIndex = AMediaCodec_dequeueInputBuffer(mMediaCodec, 0); // Don't wait
+        ssize_t inbufIndex = AMediaCodec_dequeueInputBuffer(mCodec->codec, 0);  // don't wait
 
         if (inbufIndex >= 0)
         {
             size_t bufsize;
-            uint8_t *buf = AMediaCodec_getInputBuffer(mMediaCodec, (size_t)inbufIndex, &bufsize);
+            uint8_t* buf = AMediaCodec_getInputBuffer(mCodec->codec, (size_t) inbufIndex, &bufsize);
             size_t copiedSize = packet->copyTo(totalCopiedSize, buf, bufsize);
             totalCopiedSize += copiedSize;
 
@@ -327,12 +477,8 @@ DecodeResult::Enum MediaCodecDecoderHW::decodeFrame(streamid_t stream, MP4VRMedi
                 OMAF_ASSERT_UNREACHABLE();
             }
 
-            media_status_t status = AMediaCodec_queueInputBuffer(mMediaCodec,
-                                                                 (size_t)inbufIndex,
-                                                                 0,
-                                                                 copiedSize,
-                                                                 (uint64_t)packet->presentationTimeUs(),
-                                                                 0);
+            media_status_t status = AMediaCodec_queueInputBuffer(mCodec->codec, (size_t) inbufIndex, 0, copiedSize,
+                                                                 (uint64_t) packet->presentationTimeUs(), 0);
 
             if (status != AMEDIA_OK)
             {
@@ -341,10 +487,12 @@ DecodeResult::Enum MediaCodecDecoderHW::decodeFrame(streamid_t stream, MP4VRMedi
         }
         else
         {
-            // Note: it is perfectly fine to fail when no bytes have yet been copied from the packet... (in which case we must return false, and the provider should try again with the SAME packet)
+            // Note: it is perfectly fine to fail when no bytes have yet been copied from the packet... (in which case
+            // we must return false, and the provider should try again with the SAME packet)
             OMAF_ASSERT(totalCopiedSize == 0, "");
 
-            // FIXME: Handle the situation where we consume just a portion of the given media packet, but run out of input buffers before it's completely consumed
+            // FIXME: Handle the situation where we consume just a portion of the given media packet, but run out of
+            // input buffers before it's completely consumed
             // In that case we shouldn't resume copying the packet from the start, but where we left off
             break;
         }
@@ -355,6 +503,7 @@ DecodeResult::Enum MediaCodecDecoderHW::decodeFrame(streamid_t stream, MP4VRMedi
     }
     else
     {
+        // keep codec reserved and don't reinitialize when trying to start decode next time
         return DecodeResult::DECODER_FULL;
     }
 }
@@ -378,26 +527,18 @@ Error::Enum MediaCodecDecoderHW::fetchDecodedFrames()
             return Error::OK_SKIPPED;
         }
         // need to reset the decoder in case it is skipped below and we are then flushing the codec before next time
-        ((DecoderFrameAndroid*)(outputFrame))->decoder = OMAF_NULL;
+        ((DecoderFrameAndroid*) (outputFrame))->decoder = OMAF_NULL;
 
         // Get a new decoded output buffer
         AMediaCodecBufferInfo frameInfo;
-        nextFrameOutputBufferIndex = AMediaCodec_dequeueOutputBuffer(mMediaCodec, &frameInfo, 0);
+        nextFrameOutputBufferIndex = AMediaCodec_dequeueOutputBuffer(mCodec->codec, &frameInfo, 0);
 
         if (nextFrameOutputBufferIndex >= 0)
         {
-            if (frameInfo.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM)
-            {
-                // When the video packet was input (with AMediaCodec_queueInputBuffer), it was marked EOS
-                OMAF_LOG_I("Video stream output reached EOS");
-
-                mState = DecoderHWState::EOS;
-            }
-
             if (frameInfo.size > 0)
             {
                 uint64_t pts = frameInfo.presentationTimeUs;
-                DecoderFrameAndroid* frameAndroid = (DecoderFrameAndroid*)(outputFrame);
+                DecoderFrameAndroid* frameAndroid = (DecoderFrameAndroid*) (outputFrame);
                 frameAndroid->decoderOutputIndex = nextFrameOutputBufferIndex;
                 frameAndroid->decoder = this;
                 // TODO: Duration is empty
@@ -406,21 +547,32 @@ Error::Enum MediaCodecDecoderHW::fetchDecodedFrames()
                 frameAndroid->pts = frameInfo.presentationTimeUs;
                 frameAndroid->consumed = false;
 
-                //OMAF_LOG_D("fetched frame %llu for stream %d", frameInfo.presentationTimeUs, mDecoderConfig.streamId);
+                // OMAF_LOG_D("fetched frame %llu for stream %d", frameInfo.presentationTimeUs,
+                // mDecoderConfig.streamId);
                 mFrameCache.addDecodedFrame(frameAndroid);
                 outputFrame = OMAF_NULL;
+
+                // store last frame buffer index, which should be updated when codec is released on EOS
+                mCodec->lastDecodedFrameIndex = nextFrameOutputBufferIndex;
             }
             else
             {
                 // The buffer contains no data. Immediately release it without rendering.
-                AMediaCodec_releaseOutputBuffer(mMediaCodec, (size_t)nextFrameOutputBufferIndex, false);
+                AMediaCodec_releaseOutputBuffer(mCodec->codec, (size_t) nextFrameOutputBufferIndex, false);
                 nextFrameOutputBufferIndex = AMEDIACODEC_INFO_TRY_AGAIN_LATER;
+            }
+
+            if (frameInfo.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM)
+            {
+                // When the video packet was input (with AMediaCodec_queueInputBuffer), it was marked EOS
+                OMAF_LOG_I("Video stream output reached EOS");
+                freeCodec();
+                mState = DecoderHWState::EOS;
             }
         }
 
         // Handle outputbuffers that don't contain video data
-        if (nextFrameOutputBufferIndex < 0 &&
-            nextFrameOutputBufferIndex != AMEDIACODEC_INFO_TRY_AGAIN_LATER)
+        if (nextFrameOutputBufferIndex < 0 && nextFrameOutputBufferIndex != AMEDIACODEC_INFO_TRY_AGAIN_LATER)
         {
             if (nextFrameOutputBufferIndex == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED)
             {
@@ -428,7 +580,7 @@ Error::Enum MediaCodecDecoderHW::fetchDecodedFrames()
             }
             else if (nextFrameOutputBufferIndex == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED)
             {
-                AMediaFormat *format = AMediaCodec_getOutputFormat(mMediaCodec);
+                AMediaFormat* format = AMediaCodec_getOutputFormat(mCodec->codec);
                 // FIXME: DON'T overwite the media format here. This is format for the raw data.
                 OMAF_LOG_V("Format of %d changed to: %s", mDecoderConfig.streamId, AMediaFormat_toString(format));
                 //			mCurrentMediaStream->setFormat(format);
@@ -473,17 +625,24 @@ void_t MediaCodecDecoderHW::consumedFrame(DecoderFrame* frame)
 
 void_t MediaCodecDecoderHW::releaseOutputBuffer(DecoderFrame* frame, bool_t upload)
 {
-    DecoderFrameAndroid* frameAndroid = (DecoderFrameAndroid*)frame;
+    DecoderFrameAndroid* frameAndroid = (DecoderFrameAndroid*) frame;
     OMAF_ASSERT(mOutputTexture.surface != OMAF_NULL, "No output texture set");
     if (frameAndroid->decoderOutputIndex == -1)
     {
         return;
     }
-    //OMAF_LOG_D("%d releaseOutputBuffer %llu", frame->streamId, frame->pts);
-    media_status_t mediaStatus = AMediaCodec_releaseOutputBuffer(mMediaCodec, (size_t)frameAndroid->decoderOutputIndex, upload);
-    if (mediaStatus != AMEDIA_OK)
+    // OMAF_LOG_D("%d releaseOutputBuffer %llu", frame->streamId, frame->pts);
+    if (mCodec != OMAF_NULL)
     {
-        OMAF_LOG_W("MediaCodec releaseOutputBuffer() %d, error = %d", frameAndroid->decoderOutputIndex, mediaStatus);
+        // release and upload only if codec was not already liberated...
+        media_status_t mediaStatus =
+            AMediaCodec_releaseOutputBuffer(mCodec->codec, (size_t) frameAndroid->decoderOutputIndex, upload);
+        mCodec->lastDecodedFrameIndex = -1;
+        if (mediaStatus != AMEDIA_OK)
+        {
+            OMAF_LOG_W("MediaCodec releaseOutputBuffer() %d, error = %d", frameAndroid->decoderOutputIndex,
+                       mediaStatus);
+        }
     }
     frameAndroid->decoderOutputIndex = -1;
     // This frame has been released so set the decoder pointer to null so it won't be called again
@@ -495,5 +654,4 @@ DecoderHWState::Enum MediaCodecDecoderHW::getState() const
 {
     return mState;
 }
-
 OMAF_NS_END

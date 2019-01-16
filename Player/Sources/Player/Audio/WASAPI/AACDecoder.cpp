@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -169,7 +169,8 @@ namespace WMFDecoder {
     }
 
     size_t AACDecoder::feedFrame(std::vector<uint8_t> &aacOrAdts) {
-        OMAF_ASSERT(tryToPushFrameToDecoder(aacOrAdts), "AACDecoder was full when trying to add frame.");
+        auto isFull = tryToPushFrameToDecoder(aacOrAdts);
+        OMAF_ASSERT(isFull, "AACDecoder was full when trying to add frame.");
         auto& pcm = readDecoderOutput();
         mPCMOutputBuffer.insert(mPCMOutputBuffer.end(), pcm.begin(), pcm.end());
         return mPCMOutputBuffer.size();

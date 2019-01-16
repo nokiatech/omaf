@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,6 +19,7 @@
 #include "Renderer/NVREquirectangularTileRenderer.h"
 #include "Renderer/NVRCubeMapRenderer.h"
 #include "Renderer/NVRIdentityRenderer.h"
+#include "Renderer/NVRRawRenderer.h"
 
 #include "API/OMAFDataTypeConversions.h"
 
@@ -351,6 +352,11 @@ OMAF_NS_BEGIN
                 OMAF_ASSERT_UNREACHABLE();
             }
         }
+        VideoRenderer* renderer = createRenderer(SourceType::IDENTITY);
+        if (renderer != OMAF_NULL)
+        {
+            mRendererCollection.insert(SourceType::IDENTITY, renderer);
+        }
     }
 
     VideoRenderer* RenderingManager::createRenderer(SourceType::Enum sourceType) const
@@ -385,6 +391,13 @@ OMAF_NS_BEGIN
             case SourceType::IDENTITY_AUXILIARY:
             {
                 renderer = OMAF_NEW(mAllocator, IdentityRenderer)();//just flat regular video.
+
+                break;
+            }
+
+            case SourceType::RAW:
+            {
+                renderer = OMAF_NEW(mAllocator, RawRenderer)();//just flat regular video.
 
                 break;
             }
@@ -475,7 +488,11 @@ OMAF_NS_BEGIN
                 || sources.getSize() == 1
                 || renderingParameters.renderMonoscopic)
             {
-                SourceType::Enum sourceType = (*sit)->type;
+                SourceType::Enum sourceType;
+                if(!renderingParameters.rawRender)
+                    sourceType = (*sit)->type;
+                else
+                    sourceType = SourceType::RAW;
 
                 RendererCollection::Iterator rit = mRendererCollection.find(sourceType);
                 VideoRenderer* renderer = OMAF_NULL;

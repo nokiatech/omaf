@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -85,10 +85,10 @@ OMAF_NS_BEGIN
 
         virtual Error::Enum startDownload(time_t startTime);
         virtual Error::Enum startDownload(time_t startTime, uint32_t aExpectedPingTimeMs);
-        virtual Error::Enum startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode);
-        virtual Error::Enum startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode, uint32_t aExpectedPingTimeMs);
+        virtual Error::Enum startDownloadFromSegment(uint32_t& aTargetDownloadSegmentId, uint32_t aNextToBeProcessedSegmentId, uint32_t aExpectedPingTimeMs);
+        virtual Error::Enum startDownloadFromTimestamp(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode);
         virtual Error::Enum stopDownload();
-        virtual Error::Enum stopDownloadAsync(bool_t aReset);
+        virtual Error::Enum stopDownloadAsync(bool_t aAbort, bool_t aReset);
 
         virtual uint32_t getCurrentWidth() const;
         virtual uint32_t getCurrentHeight() const;
@@ -107,6 +107,7 @@ OMAF_NS_BEGIN
         virtual MediaContent& getAdaptationSetContent();
         virtual const RepresentationId& getCurrentRepresentationId();
         virtual DashRepresentation* getCurrentRepresentation();
+        virtual DashRepresentation* getNextRepresentation();
 
         // metadata related methods
         virtual bool_t isAssociatedToRepresentation(RepresentationId& aAssociatedTo);
@@ -115,8 +116,10 @@ OMAF_NS_BEGIN
 
         virtual const MP4VideoStreams& getCurrentVideoStreams();
         virtual const MP4AudioStreams& getCurrentAudioStreams();
+        virtual const MP4MetadataStreams& getCurrentMetadataStreams();
         virtual Error::Enum readNextVideoFrame(int64_t currentTimeUs);
         virtual Error::Enum readNextAudioFrame();
+        virtual Error::Enum readMetadataFrame(int64_t currentTimeUs);
 
         virtual bool_t createVideoSources(sourceid_t& firstSourceId);
         virtual Error::Enum createMetadataParserLink(DashAdaptationSet* aDependsOn);
@@ -137,8 +140,7 @@ OMAF_NS_BEGIN
         virtual const char_t* isAssociatedTo();
 
         virtual uint64_t getReadPositionUs(uint32_t& segmentIndex);
-        virtual uint32_t getLastSegmentId() const;
-        virtual uint32_t getSegmentId();
+        virtual uint32_t getLastSegmentId(bool_t aIncludeSegmentInDownloading = false) const;
 
         virtual bool_t isBaselayer() const;
         virtual StereoRole::Enum getVideoChannel() const;
@@ -172,7 +174,7 @@ OMAF_NS_BEGIN
         virtual bool_t isReadyToSignalEoS(MP4MediaStream& aStream) const;
         // DashRepresentationObserver
     public:
-        void_t onSegmentDownloaded(DashRepresentation* representation);
+        void_t onSegmentDownloaded(DashRepresentation* representation, float32_t aSpeedFactor);
         void_t onNewStreamsCreated();
         void_t onCacheWarning();
 

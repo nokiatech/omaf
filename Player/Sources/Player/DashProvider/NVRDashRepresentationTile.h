@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -30,13 +30,13 @@ OMAF_NS_BEGIN
         virtual ~DashRepresentationTile();
 
         virtual void_t clearDownloadedContent();
-        virtual Error::Enum startDownloadABR(uint32_t overrideSegmentId);
+        virtual Error::Enum startDownloadFromSegment(uint32_t& aTargetDownloadSegmentId, uint32_t aNextToBeProcessedSegmentId);
 
         DashSegment* peekSegment() const;
-        size_t getNrSegments() const;
+        size_t getNrSegments(uint32_t aNextNeededSegment) const;
         DashSegment* getSegment();
         void_t cleanUpOldSegments(uint32_t aNextSegmentId);
-        bool_t hasSegment(uint32_t aSegmentId, size_t& aSegmentSize);
+        bool_t hasSegment(const uint32_t aSegmentId, uint32_t& aOldestSegmentId, size_t& aSegmentSize);
         void_t seekWhenSegmentAvailable();
 
     protected:

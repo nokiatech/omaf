@@ -2,10 +2,10 @@
 @echo off
 REM This file is part of Nokia OMAF implementation
 REM
-REM Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+REM Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 REM
 REM Contact: omaf@nokia.com
-REM 
+REM
 REM This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
 REM subsidiaries. All rights are reserved.
 REM
@@ -81,11 +81,7 @@ IF %buildPlayer%==1 (
         echo "Please clone libdash to a folder adjacent to the root of this project"
         exit /b 1
     )
-    IF NOT EXIST "%ORIGCD%\..\OpenGLExt\gl\glext.h" (
-        echo "Please download OpenGL extension headers, see OpenGLExt\readme.txt"
-        exit /b 1
-    )
-    
+   
     call :build_player %buildType% %abi%
 )
 exit /b 0

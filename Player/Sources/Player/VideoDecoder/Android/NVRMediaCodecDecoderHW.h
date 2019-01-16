@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -27,17 +27,16 @@
 
 OMAF_NS_BEGIN
 
-struct DecoderFrameAndroid
-: public DecoderFrame
+class CodecEntry;
+
+struct DecoderFrameAndroid : public DecoderFrame
 {
     ssize_t decoderOutputIndex;
 };
 
-class MediaCodecDecoderHW
-        : public VideoDecoderHW
+class MediaCodecDecoderHW : public VideoDecoderHW
 {
 public:
-
     MediaCodecDecoderHW(FrameCache& frameCache);
 
     virtual ~MediaCodecDecoderHW();
@@ -49,6 +48,7 @@ public:
     virtual Error::Enum createInstance(const MimeType& mimeType);
     virtual Error::Enum initialize(const DecoderConfig& config);
     virtual void_t flush();
+    virtual void_t freeCodec();
     virtual void_t deinitialize();
     virtual void_t destroyInstance();
 
@@ -62,7 +62,6 @@ public:
     void_t releaseOutputBuffer(DecoderFrame* frame, bool_t upload);
 
 public:
-
     Error::Enum createOutputTexture();
     OutputTexture& getOutputTexture();
 
@@ -74,20 +73,15 @@ public:
 
 
 private:
-
     OMAF_NO_COPY(MediaCodecDecoderHW);
     OMAF_NO_ASSIGN(MediaCodecDecoderHW);
 
 private:
-
-
     Error::Enum startCodec();
 
 
 private:
-
 private:
-
     MimeType mMimeType;
 
     DecoderConfig mDecoderConfig;
@@ -99,7 +93,6 @@ private:
 
     OutputTexture mOutputTexture;
 
-    AMediaCodec* mMediaCodec;
-
+    CodecEntry* mCodec;
 };
 OMAF_NS_END

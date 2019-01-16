@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -42,7 +42,7 @@ OMAF_NS_BEGIN
     class DashSegmentStreamObserver
     {
     public:
-        virtual Error::Enum onMediaSegmentDownloaded(DashSegment *segment) = 0;
+        virtual Error::Enum onMediaSegmentDownloaded(DashSegment *segment, float32_t aSpeedFactor) = 0;
         virtual void_t onSegmentIndexDownloaded(DashSegment *segment) = 0;
         virtual void_t onCacheWarning() = 0;
     };
@@ -61,6 +61,7 @@ OMAF_NS_BEGIN
             END_OF_STREAM,
             ERROR,
             ABORTING,
+            DOWNLOADING_MEDIA_SEGMENT_BEFORE_STOP,
             COUNT
         };
     }
@@ -80,6 +81,8 @@ OMAF_NS_BEGIN
         };
     }
 
+    typedef FixedArray<float32_t, 64> DownloadSpeedFactors;
+
     class DashSegmentStream :
         public DashSegmentObserver,
         public IHttpDataProcessor
@@ -94,21 +97,21 @@ OMAF_NS_BEGIN
         virtual ~DashSegmentStream();
 
         void_t startDownload(time_t downloadStartTime, bool_t aIsIndependent);
-        void_t startDownloadABR(uint32_t overrideSegmentId, bool_t aIsIndependent);
-        void_t startDownloadWithOverride(uint32_t overrideSegmentId, bool_t aIsIndependent);
+        void_t startDownloadFromSegment(uint32_t overrideSegmentId, bool_t aIsIndependent);
+        void_t startDownloadFrom(uint32_t overrideSegmentId, bool_t aIsIndependent);
         void_t startDownloadWithByteRange(uint32_t overrideSegmentId, uint64_t startByte, uint64_t endByte, bool_t aIsIndependent);
 
         virtual bool_t mpdUpdateRequired();
 
         void_t stopDownload();
-        void_t stopDownloadAsync();
+        void_t stopDownloadAsync(bool_t aAbort);
         void_t stopSegmentIndexDownload();
 
         void_t clearDownloadedSegments();
 
         DashSegment* getInitSegment() const;
 
-        float32_t getDownloadSpeed();
+        static float32_t getDownloadSpeed();
         uint32_t getAvgDownloadTimeMs();
         uint32_t getInitializationSegmentId();
 
@@ -127,6 +130,7 @@ OMAF_NS_BEGIN
         uint64_t getDownloadedBytes() const;
 
         bool_t isDownloading();
+        bool_t isCompletingDownload();
         bool_t isActive();
 
         void_t setCacheFillMode(bool_t autoFill);
@@ -136,11 +140,12 @@ OMAF_NS_BEGIN
         virtual bool_t hasFixedSegmentSize() const;
 
         virtual void_t processHttpData();
-    public:
-        void_t onSegmentDeleted();
-
         virtual void_t processSegmentDownload(bool_t aForcedCacheUpdate);
         virtual void_t processSegmentIndexDownload(uint32_t segmentId);
+
+    public: // DashSegmentObserver 
+        void_t onSegmentDeleted();
+
 
     protected:
 
@@ -187,7 +192,7 @@ OMAF_NS_BEGIN
         DashSegmentStreamObserver *mObserver;
         typedef FixedArray<int64_t, 3> DownloadTimes;
         DownloadTimes mDownloadTimesInMs;
-        float32_t mDownloadSpeedFactor;
+
         uint32_t mCachedSegmentCount;
         uint32_t mDownloadRetryCounter;
         uint32_t mMaxAvgDownloadTimeMs;
@@ -216,5 +221,10 @@ OMAF_NS_BEGIN
             uint64_t startByte;
             uint64_t endByte;
         } mDownloadByteRange;
+
+        // static across all segment streams, to utilize global information rather than specific to this stream
+        static DownloadSpeedFactors sDownloadSpeedFactors;
+        static float32_t sAvgDownloadSpeedFactor;
+        static size_t sDownloadsSinceLastFactor;
     };
 OMAF_NS_END

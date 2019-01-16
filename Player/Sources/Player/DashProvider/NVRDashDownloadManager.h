@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -108,12 +108,14 @@ OMAF_NS_BEGIN
 
         virtual const MP4AudioStreams& getAudioStreams();
         virtual const MP4VideoStreams& getVideoStreams();
+        virtual const MP4MetadataStreams& getMetadataStreams();
         virtual MP4VRMediaPacket* getNextAudioFrame(MP4MediaStream& stream);
         virtual MP4VRMediaPacket* getNextVideoFrame(MP4MediaStream& stream, int64_t currentTimeUs);
-
+        virtual MP4VRMediaPacket* getMetadataFrame(MP4MediaStream& stream, int64_t currentTimeUs);
 
         virtual Error::Enum readVideoFrames(int64_t currentTimeUs);
         virtual Error::Enum readAudioFrames();
+        virtual Error::Enum readMetadata();
 
         virtual const CoreProviderSourceTypes& getVideoSourceTypes();
 
@@ -148,7 +150,7 @@ OMAF_NS_BEGIN
         Event mViewportSetEvent;
 
         DashAdaptationSet *mAudioAdaptationSet;
-        DashAdaptationSet *mAudioMetadataAdaptationSet;
+        DashAdaptationSet *mInvoMetadataAdaptationSet;
 
         DashDownloadManagerState::Enum mState;
         DashStreamType::Enum mStreamType;
@@ -159,6 +161,7 @@ OMAF_NS_BEGIN
         uint32_t mMPDUpdatePeriodMS;
         std::string mPublishTime;
         MP4AudioStreams mCurrentAudioStreams;
+        MP4MetadataStreams mCurrentMetadataStreams;
 
         bool_t mMetadataLoaded;
 

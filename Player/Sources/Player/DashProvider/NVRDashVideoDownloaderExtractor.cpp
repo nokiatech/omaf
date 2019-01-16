@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -296,7 +296,7 @@ void_t DashVideoDownloaderExtractor::checkVASVideoStreams(uint64_t currentPTS)
 
         if (selectionUpdated)
         {
-            uint32_t segmentIndex = mVideoBaseAdaptationSet->peekNextSegmentId();   // this does not and should not consider any download latencies, since we may have the right segment already cached from previous tile switches
+            uint32_t nextProcessedSegment = ((DashAdaptationSetExtractor*)mVideoBaseAdaptationSet)->getNextProcessedSegmentId();
 
             // single resolution - multiple qualities, supporting sets identified with Preselections, so each of them contains coverage info
 
@@ -307,7 +307,7 @@ void_t DashVideoDownloaderExtractor::checkVASVideoStreams(uint64_t currentPTS)
             {
                 for (VASTileSelection::Iterator it = droppedTiles.begin(); it != droppedTiles.end(); ++it)
                 {
-                    ((DashAdaptationSetTile*)(*it)->getAdaptationSet())->selectQuality(level, nrLevels, segmentIndex);
+                    ((DashAdaptationSetTile*)(*it)->getAdaptationSet())->selectQuality(level, nrLevels, nextProcessedSegment);
                 }
             }
             // then switch the selected new tiles to higher quality
@@ -315,7 +315,7 @@ void_t DashVideoDownloaderExtractor::checkVASVideoStreams(uint64_t currentPTS)
             {
                 for (VASTileSelection::Iterator it = additionalTiles.begin(); it != additionalTiles.end(); ++it)
                 {
-                    ((DashAdaptationSetTile*)(*it)->getAdaptationSet())->selectQuality(level, nrLevels, segmentIndex);
+                    ((DashAdaptationSetTile*)(*it)->getAdaptationSet())->selectQuality(level, nrLevels, nextProcessedSegment);
                 }
             }
         }

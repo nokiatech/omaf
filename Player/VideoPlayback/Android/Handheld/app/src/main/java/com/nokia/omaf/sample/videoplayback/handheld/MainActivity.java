@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,6 +16,7 @@ package com.nokia.omaf.sample.videoplayback.handheld;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.AssetManager;
 import android.graphics.Point;
 import android.hardware.SensorEventListener;
@@ -25,11 +26,21 @@ import android.hardware.Sensor;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
+import android.util.Log;
+import android.util.LogPrinter;
 import android.view.Display;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Dictionary;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -45,6 +56,8 @@ public class MainActivity extends Activity implements SensorEventListener, GLSur
     private SensorManager mSensorManager;
     private Sensor mSensor;
 
+    // Video asset
+    String mVideoURI = null;
     static
     {
         System.loadLibrary("OMAFPlayerWrapper");
@@ -56,7 +69,9 @@ public class MainActivity extends Activity implements SensorEventListener, GLSur
         super.onCreate(savedInstanceState);
 
         final Activity currentActivity = this;
-        
+        Intent intent = getIntent();
+        mVideoURI = intent.getStringExtra("uri");
+        System.out.println("Video URI: " + mVideoURI);
         // Ensure fullscreen immersion.
         setImmersiveSticky();
 
@@ -103,6 +118,7 @@ public class MainActivity extends Activity implements SensorEventListener, GLSur
                                                                  getApplicationContext().getCacheDir().getPath(),
                                                                  screenSize.x,
                                                                  screenSize.y);
+                    nativeLoadContent(mVideoURI);
                 }
 
                 @Override
@@ -118,11 +134,8 @@ public class MainActivity extends Activity implements SensorEventListener, GLSur
                 }
         });
 
-
-        // Add the GvrLayout to the View hierarchy.
         setContentView(mGLView);
         mGLView.setOnTouchListener(this);
-
         // Prevent screen from dimming/locking.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -218,10 +231,20 @@ public class MainActivity extends Activity implements SensorEventListener, GLSur
         nativeOnTapEvent();
         return true;
     }
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event)  {
+        if (keyCode == KeyEvent.KEYCODE_BACK && event.getRepeatCount() == 0) {
+            onPause();
+        }
+
+        return super.onKeyDown(keyCode, event);
+    }
 
     // Native functions. Implemented in ApplicationJNI.cpp
     private native long nativeCreateApplication(AssetManager assetManager, Activity activity, String externalStoragePath, String cachePath, int width, int height);
     private native void nativeDestroyApplication(long applicationWrapper);
+
+    private native void nativeLoadContent(String uri);
 
     private native void nativeUpdateRotation(float x, float y, float z, float w);
     private native void nativeDraw(long applicationWrapper);

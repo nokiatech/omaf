@@ -3,7 +3,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -161,11 +161,6 @@ fi
 if [ "$BUILDPLAYER" == "YES" ]; then
     if [ ! -d "$ORIGDIR/../../libdash" ]; then
         echo "Please clone libdash to a folder adjacent to the root of this project"
-        exit 1
-    fi
-
-    if [ ! -f "$ORIGDIR/../OpenGLExt/gl/glext.h" ]; then
-        echo "Please download OpenGL extension headers, see OpenGLExt/readme.txt"
         exit 1
     fi
 

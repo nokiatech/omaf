@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -538,7 +538,7 @@ void_t DashVideoDownloaderEnh::checkVASVideoStreams(uint64_t currentPTS)
         for (VASTileSelection::Iterator it = droppedTiles.begin(); it != droppedTiles.end(); ++it)
         {
             OMAF_LOG_D("stop downloading representation %s with center at %f longitude", (*it)->getAdaptationSet()->getRepresentationId(), (*it)->getCoveredViewport().getCenterLongitude());
-            (*it)->getAdaptationSet()->stopDownloadAsync(true);
+            (*it)->getAdaptationSet()->stopDownloadAsync(true, true);   // save bandwidth and abort current downloads
         }
         mStreamUpdateNeeded = true;
     }
@@ -617,12 +617,12 @@ void_t DashVideoDownloaderEnh::checkVASVideoStreams(uint64_t currentPTS)
                             mStreamUpdateNeeded = true;
                             continue;
                         }
-                        (*it)->getAdaptationSet()->startDownload(targetPtsUs, maxSegmentId, VideoStreamMode::ENHANCEMENT_FAST_FORWARD);
+                        (*it)->getAdaptationSet()->startDownloadFromTimestamp(targetPtsUs, maxSegmentId, VideoStreamMode::ENHANCEMENT_FAST_FORWARD);
                     }
                     else
                     {
                         OMAF_LOG_V("Segment ID from baselayer: %d, selected segment id for tiles: %d, target pts us %lld", baseSegmentIndex, maxSegmentId, targetPtsUs);
-                        (*it)->getAdaptationSet()->startDownload(targetPtsUs, maxSegmentId, VideoStreamMode::ENHANCEMENT_FAST_FORWARD);
+                        (*it)->getAdaptationSet()->startDownloadFromTimestamp(targetPtsUs, maxSegmentId, VideoStreamMode::ENHANCEMENT_FAST_FORWARD);
                     }
                 }
                 mStreamUpdateNeeded = true;
@@ -638,7 +638,7 @@ void_t DashVideoDownloaderEnh::checkVASVideoStreams(uint64_t currentPTS)
             if ((*it)->getAdaptationSet()->isActive())
             {
                 OMAF_LOG_V("Stopped downloading a tile because of no bandwidth");
-                (*it)->getAdaptationSet()->stopDownloadAsync(true);
+                (*it)->getAdaptationSet()->stopDownloadAsync(true, true);   // save bandwidth and abort
                 mStreamUpdateNeeded = true;
             }
         }

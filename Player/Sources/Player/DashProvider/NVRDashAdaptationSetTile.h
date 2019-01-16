@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -37,20 +37,26 @@ OMAF_NS_BEGIN
     public: // from DashAdaptationSet
         virtual Error::Enum initialize(DashComponents aDashComponents, uint32_t& aInitializationSegmentId);
         virtual Error::Enum initialize(DashComponents aDashComponents, uint32_t& aInitializationSegmentId, uint32_t& aAdaptationSetId);
+        virtual Error::Enum stopDownload();
         virtual uint8_t getNrQualityLevels() const;
 
     public: // new
 
-        virtual bool_t processSegmentDownloadTile(uint32_t aNextSegmentId, bool_t aCanSwitchRepresentations);
-        virtual bool_t selectQuality(uint8_t aQualityLevel, uint8_t aNrQualityLevels, uint32_t aStartingFromSegment);
+        virtual bool_t processSegmentDownload();
+        virtual bool_t trySwitchingRepresentation(uint32_t aNextSegmentId);
+        virtual bool_t selectQuality(uint8_t aQualityLevel, uint8_t aNrQualityLevels, uint32_t aNextProcessedSegment);
         // called by extractor for supporting sets if dependencyId based collection of tiles is used
-        virtual bool_t selectRepresentation(DependableRepresentations& aDependencies, uint32_t aNextNeededSegment);
+        virtual bool_t selectRepresentation(DependableRepresentations& aDependencies, uint32_t aNextProcessedSegment);
         virtual DashRepresentation* getRepresentationForQuality(uint8_t aQualityLevel, uint8_t aNrLevels);
 
-        // called by extractor for supporting sets if dependencyId based collection of tiles is used
-        virtual bool_t prepareForSwitch(uint32_t aNextNeededSegment, bool_t aGoToBackground);
-        virtual bool_t readyToSwitch(uint32_t aNextNeededSegment);
+        // called by extractor for supporting sets if dependencyId based collection of tiles is used, hence public; otherwise called by the tile itself
+        virtual bool_t prepareForSwitch(uint32_t aNextProcessedSegment, bool_t aGoToBackground);
+        virtual void_t cleanUpOldSegments(uint32_t aNextSegmentId);
+
         virtual void_t setBufferingTime(uint32_t aExpectedPingTimeMs);
+
+        DashSegment* getSegment(uint32_t aSegmentId);
+        bool_t hasSegment(uint32_t aSegmentId, size_t& aSegmentSize);
 
     protected: // from DashAdaptationSet
         virtual Error::Enum doInitialize(DashComponents aDashComponents, uint32_t& aInitializationSegmentId);

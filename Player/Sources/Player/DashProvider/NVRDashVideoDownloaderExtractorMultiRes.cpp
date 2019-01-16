@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -234,6 +234,10 @@ bool_t DashVideoDownloaderExtractorMultiRes::isEndOfStream() const
     {
         return true;
     }
+    else if (mNextVideoBaseAdaptationSet && mNextVideoBaseAdaptationSet->isEndOfStream())
+    {
+        return true;
+    }
     return false;
 }
 
@@ -294,27 +298,29 @@ void_t DashVideoDownloaderExtractorMultiRes::checkVASVideoStreams(uint64_t curre
                 }
 
                 uint64_t targetPtsUs = OMAF_UINT64_MAX;
-                uint32_t nextSegmentIndex = ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->getNextProcessedSegmentId();
-                if (nextSegmentIndex == 1)  // TODO live cases?
+                uint32_t nextProcessedSegmentIndex = ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->getNextProcessedSegmentId();
+                if (nextProcessedSegmentIndex == 1)  
                 {
-                    // not even started yet, switch immediately
-                    mVideoBaseAdaptationSet->stopDownloadAsync(false);
+                    // not even started the very first set yet, switch immediately
+                    mVideoBaseAdaptationSet->stopDownloadAsync(true, false);    // abort
                     ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->switchingToAnother();
                     ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->switchedToAnother();
                     mVideoBaseAdaptationSet = (DashAdaptationSetExtractorMR*)(additionalTiles.at(0)->getAdaptationSet());
-                    mVideoBaseAdaptationSet->startDownload(targetPtsUs, nextSegmentIndex, VideoStreamMode::BASE, mExpectedPingTimeMs);
-                    ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->switchToThis(nextSegmentIndex);
+                    time_t startTime = time(0);
+                    OMAF_LOG_D("Start time: %d", (uint32_t)startTime);
+                    mVideoBaseAdaptationSet->startDownload(startTime, mExpectedPingTimeMs);
+                    ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->switchToThis(nextProcessedSegmentIndex);
                 }
                 else
                 {
-                    uint32_t lastDownloadedSegmentIndex = mVideoBaseAdaptationSet->getLastSegmentId();
-                    if (lastDownloadedSegmentIndex >= nextSegmentIndex)
+                    uint32_t lastDownloadedSegmentIndex = ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->getLastSegmentId(); 
+                    uint32_t nextDLSegmentIndex = nextProcessedSegmentIndex;
+                    if (lastDownloadedSegmentIndex >= nextProcessedSegmentIndex)
                     {
-                        // normal case: there are segments waiting to be concatenated already for the current adaptation set too, use them first (TODO latency optimization may change this)
-                        nextSegmentIndex = lastDownloadedSegmentIndex + 1;
+                        // normal case: there are segments waiting to be concatenated already for the current adaptation set, at least this segment must be downloaded for the next adaptation set
+                        nextDLSegmentIndex = lastDownloadedSegmentIndex + 1;
                     }
                     // Else some tiles etc may be missing the next segment index and they are now stopped, so they won't get downloaded at this point. Hence the starting segment for the new adaptation set should be the next segment to be processed
-
 
                     mNextVideoBaseAdaptationSet = (DashAdaptationSetExtractorMR*)(additionalTiles.at(0)->getAdaptationSet());
                     if (mVideoBaseAdaptationSet == mNextVideoBaseAdaptationSet)
@@ -322,13 +328,15 @@ void_t DashVideoDownloaderExtractorMultiRes::checkVASVideoStreams(uint64_t curre
                         // switching back to the currently active one before the previous switch away from it took place; no need to change, but need to restart the download in it. 
                         mNextVideoBaseAdaptationSet = OMAF_NULL;
                         // restart
-                        OMAF_LOG_V("Restart the old adaptation set %d", mVideoBaseAdaptationSet->getId());
-                        mVideoBaseAdaptationSet->startDownload(targetPtsUs, nextSegmentIndex, VideoStreamMode::BASE, mExpectedPingTimeMs);
+                        OMAF_LOG_V("Restart the old extractor adaptation set %d", mVideoBaseAdaptationSet->getId());
+                        mVideoBaseAdaptationSet->startDownloadFromSegment(nextDLSegmentIndex, nextProcessedSegmentIndex, mExpectedPingTimeMs);
                     }
                     else
                     {
                         OMAF_LOG_V("Start switching to extractor adaptation set %d", mNextVideoBaseAdaptationSet->getId());
-                        mNextVideoBaseAdaptationSet->startDownload(targetPtsUs, nextSegmentIndex, VideoStreamMode::BASE, mExpectedPingTimeMs);
+
+                        uint32_t segmentIndex = ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->estimateSegmentIdForSwitch(nextProcessedSegmentIndex);
+                        mNextVideoBaseAdaptationSet->startDownloadFromSegment(segmentIndex, nextProcessedSegmentIndex, mExpectedPingTimeMs);
                         if (!droppedTiles.isEmpty())
                         {
                             ((DashAdaptationSetExtractorMR*)droppedTiles.at(0)->getAdaptationSet())->stopDownloadAsync(false, mNextVideoBaseAdaptationSet);
@@ -356,14 +364,15 @@ bool_t DashVideoDownloaderExtractorMultiRes::isReadyToSignalEoS(MP4MediaStream& 
 
 void_t DashVideoDownloaderExtractorMultiRes::processSegmentDownload()
 {
-    DashVideoDownloaderExtractor::processSegmentDownload();
-
     if (mNextVideoBaseAdaptationSet != OMAF_NULL)
     {
         // use the specific version to avoid tiles to get extracted in parallel, as that can cause kind of race condition with the main adaptation set with common tiles
         mNextVideoBaseAdaptationSet->processSegmentDownload();
 
-        if (((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->isDone())
+        uint32_t segment = ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->getNextProcessedSegmentId();
+        if (((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->isDone(segment)   // if the current extractor has finished a segment (variable is updated), and is now on segment boundary so switch is possible
+            && (mNextVideoBaseAdaptationSet->readyToSwitch(segment+1)                   // if the next one is ready to take over
+                || !((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->segmentAvailable(segment+1, mNextVideoBaseAdaptationSet)))    // if the current one cannot continue any more (no data cached nor under download)
         {
             // TODO this works with segment templates, but how about other DASH modes?
             uint32_t nextSegment = ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->getNextProcessedSegmentId();
@@ -374,7 +383,25 @@ void_t DashVideoDownloaderExtractorMultiRes::processSegmentDownload()
             mNextVideoBaseAdaptationSet = OMAF_NULL;
             mStreamUpdateNeeded = updateVideoStreams();
             mVideoStreamsChanged = true;    //trigger also renderer thread to update streams
+
+            // do the processing immediately to ensure video stream gets created/updated before any video data is tried to read
+            DashVideoDownloaderExtractor::processSegmentDownload();
         }
+        else
+        {
+            uint32_t nextSegmentBefore = ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->getNextProcessedSegmentId();
+            DashVideoDownloaderExtractor::processSegmentDownload();
+            uint32_t nextSegmentAfter = ((DashAdaptationSetExtractorMR*)mVideoBaseAdaptationSet)->getNextProcessedSegmentId();
+            if (nextSegmentAfter > nextSegmentBefore)
+            {
+                // this is called to avoid cache getting full with old segments, that can happen at least if the extractor change is triggered many times before actually switching to it
+                mNextVideoBaseAdaptationSet->updateProgressDuringSwitch(nextSegmentAfter);
+            }
+        }
+    }
+    else
+    {
+        DashVideoDownloaderExtractor::processSegmentDownload();
     }
 }
 

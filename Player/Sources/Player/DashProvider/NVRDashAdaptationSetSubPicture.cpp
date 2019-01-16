@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -23,7 +23,7 @@ OMAF_NS_BEGIN
     OMAF_LOG_ZONE(DashAdaptationSetSubPicture)
 
     DashAdaptationSetSubPicture::DashAdaptationSetSubPicture(DashAdaptationSetObserver& observer)
-    : DashAdaptationSet(observer)
+    : DashAdaptationSetViewportDep(observer)
     {
 
     }

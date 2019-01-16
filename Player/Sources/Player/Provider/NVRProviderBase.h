@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -155,14 +155,15 @@ protected: // Called by child classes
     PacketProcessingResult::Enum processMP4Video(MP4StreamManager& streamManager, MP4StreamManager* auxiliaryStreamManager = OMAF_NULL);
     PacketProcessingResult::Enum processMP4Audio(MP4StreamManager& streamManager, AudioInputBuffer* audioInputBuffer);
 
+    // called by provider thread
+    bool_t retrieveInitialViewingOrientation(MP4StreamManager* aMediaStreamManager, int64_t aCurrentTimeUs);
+
 private:
 
     virtual void_t parserThreadCallback() = 0;
     
     Thread::ReturnValue threadEntry(const Thread& thread, void_t* userData);
 
-    // called by provider thread
-    void_t retrieveInitialViewingOrientation(MP4VideoStream& aStream);
     // called by renderer thread
     void_t setupInitialViewingOrientation(HeadTransform& aCurrentHeadTransform, uint64_t aTimestampUs);
 
@@ -228,10 +229,6 @@ protected:
     uint64_t mElapsedTimeUsAuxiliary;
     bool_t mAuxiliaryAudioInitPending;
 
-private:
-
-    VideoProviderState::Enum mState;
-    ForcedOrientation mViewingOrientationOffset;
     struct RetrievedOrientation
     {
         int32_t cAzimuth;
@@ -247,6 +244,11 @@ private:
         RetrievedOrientation() : valid(false), timestampUs(0), refresh(true), streamId(OMAF_UINT8_MAX) {}
     };
     RetrievedOrientation mLatestSignaledViewingOrientation;
+
+private:
+
+    VideoProviderState::Enum mState;
+    ForcedOrientation mViewingOrientationOffset;
 
 };
 

@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -29,6 +29,7 @@ OMAF_NS_BEGIN
     static const float64_t MOTION_THR_STILL_DEG = 0.5f;
     static const float64_t MOTION_THR_FAST_DEG = 10.f;
 
+    static const float64_t VIEWPORT_EXTENSION = 1.2f;   // multiplier for the high quality area around the actual viewport (width,height)
 
     void_t VASTilePicker::MotionVector::clear()
     {
@@ -93,6 +94,10 @@ OMAF_NS_BEGIN
     // called from renderer thread
     bool_t VASTilePicker::setRenderedViewPort(float64_t longitude, float64_t latitude, float64_t roll, float64_t width, float64_t height)
     {
+        OMAF_LOG_V("setRenderedViewPort (%f,%f), (w x h) = (%f x %f)", longitude, latitude, width, height);
+        width *= VIEWPORT_EXTENSION;
+        height *= VIEWPORT_EXTENSION;
+
         bool_t triggerTileSelection = true;
         if (!mSelectedTiles.isEmpty())
         {
@@ -165,6 +170,9 @@ OMAF_NS_BEGIN
     // called from renderer thread
     void_t VASTilePicker::setupTileRendering(VASTilesLayer& allTiles, float64_t aWidth, float64_t aHeight, uint32_t aBaseLayerDecoderPixelsInSec)
     {
+        aWidth *= VIEWPORT_EXTENSION;
+        aHeight *= VIEWPORT_EXTENSION;
+
         if (aBaseLayerDecoderPixelsInSec > 0)
         {
             if (mNeededTileCount == 0)

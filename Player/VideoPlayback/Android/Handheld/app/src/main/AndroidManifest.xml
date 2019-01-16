@@ -3,6 +3,7 @@
     package="com.nokia.omaf.sample.videoplayback.handheld"
     android:versionCode="1"
     android:versionName="1.0">
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -10,29 +11,36 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- Make accelerometer and gyroscope hard requirements for good head tracking. -->
-    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true"/>
-    <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true"/>
+    <uses-feature
+        android:name="android.hardware.sensor.accelerometer"
+        android:required="true" />
+    <uses-feature
+        android:name="android.hardware.sensor.gyroscope"
+        android:required="true" />
 
     <application
         android:allowBackup="true"
-        android:label="@string/app_name"
         android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
         android:theme="@style/AppStyle">
-
         <activity
-            android:name="com.nokia.omaf.sample.videoplayback.handheld.MainActivity"
+            android:name=".MainActivity"
+            android:configChanges="keyboardHidden|screenSize"
             android:label="@string/app_name"
-            android:screenOrientation="landscape"
-            android:configChanges="keyboardHidden|screenSize">
-            <meta-data android:name="android.app.lib_name" android:value="videoplayback" />
-
-            <!-- Intent filter that enables this app to be launched from the Cardboard app and from the traditional launcher. -->
+            android:screenOrientation="landscape">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="videoplayback" />
+        </activity>
+        <activity
+            android:name=".VideoListActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        
-  </application>
-  
+    </application>
+
 </manifest>

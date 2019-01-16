@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -104,6 +104,12 @@ namespace StreamSegmenter
             using RatU64::RatU64;
         };
 
+        enum class DashProfile
+        {
+            Live,
+            OnDemand
+        };
+
         enum class RepresentationType
         {
             Static,
@@ -191,6 +197,8 @@ namespace StreamSegmenter
 
         struct MPDNode
         {
+            virtual ~MPDNode() = default;
+
             // virtual method for writing sub elements of this XML node
             // if there are multiple implementations of the same element
             // this can be called by subclass to write common parts
@@ -260,6 +268,15 @@ namespace StreamSegmenter
             virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
+
+        struct BaseURL : public MPDNode
+        {
+            std::string url;
+
+            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
         //------------------------------------------------------------------------------
         //
         // Common attributes from Dash spec 5.3.7
@@ -363,7 +380,7 @@ namespace StreamSegmenter
             Utils::Optional<SegmentTimeline> segmentTimeLine;
             Utils::Optional<URLType> bitstreamSwitchingElement;
 
-            virtual AttributeList getXMLAttributes() const;
+            virtual AttributeList getXMLAttributes() const override;
             virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -407,6 +424,7 @@ namespace StreamSegmenter
             Utils::Optional<SegmentBase> segmentBase;
             Utils::Optional<SegmentList> segmentList;
             Utils::Optional<SegmentTemplate> segmentTemplate;
+            Utils::Optional<BaseURL> baseURL;
 
             virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
@@ -471,7 +489,7 @@ namespace StreamSegmenter
 
             std::list<RepresentationType> representations;
 
-            virtual AttributeList getXMLAttributes() const;
+            virtual AttributeList getXMLAttributes() const override;
             virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
@@ -574,6 +592,8 @@ namespace StreamSegmenter
             Utils::Optional<Duration> mediaPresentationDuration;
 
             std::list<PeriodType> periods;
+
+            DashProfile profile = DashProfile::Live;
 
             // write common parts of MPD element attributelist
             virtual AttributeList getXMLAttributes() const;

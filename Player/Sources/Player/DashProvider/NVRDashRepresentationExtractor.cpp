@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -52,26 +52,28 @@ OMAF_NS_BEGIN
         return getParserInstance()->readyForSegment(mVideoStreams, aId);
     }
 
-    bool_t DashRepresentationExtractor::isDone()//when all packets and segments are used up.. and not downloading more..
+    bool_t DashRepresentationExtractor::isDone(uint32_t& aSegmentId)//when all packets and segments are used up.. and not downloading more..
     {
         if (mDownloading && !mSegmentStream->isEndOfStream())
         {
             return false;
         }
 
-        if (mSegmentStream->isEndOfStream() && mVideoStreams.isEmpty())
+        if (mVideoStreams.isEmpty())
         {
-            // Stream has reached end of stream with 0 video streams, this suggests an EoS situation so mark as done
+            // not yet created any video streams, so ready to switch for sure
             return true;
         }
 
         for (size_t i = 0; i < mVideoStreams.getSize(); i++)
         {
-            if (mVideoStreams[i]->getSamplesLeft() <= 1)    //1??
+            if (mVideoStreams[i]->isAtSegmentBoundary(aSegmentId) && mVideoStreams[i]->peekNextFilledPacket() == OMAF_NULL)
             {
+                OMAF_LOG_V("Video stream has finished reading segment %d", aSegmentId);
                 return true;
             }
         }
+
 
         return false;
     }
@@ -83,7 +85,7 @@ OMAF_NS_BEGIN
         {
             Spinlock::ScopeLock lock(mLock);
             OMAF_LOG_V("parseConcatenatedMediaSegment %d first time", aSegment->getSegmentId());
-            result = getParserInstance()->addSegment(aSegment, mAudioStreams, mVideoStreams);
+            result = getParserInstance()->addSegment(aSegment, mAudioStreams, mVideoStreams, mMetadataStreams);
             if (result != Error::OK && result != Error::OK_SKIPPED)
             {
                 OMAF_LOG_W("Parser refused to accept the segment!");
@@ -117,7 +119,7 @@ OMAF_NS_BEGIN
         else
         {
             OMAF_LOG_V("%lld parseConcatenatedMediaSegment %d", Time::getClockTimeMs(), aSegment->getSegmentId());
-            result = getParserInstance()->addSegment(aSegment, mAudioStreams, mVideoStreams);
+            result = getParserInstance()->addSegment(aSegment, mAudioStreams, mVideoStreams, mMetadataStreams);
 
             if (!mVideoStreams.front()->hasVideoSources())
             {

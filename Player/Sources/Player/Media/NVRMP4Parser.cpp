@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -165,7 +165,7 @@ OMAF_NS_BEGIN
         return mMetaDataParser.getVideoSources();
     }
 
-    Error::Enum MP4VRParser::openInput(const PathName& mediaUri, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams)
+    Error::Enum MP4VRParser::openInput(const PathName& mediaUri, MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams)
     {
 
         if (mFileStream.open(mediaUri) != Error::OK)
@@ -177,19 +177,19 @@ OMAF_NS_BEGIN
 
         if (result == MP4VR::MP4VRFileReaderInterface::ErrorCode::OK)
         {
-            Error::Enum ret = prepareFile(audioStreams, videoStreams);
+            Error::Enum ret = prepareFile(aAudioStreams, aVideoStreams, aMetadataStreams);
             if (ret != Error::OK)
             {
                 return ret;
             }
             else
             {
-                ret = readInitialMetadata(mediaUri, audioStreams, videoStreams);
+                ret = readInitialMetadata(mediaUri, aAudioStreams, aVideoStreams);
                 if (ret == Error::OK)
                 {
-                    if (!videoStreams.isEmpty())
+                    if (!aVideoStreams.isEmpty())
                     {
-                        MP4VideoStream* first = *videoStreams.begin();
+                        MP4VideoStream* first = *aVideoStreams.begin();
                         mMediaInformation.width = first->getFormat()->width();
                         mMediaInformation.height = first->getFormat()->height();
                         mMediaInformation.frameRate = first->getFormat()->frameRate();
@@ -223,7 +223,7 @@ OMAF_NS_BEGIN
 
     }
 
-    Error::Enum MP4VRParser::prepareFile(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams, uint32_t initSegmentId)
+    Error::Enum MP4VRParser::prepareFile(MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams, uint32_t initSegmentId)
     {
         MP4VR::FourCC major;
         if (mReader->getMajorBrand(major, initSegmentId) != MP4VR::MP4VRFileReaderInterface::OK)
@@ -292,7 +292,7 @@ OMAF_NS_BEGIN
 
         // reading MP4VR::FileInformation doesn't seem necessary, since it only indicates if the file has VR audio/video, which we know by other means
         // create streams
-        Error::Enum ret = createStreams(audioStreams, videoStreams, fileFormat);
+        Error::Enum ret = createStreams(aAudioStreams, aVideoStreams, aMetadataStreams, fileFormat);
 
         if (ret != Error::OK)
         {
@@ -328,7 +328,7 @@ OMAF_NS_BEGIN
         }
     }
 
-    Error::Enum MP4VRParser::addSegment(MP4Segment* mp4Segment, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams)
+    Error::Enum MP4VRParser::addSegment(MP4Segment* mp4Segment, MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams)
     {
         bool initSegmentExists = false;
         for (InitSegments::Iterator it = mInitSegments.begin(); it != mInitSegments.end(); ++it)
@@ -412,7 +412,7 @@ OMAF_NS_BEGIN
                 }
             }
 
-            Error::Enum ret = prepareFile(audioStreams, videoStreams, mp4Segment->getInitSegmentId());
+            Error::Enum ret = prepareFile(aAudioStreams, aVideoStreams, aMetadataStreams, mp4Segment->getInitSegmentId());
             if (ret != Error::OK)
             {
                 return ret;
@@ -420,15 +420,15 @@ OMAF_NS_BEGIN
             else
             {
                 // read metadata from the stream - URI-based default metadata need to be handled elsewhere
-                return readInitialMetadata("", audioStreams, videoStreams);  // in DASH streaming, we support only 1 track per adaptation set - same with HLS
+                return readInitialMetadata("", aAudioStreams, aVideoStreams);  // in DASH streaming, we support only 1 track per adaptation set - same with HLS
             }
         }
         else
         {
-            updateStreams(audioStreams, videoStreams);
+            updateStreams(aAudioStreams, aVideoStreams, aMetadataStreams);
         }
 
-        releaseUsedSegments(audioStreams, videoStreams);
+        releaseUsedSegments(aAudioStreams, aVideoStreams, aMetadataStreams);
 
         return Error::OK;
     }
@@ -584,23 +584,28 @@ OMAF_NS_BEGIN
         return Error::ITEM_NOT_FOUND;
     }
 
-    void_t MP4VRParser::releaseUsedSegments(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams)
+    void_t MP4VRParser::releaseUsedSegments(MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams)
     {
         Mutex::ScopeLock readerLock(mReaderMutex);
 
         // check if there are segments which are not needed any more
-        if ((audioStreams.getSize() > 0 || videoStreams.getSize() > 0))
+        if ((aAudioStreams.getSize() > 0 || aVideoStreams.getSize() > 0))
         {
             uint32_t oldestInUseSegmentId = OMAF_UINT32_MAX;
 
-            for (size_t i = 0; i < videoStreams.getSize(); i++)
+            for (size_t i = 0; i < aVideoStreams.getSize(); i++)
             {
-                oldestInUseSegmentId = min(oldestInUseSegmentId, videoStreams[i]->getCurrentSegmentId());
+                oldestInUseSegmentId = min(oldestInUseSegmentId, aVideoStreams[i]->getCurrentSegmentId());
             }
 
-            for (size_t i = 0; i < audioStreams.getSize(); i++)
+            for (size_t i = 0; i < aAudioStreams.getSize(); i++)
             {
-                oldestInUseSegmentId = min(oldestInUseSegmentId, audioStreams[i]->getCurrentSegmentId());
+                oldestInUseSegmentId = min(oldestInUseSegmentId, aAudioStreams[i]->getCurrentSegmentId());
+            }
+
+            for (size_t i = 0; i < aMetadataStreams.getSize(); i++)
+            {
+                oldestInUseSegmentId = min(oldestInUseSegmentId, aMetadataStreams[i]->getCurrentSegmentId());
             }
 
             if (!mMediaSegments.isEmpty())
@@ -612,11 +617,11 @@ OMAF_NS_BEGIN
                         MP4SegmentStreamer* mediasegment = (*it)->front();
                         if (mediasegment != OMAF_NULL && mediasegment->getSegmentId() < oldestInUseSegmentId)
                         {
-                            if (!videoStreams.isEmpty())
+                            if (!aVideoStreams.isEmpty())
                             {
-                                OMAF_LOG_V("removing %d from %d", mediasegment->getSegmentId(), videoStreams[0]->getStreamId());
+                                OMAF_LOG_V("removing %d from %d", mediasegment->getSegmentId(), aVideoStreams[0]->getStreamId());
                             }
-                            removeSegment(mediasegment->getInitSegmentId(), mediasegment->getSegmentId(), audioStreams, videoStreams);
+                            removeSegment(mediasegment->getInitSegmentId(), mediasegment->getSegmentId(), aAudioStreams, aVideoStreams, aMetadataStreams);
                         }
                         else
                         {
@@ -628,7 +633,7 @@ OMAF_NS_BEGIN
         }
     }
 
-    Error::Enum MP4VRParser::removeSegment(uint32_t initSegmentId, uint32_t segmentId, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams)
+    Error::Enum MP4VRParser::removeSegment(uint32_t initSegmentId, uint32_t segmentId, MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams)
     {
         OMAF_LOG_V("removeSegment %d", segmentId);
         Mutex::ScopeLock readerLock(mReaderMutex);
@@ -637,7 +642,7 @@ OMAF_NS_BEGIN
 
         if (result == MP4VR::MP4VRFileReaderInterface::OK)
         {
-            updateStreams(audioStreams, videoStreams);
+            updateStreams(aAudioStreams, aVideoStreams, aMetadataStreams);
 
             // remove the segment from queue
             //TODO replace if with the assert when mp4Reader returns error; now this would break the test run
@@ -691,44 +696,44 @@ OMAF_NS_BEGIN
         return false;
     }
 
-    bool_t MP4VRParser::readyForSegment(MP4VideoStreams& videoStreams, uint32_t aSegmentId)
+    bool_t MP4VRParser::readyForSegment(MP4VideoStreams& aVideoStreams, uint32_t aSegmentId)
     {
         Mutex::ScopeLock readerLock(mReaderMutex);//needed??
-        if (videoStreams.isEmpty())
+        if (aVideoStreams.isEmpty())
         {
             return true;
         }
-        if (videoStreams[0]->getCurrentSegmentId() == 0 || (aSegmentId - videoStreams[0]->getCurrentSegmentId() == 1 && videoStreams[0]->getSamplesLeft() < 3))
+        if (aVideoStreams[0]->getCurrentSegmentId() == 0 || (aSegmentId - aVideoStreams[0]->getCurrentSegmentId() == 1 && aVideoStreams[0]->getSamplesLeft() <= 1))
         {
             return true;
         }
         return false;
     }
 
-    uint64_t MP4VRParser::getReadPositionUs(MP4VideoStreams& videoStreams, uint32_t& segmentIndex)
+    uint64_t MP4VRParser::getReadPositionUs(MP4VideoStreams& aVideoStreams, uint32_t& segmentIndex)
     {
         uint64_t currentPosMs = 0;
-        for (size_t i = 0; i < videoStreams.getSize(); i++)
+        for (size_t i = 0; i < aVideoStreams.getSize(); i++)
         {
-            uint64_t pos = videoStreams[i]->getCurrentReadPositionMs();
+            uint64_t pos = aVideoStreams[i]->getCurrentReadPositionMs();
             if (pos > currentPosMs)
             {
                 currentPosMs = pos;
-                segmentIndex = videoStreams[i]->getCurrentSegmentId();
+                segmentIndex = aVideoStreams[i]->getCurrentSegmentId();
             }
         }
         
         return currentPosMs*1000;
     }
 
-    uint32_t MP4VRParser::releaseSegmentsUntil(uint32_t segmentId, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams)
+    uint32_t MP4VRParser::releaseSegmentsUntil(uint32_t segmentId, MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams)
     {
         uint32_t unused = 0;
         Mutex::ScopeLock readerLock(mReaderMutex); // protects mReader operations and stream's sample table
-        if (audioStreams.getSize() > 0 || videoStreams.getSize() > 0)
+        if (aAudioStreams.getSize() > 0 || aVideoStreams.getSize() > 0)
         {
             bool_t segmentCounted = false;
-            if (!videoStreams.isEmpty() && videoStreams[0]->isCurrentSegmentInProgress())
+            if (!aVideoStreams.isEmpty() && aVideoStreams[0]->isCurrentSegmentInProgress())
             {
                 OMAF_LOG_D("removing partially used segment");
                 segmentCounted = true;
@@ -744,14 +749,14 @@ OMAF_NS_BEGIN
                         OMAF_LOG_D("removing unused segment");
                     }
                     segmentCounted = false;
-                    removeSegment(segment->getInitSegmentId(), segment->getSegmentId(), audioStreams, videoStreams);
+                    removeSegment(segment->getInitSegmentId(), segment->getSegmentId(), aAudioStreams, aVideoStreams, aMetadataStreams);
                 }
             }
         }
         return unused;
     }
 
-    bool_t MP4VRParser::releaseAllSegments(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams)
+    bool_t MP4VRParser::releaseAllSegments(MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams)
     {
         Mutex::ScopeLock readerLock(mReaderMutex); // protects mReader operations and stream's sample table
 
@@ -770,14 +775,14 @@ OMAF_NS_BEGIN
         {
             for (MediaSegmentMap::Iterator mediaSegmentIt = mMediaSegments.begin(); mediaSegmentIt != mMediaSegments.end(); ++mediaSegmentIt)
             {
-                if ((*mediaSegmentIt)->getSize() > 0 && (audioStreams.getSize() > 0 || videoStreams.getSize() > 0))
+                if ((*mediaSegmentIt)->getSize() > 0 && (aAudioStreams.getSize() > 0 || aVideoStreams.getSize() > 0))
                 {
                     uint32_t initSegmentId = (*mediaSegmentIt)->front()->getInitSegmentId();
                     while (!(*mediaSegmentIt)->isEmpty())
                     {
                         MP4SegmentStreamer *segment = (*mediaSegmentIt)->front();
                         // removes media segment and pops it from FixedQueue
-                        removeSegment(initSegmentId, segment->getSegmentId(), audioStreams, videoStreams);
+                        removeSegment(initSegmentId, segment->getSegmentId(), aAudioStreams, aVideoStreams, aMetadataStreams);
                     }
                     (*mediaSegmentIt)->clear();
 
@@ -947,15 +952,7 @@ OMAF_NS_BEGIN
 
         if (stream.getMetadataStream() != OMAF_NULL)
         {
-            bool_t changed = false;
-            MP4MediaStream* invoStream = stream.getMetadataStream();
-            
-            MP4VR::TimestampIDPair sample;
-            invoStream->peekNextSampleTs(sample);
-            if (sample.timeStamp == sampleTimeMs)
-            {
-                readFrame(*invoStream, changed);
-            }
+            readTimedMetadataFrame(*stream.getMetadataStream(), segmentChanged, sampleTimeMs);
         }
 
         if (result == MP4VR::MP4VRFileReaderInterface::OK)
@@ -968,7 +965,26 @@ OMAF_NS_BEGIN
         }
     }
 
-    Error::Enum MP4VRParser::readInitialMetadata(const PathName& mediaUri, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams)
+    Error::Enum MP4VRParser::readTimedMetadataFrame(MP4MediaStream& aStream, bool_t& aSegmentChanged, int64_t aCurrentTimeUs)
+    {
+        if (aCurrentTimeUs < 0)
+        {
+            // just read the next frame
+            return readFrame(aStream, aSegmentChanged);
+        }
+        else
+        {
+            MP4VR::TimestampIDPair sample;
+            aStream.peekNextSampleTs(sample);
+            if (sample.timeStamp == aCurrentTimeUs)
+            {
+                return readFrame(aStream, aSegmentChanged);
+            }
+        }
+        return Error::OK_SKIPPED;
+    }
+
+    Error::Enum MP4VRParser::readInitialMetadata(const PathName& mediaUri, MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams)
     {
         bool_t videoMetadataMissing = true;
         bool_t audioMetadataMissing = true;
@@ -978,7 +994,7 @@ OMAF_NS_BEGIN
 
         uint32_t pixelsPerSecond = 0;
 
-        for (MP4VideoStreams::ConstIterator it = videoStreams.begin(); it != videoStreams.end(); ++it)
+        for (MP4VideoStreams::ConstIterator it = aVideoStreams.begin(); it != aVideoStreams.end(); ++it)
         {
             const MediaFormat* format = (*it)->getFormat();
             float32_t frameRate = 0.0f;
@@ -997,14 +1013,14 @@ OMAF_NS_BEGIN
 
         uint32_t maxDecodedPixelsPerSecond = DeviceInfo::maxDecodedPixelCountPerSecond();
 
-        if (pixelsPerSecond > maxDecodedPixelsPerSecond && videoStreams.getSize() > 1)
+        if (pixelsPerSecond > maxDecodedPixelsPerSecond && aVideoStreams.getSize() > 1)
         {
             OMAF_LOG_W("Can't support all the video tracks in the file so removing some of the tracks");
 
             pixelsPerSecond *= 0.95f; // allow 5% margin e.g. due to framerate inaccuracy
-            while (pixelsPerSecond > DeviceInfo::maxDecodedPixelCountPerSecond() && !videoStreams.isEmpty())
+            while (pixelsPerSecond > DeviceInfo::maxDecodedPixelCountPerSecond() && !aVideoStreams.isEmpty())
             {
-                MP4VideoStream* stream = videoStreams.back();
+                MP4VideoStream* stream = aVideoStreams.back();
                 const MediaFormat* format = stream->getFormat();
                 float32_t frameRate = 0.0f;
                 // If framerate is zeroish, assume it's not valid and use 30
@@ -1017,10 +1033,10 @@ OMAF_NS_BEGIN
                     frameRate = format->frameRate();
                 }
                 pixelsPerSecond -= (uint32_t)(format->width() * format->height() * frameRate);
-                videoStreams.remove(stream);
+                aVideoStreams.remove(stream);
                 OMAF_DELETE(mAllocator, stream);
                 removedColorTrack = true;
-                if (videoStreams.isEmpty())
+                if (aVideoStreams.isEmpty())
                 {
                     OMAF_LOG_E("No video streams left!!");
                     return Error::FILE_NOT_SUPPORTED;
@@ -1036,7 +1052,7 @@ OMAF_NS_BEGIN
             MP4VR::ProjectionFormatProperty projectionFormat;
             for (MP4VR::TrackInformation* track = mTracks->begin(); track != mTracks->end(); track++)
             {
-                if (track->trackId == videoStreams[0]->getTrackId())
+                if (track->trackId == aVideoStreams[0]->getTrackId())
                 {
                     if (mReader->getPropertyProjectionFormat(track->trackId, track->sampleProperties[0].sampleId, projectionFormat) == MP4VR::MP4VRFileReaderInterface::OK)
                     {
@@ -1056,7 +1072,7 @@ OMAF_NS_BEGIN
                         sourceInfo.faceOrder = DEFAULT_OMAF_FACE_ORDER;       // a coded representation of LFRDBU
                         sourceInfo.faceOrientation = DEFAULT_OMAF_FACE_ORIENTATION;  // a coded representation of 000111. A merge of enum of individual faces / face sections, that can be many
 
-                        Error::Enum propertiesOk = parseVideoSources(*videoStreams[0], sourceInfo.sourceType, sourceInfo);
+                        Error::Enum propertiesOk = parseVideoSources(*aVideoStreams[0], sourceInfo.sourceType, sourceInfo);
                         if (propertiesOk != Error::OK)
                         {
                             return propertiesOk;
@@ -1064,7 +1080,7 @@ OMAF_NS_BEGIN
                         // if there was no useful source info, we use the default values (mono, no/default RWPK)
                         videoMetadataMissing = false;
                         sourceid_t sourceId = 0;
-                        mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, videoStreams[0]->getDecoderConfig());
+                        mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, aVideoStreams[0]->getDecoderConfig());
                         if (sourceInfo.rotation.valid)
                         {
                             mMetaDataParser.setRotation(sourceInfo.rotation);
@@ -1077,10 +1093,10 @@ OMAF_NS_BEGIN
 
         if (audioMetadataMissing)
         {
-            if (!audioStreams.isEmpty())
+            if (!aAudioStreams.isEmpty())
             {
                 // in normal AAC case use standard MP4 ChannelLayout metadata or default configuration
-                if (!readAACAudioMetadata(*audioStreams[0]))
+                if (!readAACAudioMetadata(*aAudioStreams[0]))
                 {
                     return Error::FILE_NOT_SUPPORTED;
                 }
@@ -1094,13 +1110,13 @@ OMAF_NS_BEGIN
         }
         if (videoMetadataMissing)
         {
-            if (!videoStreams.isEmpty())
+            if (!aVideoStreams.isEmpty())
             {
                 BasicSourceInfo sourceInfo;
 
-                if (videoStreams[0]->getFormat()->getTrackVRFeatures() & MP4VR::TrackFeatureEnum::VRFeature::HasVRGoogleStereoscopic3D)
+                if (aVideoStreams[0]->getFormat()->getTrackVRFeatures() & MP4VR::TrackFeatureEnum::VRFeature::HasVRGoogleStereoscopic3D)
                 {
-                    uint32_t trackId = videoStreams[0]->getTrackId();
+                    uint32_t trackId = aVideoStreams[0]->getTrackId();
                     for (MP4VR::TrackInformation* track = mTracks->begin(); track != mTracks->end(); track++)
                     {
                         if (track->trackId == trackId && track->sampleProperties.size)
@@ -1124,7 +1140,7 @@ OMAF_NS_BEGIN
                                 }
                             }
 
-                            if (videoStreams[0]->getFormat()->getTrackVRFeatures() & MP4VR::TrackFeatureEnum::VRFeature::HasVRGoogleV2SpericalVideo)
+                            if (aVideoStreams[0]->getFormat()->getTrackVRFeatures() & MP4VR::TrackFeatureEnum::VRFeature::HasVRGoogleV2SpericalVideo)
                             {
                                 MP4VR::SphericalVideoV2Property sphericalVideoV2Property = {};
                                 if (mReader->getPropertySphericalVideoV2(trackId, track->sampleProperties[0].sampleId, sphericalVideoV2Property) == MP4VR::MP4VRFileReaderInterface::OK)
@@ -1132,7 +1148,7 @@ OMAF_NS_BEGIN
                                     sourceInfo.sourceType = SourceType::EQUIRECTANGULAR_PANORAMA; // only support EQUIRECTANGULAR_PANORAMA for now.
                                 }
                             }
-                            else if (videoStreams[0]->getFormat()->getTrackVRFeatures() & MP4VR::TrackFeatureEnum::VRFeature::HasVRGoogleV1SpericalVideo)
+                            else if (aVideoStreams[0]->getFormat()->getTrackVRFeatures() & MP4VR::TrackFeatureEnum::VRFeature::HasVRGoogleV1SpericalVideo)
                             {
                                 MP4VR::SphericalVideoV1Property sphericalVideoV1Property = {};
                                 if (mReader->getPropertySphericalVideoV1(trackId, track->sampleProperties[0].sampleId, sphericalVideoV1Property) == MP4VR::MP4VRFileReaderInterface::OK)
@@ -1141,7 +1157,7 @@ OMAF_NS_BEGIN
                                 }
                             }
                             sourceid_t sourceId = 0;
-                            mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, videoStreams[0]->getDecoderConfig());
+                            mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, aVideoStreams[0]->getDecoderConfig());
                             break;
                         }
                     }
@@ -1150,33 +1166,33 @@ OMAF_NS_BEGIN
                 {
                     if (sourceInfo.sourceDirection == SourceDirection::DUAL_TRACK)
                     {
-                        if (videoStreams.getSize() == 2)
+                        if (aVideoStreams.getSize() == 2)
                         {
                             BasicSourceInfo data;
                             data.sourceDirection = SourceDirection::DUAL_TRACK;
                             data.sourceType = SourceType::EQUIRECTANGULAR_PANORAMA;
-                            mMetaDataParser.setVideoMetadataPackageStereo(0, 1, videoStreams[0]->getDecoderConfig(), videoStreams[1]->getDecoderConfig(), data);
+                            mMetaDataParser.setVideoMetadataPackageStereo(0, 1, aVideoStreams[0]->getDecoderConfig(), aVideoStreams[1]->getDecoderConfig(), data);
                         }
                         else
                         {
                             // 2-track stereo, but the device is not capable of playing it so play the other one only
-                            mMetaDataParser.setVideoMetadataPackageMono(0, videoStreams[0]->getDecoderConfig(), SourceType::EQUIRECTANGULAR_PANORAMA);
+                            mMetaDataParser.setVideoMetadataPackageMono(0, aVideoStreams[0]->getDecoderConfig(), SourceType::EQUIRECTANGULAR_PANORAMA);
                         }
                     }
                     else
                     {
                         sourceid_t sourceId = 0;
-                        mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, videoStreams[0]->getDecoderConfig());
+                        mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, aVideoStreams[0]->getDecoderConfig());
                     }
                 }
-                else if (videoStreams[0]->getFormat()->width() == videoStreams[0]->getFormat()->height())
+                else if (aVideoStreams[0]->getFormat()->width() == aVideoStreams[0]->getFormat()->height())
                 {
                     // assume top-bottom stereo
                     sourceInfo.sourceDirection = SourceDirection::TOP_BOTTOM;
                     sourceInfo.sourceType = SourceType::EQUIRECTANGULAR_PANORAMA;
 
                     sourceid_t sourceId = 0;
-                    mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, videoStreams[0]->getDecoderConfig());
+                    mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, aVideoStreams[0]->getDecoderConfig());
                 }
                 else
                 {
@@ -1185,7 +1201,7 @@ OMAF_NS_BEGIN
                     sourceInfo.sourceType = SourceType::EQUIRECTANGULAR_PANORAMA;
 
                     sourceid_t sourceId = 0;
-                    mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, videoStreams[0]->getDecoderConfig());
+                    mMetaDataParser.setVideoMetadata(sourceInfo, sourceId, aVideoStreams[0]->getDecoderConfig());
                 }
             }
         }
@@ -1199,7 +1215,7 @@ OMAF_NS_BEGIN
 
     }
 
-    bool_t MP4VRParser::seekToUs(uint64_t& seekPosUs, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams, SeekDirection::Enum mode, SeekAccuracy::Enum accuracy)
+    bool_t MP4VRParser::seekToUs(uint64_t& seekPosUs, MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, SeekDirection::Enum mode, SeekAccuracy::Enum accuracy)
     {
         Mutex::ScopeLock readerLock(mReaderMutex);
 
@@ -1209,26 +1225,26 @@ OMAF_NS_BEGIN
         bool_t segmentChanged; // not used in this context
         OMAF_LOG_D("Seek: seekToUs stream global seek target: seekPosMs ms: %lld", seekPosMs);
 
-        for (size_t i = 0; i < videoStreams.getSize(); i++)
+        for (size_t i = 0; i < aVideoStreams.getSize(); i++)
         {
             uint32_t sampleId = 0;
-            if (videoStreams[i]->findSampleIdByTime(seekPosMs, videoFinalSeekTimeMs, sampleId))
+            if (aVideoStreams[i]->findSampleIdByTime(seekPosMs, videoFinalSeekTimeMs, sampleId))
             {
                 OMAF_LOG_D("Seek: seekToUs video seek target: videoFinalSeekTimeMs ms: %lld, sampleId: %d", videoFinalSeekTimeMs, sampleId);
                 // seek by time; find first sample whose timestamp is larger or equal than the seeking time (we could rewind by 1, but since we anyway seek back to the prev sync frame it would be useless detail)
-                videoSyncFrameTimeMs = seekToSyncFrame(sampleId, videoStreams[i], mode, segmentChanged);
+                videoSyncFrameTimeMs = seekToSyncFrame(sampleId, aVideoStreams[i], mode, segmentChanged);
 
                 // Check the desired seek accuracy and if the device is fast enough
                 if (accuracy == SeekAccuracy::NEAREST_SYNC_FRAME || !DeviceInfo::deviceSupports2VideoTracks())
                 {
                     videoFinalSeekTimeMs = videoSyncFrameTimeMs;
                 }
-                if (mTimedMetadata && videoStreams[i]->getMetadataStream() != OMAF_NULL)
+                if (mTimedMetadata && aVideoStreams[i]->getMetadataStream() != OMAF_NULL)
                 {
                     uint64_t vtmdSeekTimeMs = 0;
-                    if (videoStreams[i]->getMetadataStream()->findSampleIdByTime(videoFinalSeekTimeMs, vtmdSeekTimeMs, sampleId))
+                    if (aVideoStreams[i]->getMetadataStream()->findSampleIdByTime(videoFinalSeekTimeMs, vtmdSeekTimeMs, sampleId))
                     {
-                        videoStreams[i]->getMetadataStream()->setNextSampleId(sampleId, segmentChanged);
+                        aVideoStreams[i]->getMetadataStream()->setNextSampleId(sampleId, segmentChanged);
                         OMAF_LOG_D("Seek: seekToUs video metadata sample: %d, timestamp: %d", vtmdSeekTimeMs, sampleId);
                     }
                 }
@@ -1238,20 +1254,20 @@ OMAF_NS_BEGIN
 
         uint64_t audioFinalSeekTimeMs = 0;
         bool audioSeeked = false;
-        for (size_t i = 0; i < audioStreams.getSize(); i++)
+        for (size_t i = 0; i < aAudioStreams.getSize(); i++)
         {
             uint32_t sampleId = 0;
-            if (audioStreams[i]->findSampleIdByTime(seekPosMs, audioFinalSeekTimeMs, sampleId))
+            if (aAudioStreams[i]->findSampleIdByTime(seekPosMs, audioFinalSeekTimeMs, sampleId))
             {
-                audioStreams[i]->setNextSampleId(sampleId, segmentChanged);
+                aAudioStreams[i]->setNextSampleId(sampleId, segmentChanged);
                 audioSeeked = true;
                 OMAF_LOG_D("Seek: seekToUs audio seek target: audioFinalSeekTimeMs ms: %lld, sampleId: %d", audioFinalSeekTimeMs, sampleId);
-                if (mTimedMetadata && audioStreams[i]->getMetadataStream() != OMAF_NULL)
+                if (mTimedMetadata && aAudioStreams[i]->getMetadataStream() != OMAF_NULL)
                 {
                     uint64_t audioMetaFinalSeekTimeMs = 0;
-                    if (audioStreams[i]->getMetadataStream()->findSampleIdByTime(audioFinalSeekTimeMs, audioMetaFinalSeekTimeMs, sampleId))
+                    if (aAudioStreams[i]->getMetadataStream()->findSampleIdByTime(audioFinalSeekTimeMs, audioMetaFinalSeekTimeMs, sampleId))
                     {
-                        audioStreams[i]->getMetadataStream()->setNextSampleId(sampleId, segmentChanged);
+                        aAudioStreams[i]->getMetadataStream()->setNextSampleId(sampleId, segmentChanged);
                         OMAF_LOG_D("Seek: seekToUs audio metadata timestamp: %lld, sampleId: %d, ", audioMetaFinalSeekTimeMs, sampleId);
                     }
                 }
@@ -1268,28 +1284,28 @@ OMAF_NS_BEGIN
         return true;
     }
 
-    bool_t MP4VRParser::seekToFrame(int32_t seekFrameNr, uint64_t& seekPosUs, MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams)
+    bool_t MP4VRParser::seekToFrame(int32_t seekFrameNr, uint64_t& seekPosUs, MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams)
     {
         Mutex::ScopeLock readerLock(mReaderMutex);
         bool_t segmentChanged;  // not used in this context
         int64_t finalSeekTimeMs = -1;
         OMAF_LOG_D("seekToFrame frame: %d", seekFrameNr);
 
-        for (size_t i = 0; i < videoStreams.getSize(); i++)
+        for (size_t i = 0; i < aVideoStreams.getSize(); i++)
         {
             uint32_t sampleId = 0;
-            if (videoStreams[i]->findSampleIdByIndex(seekFrameNr, sampleId))
+            if (aVideoStreams[i]->findSampleIdByIndex(seekFrameNr, sampleId))
             {
                 // this works only if mode is "seek to previous sync frame" - but do we really need any other mode?
                 // seek by time; find first sample whose timestamp is larger or equal than the seeking time (we could rewind by 1, but since we anyway seek back to the prev sync frame it would be useless detail)
-                finalSeekTimeMs = seekToSyncFrame(sampleId, videoStreams[i], SeekDirection::PREVIOUS, segmentChanged);
+                finalSeekTimeMs = seekToSyncFrame(sampleId, aVideoStreams[i], SeekDirection::PREVIOUS, segmentChanged);
 
-                if (mTimedMetadata && videoStreams[i]->getMetadataStream() != OMAF_NULL)
+                if (mTimedMetadata && aVideoStreams[i]->getMetadataStream() != OMAF_NULL)
                 {
                     uint64_t vtmdSeekTimeMs = 0;
-                    if (videoStreams[i]->getMetadataStream()->findSampleIdByTime(finalSeekTimeMs, vtmdSeekTimeMs, sampleId))
+                    if (aVideoStreams[i]->getMetadataStream()->findSampleIdByTime(finalSeekTimeMs, vtmdSeekTimeMs, sampleId))
                     {
-                        videoStreams[i]->getMetadataStream()->setNextSampleId(sampleId, segmentChanged);
+                        aVideoStreams[i]->getMetadataStream()->setNextSampleId(sampleId, segmentChanged);
                         OMAF_LOG_D("seekToFrame video metadata sample: %d, timestamp: %d", sampleId, vtmdSeekTimeMs);
                     }
                 }
@@ -1301,19 +1317,19 @@ OMAF_NS_BEGIN
             OMAF_LOG_W("Cannot seek to frame %d", seekFrameNr);
             return false;
         }
-        for (size_t i = 0; i < audioStreams.getSize(); i++)
+        for (size_t i = 0; i < aAudioStreams.getSize(); i++)
         {
             uint32_t sampleId = 0;
             uint64_t finalAudioSeekTime = 0;
-            if (audioStreams[i]->findSampleIdByTime(finalSeekTimeMs, finalAudioSeekTime, sampleId))
+            if (aAudioStreams[i]->findSampleIdByTime(finalSeekTimeMs, finalAudioSeekTime, sampleId))
             {
-                audioStreams[i]->setNextSampleId(sampleId, segmentChanged);
+                aAudioStreams[i]->setNextSampleId(sampleId, segmentChanged);
                 OMAF_LOG_D("seekToFrame audio sample: %d, timestamp: %d" , sampleId, finalAudioSeekTime);
-                if (mTimedMetadata && audioStreams[i]->getMetadataStream() != OMAF_NULL)
+                if (mTimedMetadata && aAudioStreams[i]->getMetadataStream() != OMAF_NULL)
                 {
-                    if (audioStreams[i]->getMetadataStream()->findSampleIdByTime(finalSeekTimeMs, finalAudioSeekTime, sampleId))
+                    if (aAudioStreams[i]->getMetadataStream()->findSampleIdByTime(finalSeekTimeMs, finalAudioSeekTime, sampleId))
                     {
-                        audioStreams[i]->getMetadataStream()->setNextSampleId(sampleId, segmentChanged);
+                        aAudioStreams[i]->getMetadataStream()->setNextSampleId(sampleId, segmentChanged);
                         OMAF_LOG_D("seekToFrame audio metadata sample: %d, timestamp: %d", sampleId, finalAudioSeekTime);
                     }
                 }
@@ -1382,7 +1398,7 @@ OMAF_NS_BEGIN
 
 
 
-    Error::Enum MP4VRParser::createStreams(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams, FileFormatType::Enum fileFormat)
+    Error::Enum MP4VRParser::createStreams(MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams, FileFormatType::Enum fileFormat)
     {
         bool_t hasExtractor = false;
         bool_t hasMetadata = false;
@@ -1547,7 +1563,7 @@ OMAF_NS_BEGIN
                     }
                 }
 
-                videoStreams.add(stream);
+                aVideoStreams.add(stream);
             }
             else if (track->features & MP4VR::TrackFeatureEnum::IsAudioTrack)
             {
@@ -1590,7 +1606,7 @@ OMAF_NS_BEGIN
                 stream->setTimestamps(mReader);
 
                 stream->setStreamId(VideoDecoderManager::getInstance()->generateUniqueStreamID());
-                audioStreams.add(stream);
+                aAudioStreams.add(stream);
             }
             else if (track->features & MP4VR::TrackFeatureEnum::IsMetadataTrack)
             {
@@ -1653,52 +1669,12 @@ OMAF_NS_BEGIN
                         }
                     }
 #endif
-                    bool_t assigned = false;
-#if OMAF_ENABLE_STREAM_VIDEO_PROVIDER
-                    // assign based on MPD
-                    if (segmentContent.associatedToRepresentationId.getLength())
-                    {
-                        if (segmentContent.type.matches(MediaContent::Type::METADATA_INVO))
-                        {
-                            for (size_t i = 0; i < videoStreams.getSize(); i++)
-                            {
-                                videoStreams[i]->setMetadataStream(stream);
-                                assigned = true;
-                                break; // set only for first
-                            }
-                        }
-                    }
-                    else
-#endif
-                    {
-                        // add to stream
-                        for (uint32_t ref = 0; ref < track->referenceTrackIds.size; ref++)
-                        {
-                            if (track->referenceTrackIds[ref].trackIds.size > 0 &&
-                                track->referenceTrackIds[ref].type == MP4VR::FourCC("cdsc"))
-                            {
-                                for (size_t i = 0; i < videoStreams.getSize(); i++)
-                                {
-                                    if (videoStreams[i]->matchAndAssignMetadataStream(stream, track->referenceTrackIds[ref].trackIds))
-                                    {
-                                        assigned = true;
-                                        break;
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                    }
-                    if (!assigned)
-                    {
-                        // we didn't find the track this is referring to. Cleanup
-                        OMAF_DELETE(mAllocator, stream);
-                    }
+                    aMetadataStreams.add(stream);
 
                 }
             }
         }
-        if (videoStreams.isEmpty() && audioStreams.isEmpty())
+        if (aVideoStreams.isEmpty() && aAudioStreams.isEmpty() && aMetadataStreams.isEmpty())
         {
             return Error::NOT_SUPPORTED;
         }
@@ -1706,14 +1682,14 @@ OMAF_NS_BEGIN
     }
 
     // update streams with updated track information (after new segment loaded / old invalidated)
-    Error::Enum MP4VRParser::updateStreams(MP4AudioStreams& audioStreams, MP4VideoStreams& videoStreams)
+    Error::Enum MP4VRParser::updateStreams(MP4AudioStreams& aAudioStreams, MP4VideoStreams& aVideoStreams, MP4MetadataStreams& aMetadataStreams)
     {
         // clear track from streams
-        for (MP4VideoStreams::Iterator it = videoStreams.begin(); it != videoStreams.end(); ++it)
+        for (MP4VideoStreams::Iterator it = aVideoStreams.begin(); it != aVideoStreams.end(); ++it)
         {
             (*it)->updateTrack(OMAF_NULL);
         }
-        for (MP4AudioStreams::Iterator it = audioStreams.begin(); it != audioStreams.end(); ++it)
+        for (MP4AudioStreams::Iterator it = aAudioStreams.begin(); it != aAudioStreams.end(); ++it)
         {
             (*it)->setTrack(OMAF_NULL);
         }
@@ -1736,51 +1712,38 @@ OMAF_NS_BEGIN
         {
             if (track->features & MP4VR::TrackFeatureEnum::IsVideoTrack)
             {
-                for (size_t i = 0; i < videoStreams.getSize(); i++)
+                for (size_t i = 0; i < aVideoStreams.getSize(); i++)
                 {
-                    if (videoStreams[i]->updateTrack(track))
+                    if (aVideoStreams[i]->updateTrack(track))
                     {
-                        videoStreams[i]->setTimestamps(mReader);
+                        aVideoStreams[i]->setTimestamps(mReader);
                         break;
                     }
                 }
             }
             else if (track->features & MP4VR::TrackFeatureEnum::IsAudioTrack)
             {
-                for (size_t i = 0; i < audioStreams.getSize(); i++)
+                for (size_t i = 0; i < aAudioStreams.getSize(); i++)
                 {
-                    if (audioStreams[i]->getTrackId() == track->trackId)
+                    if (aAudioStreams[i]->getTrackId() == track->trackId)
                     {
-                        audioStreams[i]->setTrack(track);
-                        audioStreams[i]->setTimestamps(mReader);
+                        aAudioStreams[i]->setTrack(track);
+                        aAudioStreams[i]->setTimestamps(mReader);
                     }
                 }
             }
             else if (track->features & MP4VR::TrackFeatureEnum::IsMetadataTrack)
             {
-                bool_t found = false;
-                for (size_t i = 0; i < audioStreams.getSize(); i++)
+                for (size_t i = 0; i < aMetadataStreams.getSize(); i++)
                 {
-                    if (audioStreams[i]->getMetadataStream()->getTrackId() == track->trackId)
+                    if (aMetadataStreams[i]->getTrackId() == track->trackId)
                     {
-                        // Update timestamp array of the metadata stream
-                        audioStreams[i]->getMetadataStream()->setTrack(track);
-                        audioStreams[i]->getMetadataStream()->setTimestamps(mReader);
-                        found = true;
+                        aMetadataStreams[i]->setTrack(track);
+                        aMetadataStreams[i]->setTimestamps(mReader);
                         break;
                     }
                 }
-                if (!found)
-                {
-                    for (size_t i = 0; i < videoStreams.getSize(); i++)
-                    {
-                        // Update timestamp array of the metadata stream
-                        if (videoStreams[i]->updateMetadataStream(track, mReader))
-                        {
-                            break;
-                        }
-                    }
-                }
+				// TODO check if associated to a media stream and update
             }
         }
 

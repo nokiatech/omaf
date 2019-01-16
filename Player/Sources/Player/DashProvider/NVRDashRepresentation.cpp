@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -68,6 +68,10 @@ OMAF_NS_BEGIN
         for (size_t i = 0; i < mAudioStreams.getSize(); i++)
         {
             OMAF_DELETE_HEAP(mAudioStreams[i]);
+        }
+        for (size_t i = 0; i < mMetadataStreams.getSize(); i++)
+        {
+            OMAF_DELETE_HEAP(mMetadataStreams[i]);
         }
         if (mParser != OMAF_NULL)
         {
@@ -268,7 +272,8 @@ OMAF_NS_BEGIN
         return Error::OK;
     }
 
-    Error::Enum DashRepresentation::startDownloadABR(uint32_t overrideSegmentId)
+    // startDownloadFromSegment is for cases where we switch between representations of the same adaptation set, or are otherwise synced in segment boundaries. No seeking.
+    Error::Enum DashRepresentation::startDownloadFromSegment(uint32_t& aTargetDownloadSegmentId, uint32_t aNextToBeProcessedSegmentId)
     {
         if (mDownloading)
         {
@@ -285,21 +290,25 @@ OMAF_NS_BEGIN
         uint32_t id = 0;
         if (getParserInstance()->getNewestSegmentId(mSegmentContent.initializationSegmentId, id))
         {
-            getParserInstance()->releaseSegmentsUntil(overrideSegmentId, mAudioStreams, mVideoStreams);
-            if (id >= overrideSegmentId)
+            if (aNextToBeProcessedSegmentId == INVALID_SEGMENT_INDEX)
+            {
+                OMAF_LOG_V("releaseSegmentsUntil %d", aTargetDownloadSegmentId);
+                getParserInstance()->releaseSegmentsUntil(aTargetDownloadSegmentId, mAudioStreams, mVideoStreams, mMetadataStreams);
+            }
+            if (id >= aTargetDownloadSegmentId)
             {
                 // we have useful segments
 				// TODO the log can crash sometimes, the representationId gets large (the \0 gets lost?)
                 /*OMAF_LOG_D("ABR: reuse existing segments, and start downloading next segment for repr %s; stream id %d", id + 1,
                           mSegmentContent.representationId.getData(), mVideoStreamId);*/
-                mSegmentStream->startDownloadABR(id + 1, mInitializeIndependently);
+                mSegmentStream->startDownloadFromSegment(id + 1, mInitializeIndependently);
                 return Error::OK;
             }
             // else all segments were too old and were released
         }
         // else there were no segments
-        OMAF_LOG_D("ABR: start downloading first-time segment %d for repr %s; stream id %d", overrideSegmentId, mSegmentContent.representationId.getData(), mVideoStreamId);
-        mSegmentStream->startDownloadABR(overrideSegmentId, mInitializeIndependently);
+        OMAF_LOG_D("startDownloadFromSegment: segment %d for repr %s; stream id %d", aTargetDownloadSegmentId, mSegmentContent.representationId.getData(), mVideoStreamId);
+        mSegmentStream->startDownloadFromSegment(aTargetDownloadSegmentId, mInitializeIndependently);
 
         return Error::OK;
     }
@@ -311,8 +320,8 @@ OMAF_NS_BEGIN
         return Error::OK;
     }
 
-    // VAS version - starts new representation and assumes you are late => try to fast forward
-    Error::Enum DashRepresentation::startDownloadWithOverride(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode)
+    // startDownloadFromTimestamp is for starting a new adaptation set - and assumes the decoding of the new one is late => try to seek fast forward
+    Error::Enum DashRepresentation::startDownloadFromTimestamp(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode)
     {
         mStreamMode = aMode;
         if (mDownloading)
@@ -332,11 +341,11 @@ OMAF_NS_BEGIN
         uint32_t id = 0;
         if (getParserInstance()->getNewestSegmentId(mSegmentContent.initializationSegmentId, id))
         {
-            OMAF_LOG_D("re-startDownloadWithOverride for stream %d", mVideoStreams[0]->getStreamId());
+            OMAF_LOG_D("re-startDownloadFromTimestamp for stream %d", mVideoStreams[0]->getStreamId());
             // there are buffered segments
             OMAF_LOG_D("There are cached segments (up to %d), remove older than %d for repr %s", id, overrideSegmentId, mSegmentContent.representationId.getData());
-            // we already have the segment, remove the older ones => will start reading from it
-            getParserInstance()->releaseSegmentsUntil(overrideSegmentId, mAudioStreams, mVideoStreams);
+            // we already have some segments, remove older ones than requested one => will start reading from it
+            getParserInstance()->releaseSegmentsUntil(overrideSegmentId, mAudioStreams, mVideoStreams, mMetadataStreams);
             if (overridePTSUs != OMAF_UINT64_MAX)
             {
                 bool seekResult = getParserInstance()->seekToUs(overridePTSUs, mAudioStreams, mVideoStreams, SeekDirection::PREVIOUS, SeekAccuracy::FRAME_ACCURATE);
@@ -351,7 +360,7 @@ OMAF_NS_BEGIN
             if (id >= overrideSegmentId)
             {
                 OMAF_LOG_D("Start downloading next segments for repr %s", mSegmentContent.representationId.getData());
-                mSegmentStream->startDownloadWithOverride(id+1, mInitializeIndependently);
+                mSegmentStream->startDownloadFrom(id+1, mInitializeIndependently);
             }
             else
             {
@@ -368,13 +377,14 @@ OMAF_NS_BEGIN
                 {
                     OMAF_LOG_D("Start downloading segment %d for repr %s", overrideSegmentId, mSegmentContent.representationId.getData());
                     // the segments were too old; start downloading from the override id
-                    mSegmentStream->startDownloadWithOverride(overrideSegmentId, mInitializeIndependently);
+                    mSegmentStream->startDownloadFrom(overrideSegmentId, mInitializeIndependently);
                 }
             }
         }
         else
         {
             // We have not downloaded any segments yet for this representation, or have used all downloaded segments without triggering to download new ones?
+            // or have not yet passed them to the parser. We may still have them in the representation-cache => TODO
             mRestarted = true;
             mDownloading = true;
 
@@ -394,7 +404,7 @@ OMAF_NS_BEGIN
             else
             {
                 OMAF_LOG_D("Start downloading first-time segment %d for repr %s; stream id %d", overrideSegmentId, mSegmentContent.representationId.getData(), mVideoStreamId);
-                mSegmentStream->startDownloadWithOverride(overrideSegmentId, mInitializeIndependently);
+                mSegmentStream->startDownloadFrom(overrideSegmentId, mInitializeIndependently);
             }
 
             if (overridePTSUs != OMAF_UINT64_MAX)
@@ -413,7 +423,7 @@ OMAF_NS_BEGIN
                 mStreamMode = VideoStreamMode::ENHANCEMENT_IDLE;
             }
 
-            if ( !mDownloading )
+            if ( !mDownloading && !mSegmentStream->isCompletingDownload())
             {
                 return Error::OK;
             }
@@ -427,7 +437,7 @@ OMAF_NS_BEGIN
         return Error::OK;
     }
 
-    Error::Enum DashRepresentation::stopDownloadAsync(bool_t aReset)
+    Error::Enum DashRepresentation::stopDownloadAsync(bool_t aAbort, bool_t aReset)
     {
         {
             if (mStreamMode != VideoStreamMode::BASE)
@@ -450,9 +460,17 @@ OMAF_NS_BEGIN
         }
 
         OMAF_LOG_V("stopDownloadAsync of %s", getId());
-        mSegmentStream->stopDownloadAsync();
+        mSegmentStream->stopDownloadAsync(aAbort);
 
         return Error::OK;
+    }
+
+    void_t DashRepresentation::switchedToAnother()
+    {
+        if (mSegmentStream->isCompletingDownload())
+        {
+            mSegmentStream->stopDownloadAsync(true);
+        }
     }
 
     bool_t DashRepresentation::supportsSubSegments() const
@@ -493,7 +511,7 @@ OMAF_NS_BEGIN
         }
 
         mDownloadSubSegment = true;
-        return startDownloadWithOverride(targetPtsUs, overrideSegmentId, VideoStreamMode::ENHANCEMENT_NORMAL);
+        return startDownloadFromTimestamp(targetPtsUs, overrideSegmentId, VideoStreamMode::ENHANCEMENT_NORMAL);
     }
 
     bool_t DashRepresentation::isBuffering()
@@ -536,13 +554,13 @@ OMAF_NS_BEGIN
             mSegmentStream->clearDownloadedSegments();
             if (mAssociatedToRepresentation == OMAF_NULL)
             {   // dependent representations share parser. Let owner clean up parser.
-                getParserInstance()->releaseAllSegments(mAudioStreams, mVideoStreams);
+                getParserInstance()->releaseAllSegments(mAudioStreams, mVideoStreams, mMetadataStreams);
             }
             mInitialized = false;
         }
     }
 
-    Error::Enum DashRepresentation::onMediaSegmentDownloaded(DashSegment* segment)
+    Error::Enum DashRepresentation::onMediaSegmentDownloaded(DashSegment* segment, float32_t aSpeedFactor)
     {
         OMAF_LOG_D("onMediaSegmentDownloaded representationId: %s, initSegmentId: %d, mediaSegmentId: %d ", mSegmentContent.representationId.getData(), segment->getInitSegmentId(), segment->getSegmentId());
         segment->setSegmentContent(mSegmentContent);
@@ -628,7 +646,7 @@ OMAF_NS_BEGIN
 
         OMAF_LOG_D("onSegmentDownloaded for stream %d", mVideoStreamId);
 
-        mObserver->onSegmentDownloaded(this);
+        mObserver->onSegmentDownloaded(this, aSpeedFactor);
 
         if (mSeekToUsWhenDLComplete != OMAF_UINT64_MAX)
         {
@@ -661,11 +679,11 @@ OMAF_NS_BEGIN
         aReadyForReading = true;
         if (mAssociatedToRepresentation == OMAF_NULL)
         {
-            return getParserInstance()->addSegment(aSegment, mAudioStreams, mVideoStreams);
+            return getParserInstance()->addSegment(aSegment, mAudioStreams, mVideoStreams, mMetadataStreams);
         }
         else
         {
-            return getParserInstance()->addSegment(aSegment, mAssociatedToRepresentation->getCurrentAudioStreams(), mAssociatedToRepresentation->getCurrentVideoStreams());
+            return getParserInstance()->addSegment(aSegment, mAssociatedToRepresentation->getCurrentAudioStreams(), mAssociatedToRepresentation->getCurrentVideoStreams(), mMetadataStreams);
         }
     }
 
@@ -707,6 +725,11 @@ OMAF_NS_BEGIN
         return mAudioStreams;
     }
 
+    MP4MetadataStreams& DashRepresentation::getCurrentMetadataStreams()
+    {
+        Spinlock::ScopeLock lock(mLock);
+        return mMetadataStreams;
+    }
     Error::Enum DashRepresentation::readNextVideoFrame(bool_t& segmentChanged, int64_t currentTimeUs)
     {
         //In the current implementation, 1 representation is restricted to support only single video streams/tracks
@@ -730,7 +753,7 @@ OMAF_NS_BEGIN
                     if (result == Error::END_OF_FILE)
                     {
                         // End of file is detected in the next phase, when peeking packets from stream. In VAS case this can mean the stream is not yet available
-                        getParserInstance()->releaseUsedSegments(mAudioStreams, mVideoStreams);
+                        getParserInstance()->releaseUsedSegments(mAudioStreams, mVideoStreams, mMetadataStreams);
                         result = Error::OK;
                     }
                     else
@@ -771,6 +794,28 @@ OMAF_NS_BEGIN
             }
         }
 
+        return result;
+    }
+
+    Error::Enum DashRepresentation::readMetadataFrame(bool_t& aSegmentChanged, int64_t aCurrentTimeUs)
+    {
+        Error::Enum result = Error::OK;
+
+        for (MP4MetadataStreams::Iterator it = mMetadataStreams.begin(); it != mMetadataStreams.end(); ++it)
+        {
+            MP4MediaStream* stream = *it;
+
+            if (!(*it)->hasFilledPackets())
+            {
+                Error::Enum latestResult = getParserInstance()->readTimedMetadataFrame(*(*it), aSegmentChanged, aCurrentTimeUs);
+
+                if (latestResult != Error::OK)
+                {
+                    result = latestResult;
+                    continue;
+                }
+            }
+        }
         return result;
     }
 
@@ -913,7 +958,7 @@ OMAF_NS_BEGIN
     }
     void_t DashRepresentation::releaseOldSegments()
     {
-        getParserInstance()->releaseUsedSegments(mAudioStreams, mVideoStreams);
+        getParserInstance()->releaseUsedSegments(mAudioStreams, mVideoStreams, mMetadataStreams);
     }
 
     //this returns now not the current read position, but next useful segment index. It may be a bit misleading wrt function name
@@ -942,29 +987,25 @@ OMAF_NS_BEGIN
         }
     }
 
-    uint32_t DashRepresentation::getLastSegmentId()
+    uint32_t DashRepresentation::getLastSegmentId(bool_t aIncludeSegmentInDownloading)
     {
-        OMAF_LOG_V("getLastSegmentId of %s is %d", getId(), mLastSegmentId);
-        return mLastSegmentId;
-    }
-
-    uint32_t DashRepresentation::getSegmentId()
-    {
-        if (mVideoStreams.isEmpty() || mVideoStreams[0]->getMode() == VideoStreamMode::ENHANCEMENT_FAST_FORWARD)
+        if (aIncludeSegmentInDownloading && mSegmentStream->isCompletingDownload())
         {
-            // fast forward tile is not a reliable reference; it may even cause unintentional ++
-            return INVALID_SEGMENT_INDEX;
-        }
-        if (mSegmentStream->isDownloading())
-        {
-            OMAF_LOG_D("%s is downloading, use segment %d +1", mSegmentContent.representationId.getData(), mLastSegmentId);
+            OMAF_LOG_V("getLastSegmentId of %s is %d + 1", getId(), mLastSegmentId);
             return mLastSegmentId + 1;
         }
         else
         {
-            OMAF_LOG_D("%s is in early part, use segment %d", mSegmentContent.representationId.getData(), mLastSegmentId);
+            OMAF_LOG_V("getLastSegmentId of %s is %d", getId(), mLastSegmentId);
             return mLastSegmentId;
         }
+    }
+
+    uint32_t DashRepresentation::getCurrentSegmentId()
+    {
+        uint32_t segmentIndex = 0;
+        getParserInstance()->getReadPositionUs(mVideoStreams, segmentIndex);
+        return segmentIndex;
     }
 
     bool_t DashRepresentation::isSegmentDurationFixed(uint64_t& segmentDurationMs)
@@ -1054,7 +1095,7 @@ OMAF_NS_BEGIN
         OMAF_ASSERT(false, "Not available in this class");
         return OMAF_NULL;
     }
-    size_t DashRepresentation::getNrSegments() const
+    size_t DashRepresentation::getNrSegments(uint32_t aNextNeededSegment) const
     {
         OMAF_ASSERT(false, "Not available in this class");
         return 0;
@@ -1068,7 +1109,7 @@ OMAF_NS_BEGIN
     {
         OMAF_ASSERT(false, "Not available in this class");
     }
-    bool_t DashRepresentation::hasSegment(uint32_t aSegmentId, size_t& aSegmentSize)
+    bool_t DashRepresentation::hasSegment(const uint32_t aSegmentId, uint32_t& aOldestSegmentId, size_t& aSegmentSize)
     {
         OMAF_ASSERT(false, "Not available in this class");
         return false;

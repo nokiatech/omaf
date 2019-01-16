@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -355,6 +355,7 @@ namespace OMAF
             , clipAreas(OMAF_NULL)
             , clipAreaCount(0)
             , renderMonoscopic(false)
+            , rawRender(false)
         {
         }
 
@@ -363,5 +364,6 @@ namespace OMAF
         ClipArea* clipAreas;        ///< Rendering clipping area data
         int16_t clipAreaCount;      ///< Rendering clipping area count
         bool_t renderMonoscopic;    ///< Render in monoscopic
+        bool_t rawRender;           ///< Render 360 video as "raw" decoded output, instead of projecting it to sphere
     };
 }

@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -145,6 +145,8 @@ void_t MP4VRProvider::parserThreadCallback()
         }
 
         setState(VideoProviderState::LOADED);
+
+        retrieveInitialViewingOrientation(mMediaStreamManager, 0);
 
         while (1)
         {
@@ -499,5 +501,7 @@ void_t MP4VRProvider::handlePendingUserRequest()
     mUserActionSync.signal();
     mPendingUserAction = PendingUserAction::INVALID;
 }
+
+
 
 OMAF_NS_END

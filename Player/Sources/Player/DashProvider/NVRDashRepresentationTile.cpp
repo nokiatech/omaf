@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -56,23 +56,31 @@ OMAF_NS_BEGIN
 
     void_t DashRepresentationTile::cleanUpOldSegments(uint32_t aNextSegmentId)
     {
+        if (aNextSegmentId == INVALID_SEGMENT_INDEX)
+        {
+            // we are clearing everything, can happen e.g. after pause + resume, so need to reset also the download counter
+            mLastSegmentId = 0;
+        }
         DashSegment* segment = peekSegment();
         while (segment != OMAF_NULL && segment->getSegmentId() < aNextSegmentId)
         {
-            OMAF_LOG_V("cleanUpOldSegments, target segment id %d, oldest %d => discard", aNextSegmentId, segment->getSegmentId());
+            OMAF_LOG_V("cleanUpOldSegments for %s, target segment id %d, oldest %d => discard", getId(),  aNextSegmentId, segment->getSegmentId());
             // too old, discard
             segment = getSegment();
             OMAF_DELETE_HEAP(segment);
             segment = peekSegment();
         }
     }
-    bool_t DashRepresentationTile::hasSegment(uint32_t aSegmentId, size_t& aSegmentSize)
+    bool_t DashRepresentationTile::hasSegment(const uint32_t aSegmentId, uint32_t& aOldestSegmentId, size_t& aSegmentSize)
     {
         DashSegment* segment = peekSegment();
-        if (segment == OMAF_NULL || segment->getSegmentId() > aSegmentId)
+        if (segment == OMAF_NULL)
         {
-            //TODO if there was a switch, and the old one has the requested segment but the new one doesn't have (as it starts from the next one), we have a deadlock here. Related to a TODO in the selectQuality
-            OMAF_LOG_V("segment %d for %s not yet available for concatenation, oldest %d (0 == NULL)", aSegmentId, getId(), (segment != OMAF_NULL ? segment->getSegmentId() : 0));
+            return false;
+        }
+        else if (segment->getSegmentId() > aSegmentId)
+        {
+            aOldestSegmentId = segment->getSegmentId();
             return false;
         }
         else if (segment->getSegmentId() < aSegmentId)
@@ -81,7 +89,7 @@ OMAF_NS_BEGIN
             OMAF_LOG_V("Older segment %d vs %d found %s", segment->getSegmentId(), aSegmentId, getId());
             cleanUpOldSegments(aSegmentId);
             // try again
-            return hasSegment(aSegmentId, aSegmentSize);
+            return hasSegment(aSegmentId, aOldestSegmentId, aSegmentSize);
         }
         else
         {
@@ -91,24 +99,56 @@ OMAF_NS_BEGIN
         }
     }
 
-    Error::Enum DashRepresentationTile::startDownloadABR(uint32_t overrideSegmentId)
+    Error::Enum DashRepresentationTile::startDownloadFromSegment(uint32_t& aTargetDownloadSegmentId, uint32_t aNextToBeProcessedSegmentId)
     {
-        // overrideSegmentId--; // -1 matches with segmentIndex = mVideoBaseAdaptationSet->peekNextSegmentId() + 1; i.e. if we need to download a new segment, we use +1, but if we have it available, we should use the id from extractor
-        if (!mSegments.isEmpty() && mSegments.back()->getSegmentId() >= overrideSegmentId)
+        uint32_t lastAvailableSegment = 0;
+        if (!mSegments.isEmpty())
         {
-            OMAF_LOG_V("Some segments for %s exist, start downloading from segment %d", getId(), mSegments.back()->getSegmentId() + 1);
-            // start download from the next not loaded segment in sequence
-            return DashRepresentation::startDownloadABR(mSegments.back()->getSegmentId() + 1);
+            // getLastSegmentId may be a wrong reference if we rewind or switch tiles while paused
+            OMAF_LOG_V("startDownloadFromSegment, last ones: %d %d", lastAvailableSegment, mSegments.back()->getSegmentId());
+            lastAvailableSegment = mSegments.back()->getSegmentId();
         }
-        OMAF_LOG_V("No segments for %s exist, start downloading from segment %d", getId(), overrideSegmentId);
+        if (lastAvailableSegment >= aTargetDownloadSegmentId)
+        {
+            OMAF_LOG_V("Some segments for %s exist, start downloading from segment %d", getId(), lastAvailableSegment + 1);
+            // start download from the next not loaded segment in sequence
+            aTargetDownloadSegmentId = lastAvailableSegment + 1;
+        }
+        if (aNextToBeProcessedSegmentId == INVALID_SEGMENT_INDEX)
+        {
+            OMAF_LOG_V("Cleanup all segments older than the new target %d", aTargetDownloadSegmentId);
+            cleanUpOldSegments(aTargetDownloadSegmentId);
+        }
+        else 
+        {
+            OMAF_LOG_V("Cleanup up to the next to be processed segment %d", aNextToBeProcessedSegmentId);
+            cleanUpOldSegments(aNextToBeProcessedSegmentId);
+
+            //TODO we should know if we are restarting, since then if lastAvailableSegment < aNextToBeProcessedSegmentId (or in practice ==0 after the cleanup), aTargetDownloadSegmentId should be == aNextToBeProcessedSegmentId
+
+            if (lastAvailableSegment > aNextToBeProcessedSegmentId)
+            {
+                // It is dangerous to leave gaps in the segments queue.
+                // The aNextToBeProcessedSegmentId should be used when restarting the adaptation set / representation, ie. after switch to another one was initiated but was cancelled since user turned the head back
+
+                // Either we optimize for latency and let the player to utilize earlier downloaded segment(s) even though there is a risk 
+                // that downloading new segments from that onwards rather than from aTargetDownloadSegmentId is waste of bandwidth (but that is must if we are switching back before previous switch completed, i.e. restarting this representation),
+                // or we just keep the aTargetDownloadSegmentId and remove all older than that
+                OMAF_LOG_V("Some segments (%zd) for %s exist, newest segment %d", mSegments.getSize(), getId(), mSegments.back()->getSegmentId());
+
+                // TODO this should be used only if the nr of segments is more than switch criteria, but how to cross-check that from adaptation set?
+                aTargetDownloadSegmentId = lastAvailableSegment + 1;
+            }
+        }
         // start download with the original id; parser may still have useful segments, but it is checked in the base class
-        return DashRepresentation::startDownloadABR(overrideSegmentId);
+        return DashRepresentation::startDownloadFromSegment(aTargetDownloadSegmentId, aNextToBeProcessedSegmentId);
     }
 
     Error::Enum DashRepresentationTile::handleInputSegment(DashSegment* aSegment, bool_t& aReadyForReading)
     {
         // store as cannot be parsed alone
         aReadyForReading = false;
+        OMAF_LOG_V("handleInputSegment %s %d", getId(), aSegment->getSegmentId());
         mSegments.add(aSegment);
         return Error::OK;
     }
@@ -123,9 +163,27 @@ OMAF_NS_BEGIN
         return OMAF_NULL;
     }
 
-    size_t DashRepresentationTile::getNrSegments() const
+    size_t DashRepresentationTile::getNrSegments(uint32_t aNextNeededSegment) const
     {
-        return mSegments.getSize();
+        if (mSegments.isEmpty())
+        {
+            return 0;
+        }
+        size_t count = 0;
+        uint32_t expectedNextId = mSegments.at(0)->getSegmentId();
+        for (SegmentStorage::ConstIterator it = mSegments.begin(); it != mSegments.end(); ++it)
+        {
+            if ((*it)->getSegmentId() != expectedNextId)
+            {
+                break;
+            }
+            else if ((*it)->getSegmentId() >= aNextNeededSegment)
+            {
+                count++;
+                expectedNextId++;
+            }
+        }
+        return count;
     }
 
     DashSegment* DashRepresentationTile::getSegment()

@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -66,6 +66,7 @@ static jobject mAssetManagerRef = NULL;
 static AAssetManager* mAssetManager = NULL;
 static char* mExternalStoragePath = NULL;
 static char* mCachePath = NULL;
+static char* mLoadedURI = NULL;
 
 OMAF::IOMAFPlayer* mOmafPlayer = NULL;
 OMAF::IPlaybackControls* mPlaybackControl = NULL;
@@ -111,9 +112,6 @@ void destroyRenderSurface(RenderSurfaceGL* surface);
 
 OMAF::HeadTransform getHeadTransform();
 const OMAF::RenderSurface** getRenderSurfaces();
-
-static const char* FILE_URI = "asset://omaf_360.heic";
-//static const char* FILE_URI = "asset://forest_omaf.mp4";
 
 #define JNI_METHOD(return_type, method_name) JNIEXPORT return_type JNICALL Java_com_nokia_omaf_sample_videoplayback_handheld_MainActivity_##method_name
 
@@ -171,8 +169,16 @@ extern "C"
         initialize(env, mJavaVM, mActivityRef, mAssetManager, mExternalStoragePath, mCachePath);
         mRenderSurfaces[0] = new RenderSurfaceGL();
         createRenderSurface(mRenderSurfaces[0], OMAF::EyePosition::LEFT, mWindowWidth, mWindowHeight, nearZ, farZ);
-        play(FILE_URI);
+
         return jptr(NULL);
+    }
+
+    JNI_METHOD(void, nativeLoadContent) (JNIEnv* env, jobject obj, jstring uri)
+    {
+        const char* nativeURI = env->GetStringUTFChars(uri, 0);
+        mLoadedURI = strdup(nativeURI);
+        play(mLoadedURI);
+        env->ReleaseStringUTFChars(uri, nativeURI);
     }
 
     JNI_METHOD(void, nativeDestroyApplication) (JNIEnv* env, jobject obj, jlong /*application*/)
@@ -184,6 +190,7 @@ extern "C"
         env->DeleteGlobalRef(mActivityRef);
         free(mExternalStoragePath);
         free(mCachePath);
+        free(mLoadedURI);
     }
 
     JNI_METHOD(void, nativeUpdateRotation)(JNIEnv* env, jobject obj, jfloat x, jfloat y, jfloat z, jfloat w)

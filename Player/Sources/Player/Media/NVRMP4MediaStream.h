@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -65,6 +65,7 @@ OMAF_NS_BEGIN
         virtual uint32_t getCurrentSegmentId() const;
         virtual uint32_t getSamplesLeft() const;
         virtual bool_t isCurrentSegmentInProgress() const;
+        virtual bool_t isAtSegmentBoundary(uint32_t& aSegmentIndex) const;
 
         virtual uint64_t getCurrentReadPositionMs();
         virtual uint64_t getTimeLeftInCurrentSegmentMs() const;
@@ -146,4 +147,7 @@ OMAF_NS_BEGIN
         uint32_t mNextRefFrame;
 
     };
+
+    typedef FixedArray<MP4MediaStream*, 64> MP4MetadataStreams;
+
 OMAF_NS_END

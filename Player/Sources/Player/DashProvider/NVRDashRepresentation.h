@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -34,7 +34,7 @@ OMAF_NS_BEGIN
     class DashRepresentationObserver
     {
     public:
-        virtual void_t onSegmentDownloaded(DashRepresentation* representation) = 0;
+        virtual void_t onSegmentDownloaded(DashRepresentation* representation, float32_t aSpeedFactor) = 0;
         virtual void_t onNewStreamsCreated() = 0;
         virtual void_t onCacheWarning() = 0;
     };
@@ -57,10 +57,11 @@ OMAF_NS_BEGIN
         Error::Enum updateMPD(DashComponents components);
 
         virtual Error::Enum startDownload(time_t startDownloadTime);
-        virtual Error::Enum startDownloadABR(uint32_t overrideSegmentId);
-        virtual Error::Enum startDownloadWithOverride(uint64_t overridePTS, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode);
+        virtual Error::Enum startDownloadFromSegment(uint32_t& aTargetDownloadSegmentId, uint32_t aNextToBeProcessedSegmentId);
+        virtual Error::Enum startDownloadFromTimestamp(uint64_t overridePTS, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode);
         virtual Error::Enum stopDownload();
-        virtual Error::Enum stopDownloadAsync(bool_t aReset);
+        virtual Error::Enum stopDownloadAsync(bool_t aAbort, bool_t aReset);
+        virtual void_t switchedToAnother();
 
         bool_t supportsSubSegments() const;
         Error::Enum hasSubSegmentsFor(uint64_t targetPtsUs, uint32_t overrideSegmentId);
@@ -89,9 +90,11 @@ OMAF_NS_BEGIN
     public:
         virtual MP4VideoStreams& getCurrentVideoStreams();
         virtual MP4AudioStreams& getCurrentAudioStreams();
+        virtual MP4MetadataStreams& getCurrentMetadataStreams();
 
         virtual Error::Enum readNextVideoFrame(bool_t& segmentChanged, int64_t currentTimeUs);
         virtual Error::Enum readNextAudioFrame(bool_t& segmentChanged);
+        virtual Error::Enum readMetadataFrame(bool_t& segmentChanged, int64_t currentTimeUs);
 
         virtual void_t createVideoSource(sourceid_t& sourceId, SourceType::Enum sourceType, StereoRole::Enum channel);
         virtual void_t createVideoSource(sourceid_t& sourceId, SourceType::Enum sourceType, StereoRole::Enum channel, const VASTileViewport& viewport);
@@ -115,8 +118,8 @@ OMAF_NS_BEGIN
         virtual float32_t getDownloadSpeedFactor();
 
         virtual uint64_t getReadPositionUs(uint32_t& segmentIndex);
-        virtual uint32_t getLastSegmentId();
-        virtual uint32_t getSegmentId();
+        virtual uint32_t getLastSegmentId(bool_t aIncludeSegmentInDownloading = false);
+        virtual uint32_t getCurrentSegmentId();
         virtual bool_t isSegmentDurationFixed(uint64_t& segmentDurationMs);
 
         virtual uint32_t cachedSegments() const;
@@ -133,15 +136,15 @@ OMAF_NS_BEGIN
         bool_t getIsInitialized() const;
 
         virtual DashSegment* peekSegment() const;
-        virtual size_t getNrSegments() const;
+        virtual size_t getNrSegments(uint32_t aNextNeededSegment) const;
         virtual DashSegment* getSegment();
         virtual bool_t readyForSegment(uint32_t aId);
         virtual Error::Enum parseConcatenatedMediaSegment(DashSegment *aSegment);
         virtual void_t cleanUpOldSegments(uint32_t aNextSegmentId);
-        virtual bool_t hasSegment(uint32_t aSegmentId, size_t& aSegmentSize);
+        virtual bool_t hasSegment(const uint32_t aSegmentId, uint32_t& aOldestSegmentId, size_t& aSegmentSize);
     public:
         // DashSegmentStreamObserver
-        Error::Enum onMediaSegmentDownloaded(DashSegment *segment);
+        Error::Enum onMediaSegmentDownloaded(DashSegment *segment, float32_t aSpeedFactor);
         void_t onSegmentIndexDownloaded(DashSegment *segment);
         void_t onCacheWarning();
 
@@ -154,6 +157,7 @@ OMAF_NS_BEGIN
         DashRepresentationObserver *mObserver;
         MP4VideoStreams mVideoStreams;
         MP4AudioStreams mAudioStreams;
+        MP4MetadataStreams mMetadataStreams;
         streamid_t mVideoStreamId;  // we assume 1 representation carries max 1 video stream
         VideoStreamMode::Enum mStreamMode;    // need to be saved until we have stream opened
         mutable Spinlock mLock;
@@ -162,6 +166,7 @@ OMAF_NS_BEGIN
         uint64_t mSeekToUsWhenDLComplete;
         bool_t mDownloading;
         DashSegmentStream *mSegmentStream;
+        uint32_t mLastSegmentId;
 
     private:
         dash::mpd::ISegmentTemplate* getSegmentTemplate(DashComponents dashComponents);
@@ -177,8 +182,6 @@ OMAF_NS_BEGIN
         bool_t mInitialized;
 
         DashStreamType::Enum mStreamType;
-
-        uint32_t mLastSegmentId;
 
         bool_t mMetadataCreated;
         SegmentContent mSegmentContent;

@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -287,6 +287,7 @@ namespace StreamSegmenter
 
         struct RegionWisePackingRegion
         {
+            virtual ~RegionWisePackingRegion() = default;
             virtual uint8_t packingType() const                = 0;
             virtual std::unique_ptr<Region> makeRegion() const = 0;
         };

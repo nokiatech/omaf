@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -533,6 +533,7 @@ void_t FrameCache::releaseVideoFrame(VideoFrame &videoFrame)
     {
         RenderBackend::destroyTexture(videoFrame.textures[index]);
         videoFrame.textures[index] = TextureID::Invalid;
+        videoFrame.format = VideoPixelFormat::INVALID;
     }
 }
 

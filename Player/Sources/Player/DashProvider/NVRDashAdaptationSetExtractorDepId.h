@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -35,10 +35,14 @@ OMAF_NS_BEGIN
 
         virtual uint32_t peekNextSegmentId() const;
         virtual bool_t processSegmentDownload();
-    
+
+    public: // from DashAdaptationSetViewportDep
+        virtual bool_t readyToSwitch(DashRepresentation* aRepresentation, uint32_t aNextNeededSegment);
+
     public: // new
         virtual const RepresentationDependencies& getDependingRepresentations() const;
         virtual bool_t selectRepresentation(const VASTileViewport* aTile, uint32_t aNextNeededSegment);
+
 
     protected: // from DashAdaptationSet
         virtual Error::Enum doInitialize(DashComponents aDashComponents, uint32_t& aInitializationSegmentId);

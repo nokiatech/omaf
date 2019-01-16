@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -76,6 +76,7 @@ void_t ProviderBase::destroyInstance()
     {
         mVideoDecoder->deactivateStream(*it);
     }
+    mPreviousStreams.clear();
 
     mAudioInputBuffer = OMAF_NULL;
 }
@@ -494,7 +495,6 @@ PacketProcessingResult::Enum ProviderBase::processMP4Video(MP4StreamManager &str
                     mSynchronizer.setSyncPoint(videoPacket->presentationTimeUs());
                     mAudioSyncPending = false;
                 }
-                retrieveInitialViewingOrientation(*videoStream);
             }
         }
 
@@ -732,7 +732,7 @@ Error::Enum ProviderBase::prepareSources(HeadTransform currentHeadtransform, flo
         && state != VideoProviderState::BUFFERING
         && state != VideoProviderState::LOADED)
     {
-    
+#ifndef OMAF_VIEWPORT_DONT_FORCE_ORIGIN_TO_0 // OMAF player should force origin to (0,0,0), but in some use cases that may not be ideal
         if (!mViewingOrientationOffset.valid)
         {
             // make sure we start at yaw = 0, no matter where the user is watching. If there's signaled initial viewing orientation, it will be applied when the state is such that this step is skipped, and it will override this one
@@ -753,6 +753,7 @@ Error::Enum ProviderBase::prepareSources(HeadTransform currentHeadtransform, flo
                 mViewingOrientationOffset.valid = false; // triggers to retry
             }
         }
+#endif
         return Error::OK_SKIPPED;
     }
 
@@ -1033,39 +1034,47 @@ const MediaInformation& ProviderBase::getMediaInformation()
     return mMediaInformation;
 }
 
-void_t ProviderBase::retrieveInitialViewingOrientation(MP4VideoStream& aStream)
+bool_t ProviderBase::retrieveInitialViewingOrientation(MP4StreamManager* aMediaStreamManager, int64_t aCurrentTimeUs)
 {
-    if (aStream.getMetadataStream() != OMAF_NULL)
+    bool_t done = false;
+    aMediaStreamManager->readMetadata();
+    const MP4MetadataStreams& aStreams = aMediaStreamManager->getMetadataStreams();
+    for (MP4MetadataStreams::ConstIterator it = aStreams.begin(); it != aStreams.end(); ++it)
     {
-        MP4MediaStream* invoStream = aStream.getMetadataStream("invo");
-        MP4VRMediaPacket* packet = invoStream->peekNextFilledPacket();
-        if (packet != OMAF_NULL)
+        if (StringCompare((*it)->getFormat()->getFourCC(), "invo") == ComparisonResult::EQUAL)
         {
-            MP4VR::InitialViewingOrientationSample readSample((char*)packet->buffer(), (uint32_t)packet->bufferSize());
+            MP4MediaStream* invoStream = *it;
+            MP4VRMediaPacket* packet = aMediaStreamManager->getMetadataFrame(**it, aCurrentTimeUs);
+            if (packet != OMAF_NULL)
             {
-                // in theory this can overwrite an unread previous orientation, but in practice the period should be far less than the input+output queues of the video decoder
-                OMAF_ASSERT(!mLatestSignaledViewingOrientation.valid, "INVO metadata overwriting previous sample");
-                // in theory, invo is track specific, so in multiple video trak case you could have multiple invo tracks too. But 1) OMAF is designed for single track use, and 2) what would be the use case to have different invo for different parallel video tracks??
-                OMAF_ASSERT(mLatestSignaledViewingOrientation.streamId == aStream.getStreamId() || mLatestSignaledViewingOrientation.streamId == OMAF_UINT8_MAX, "INVO metadata for multiple tracks/streams not supported");
-                Spinlock::ScopeLock lock(mLatestSignaledViewingOrientation.lock);
-                mLatestSignaledViewingOrientation.cAzimuth = readSample.region.centreAzimuth;
-                mLatestSignaledViewingOrientation.cElevation = readSample.region.centreElevation;
-                mLatestSignaledViewingOrientation.cTilt = readSample.region.centreTilt;
-                mLatestSignaledViewingOrientation.valid = true;
-                mLatestSignaledViewingOrientation.timestampUs = packet->presentationTimeUs();
-                mLatestSignaledViewingOrientation.refresh = readSample.refreshFlag;
-                mLatestSignaledViewingOrientation.streamId = aStream.getStreamId();
-                OMAF_LOG_V("Read new viewing orientation azimuth (%d), elevation (%d), refresh %d", mLatestSignaledViewingOrientation.cAzimuth / 65536, mLatestSignaledViewingOrientation.cElevation / 65536, mLatestSignaledViewingOrientation.refresh);
+                MP4VR::InitialViewingOrientationSample readSample((char*)packet->buffer(), (uint32_t)packet->bufferSize());
+                {
+                    // in theory this can overwrite an unread previous orientation, but in practice the period should be far less than the input+output queues of the video decoder
+                    OMAF_ASSERT(!mLatestSignaledViewingOrientation.valid, "INVO metadata overwriting previous sample");
+                    // in theory, invo is track specific, so in multiple video trak case you could have multiple invo tracks too. But 1) OMAF is designed for single track use, and 2) what would be the use case to have different invo for different parallel video tracks??
+                    OMAF_ASSERT(mLatestSignaledViewingOrientation.streamId == invoStream->getStreamId() || mLatestSignaledViewingOrientation.streamId == OMAF_UINT8_MAX, "INVO metadata for multiple tracks/streams not supported");
+                    Spinlock::ScopeLock lock(mLatestSignaledViewingOrientation.lock);
+                    mLatestSignaledViewingOrientation.cAzimuth = readSample.region.centreAzimuth;
+                    mLatestSignaledViewingOrientation.cElevation = readSample.region.centreElevation;
+                    mLatestSignaledViewingOrientation.cTilt = readSample.region.centreTilt;
+                    mLatestSignaledViewingOrientation.valid = true;
+                    mLatestSignaledViewingOrientation.timestampUs = packet->presentationTimeUs();
+                    mLatestSignaledViewingOrientation.refresh = readSample.refreshFlag;
+                    mLatestSignaledViewingOrientation.streamId = invoStream->getStreamId();
+                    OMAF_LOG_V("Read new viewing orientation azimuth (%d), elevation (%d), refresh %d", mLatestSignaledViewingOrientation.cAzimuth / 65536, mLatestSignaledViewingOrientation.cElevation / 65536, mLatestSignaledViewingOrientation.refresh);
+                    done = true;
+                }
+                invoStream->popFirstFilledPacket();
+                invoStream->returnEmptyPacket(packet);
             }
-            invoStream->popFirstFilledPacket();
-            invoStream->returnEmptyPacket(packet);
         }
     }
+    return done;
 }
 
 void_t ProviderBase::setupInitialViewingOrientation(HeadTransform& aCurrentHeadTransform, uint64_t aTimestampUs)
 {
-    if (mLatestSignaledViewingOrientation.valid && mLatestSignaledViewingOrientation.refresh && aTimestampUs >= mLatestSignaledViewingOrientation.timestampUs)  // this criteria may cause a 1 frame delay for the initial viewing orientation to take effect
+    if (mLatestSignaledViewingOrientation.valid && (mLatestSignaledViewingOrientation.refresh || aTimestampUs >= mLatestSignaledViewingOrientation.timestampUs))  // this criteria may cause a 1 frame delay for the initial viewing orientation to take effect
     {
         // we get absolute azimuth, not a delta. However, we need to translate that to delta, in relation to the viewing orientation when the requested viewing orientation takes place
         Quaternion sensor = aCurrentHeadTransform.orientation;

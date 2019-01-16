@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -344,6 +344,34 @@ OMAF_NS_BEGIN
     {
         if (mSampleIndex.mSegmentSampleIndex > 0)
         {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool_t MP4MediaStream::isAtSegmentBoundary(uint32_t& aSegmentIndex) const
+    {
+        if (mSampleIndex.mCurrentSegment > 0)
+        {
+            aSegmentIndex = mSampleIndex.mCurrentSegment;
+        }
+        if (mSampleIndex.mSegmentSampleIndex <= 1)
+        {
+            // at beginning of a new one, so mSampleIndex.mCurrentSegment is one too big
+            if (mSampleIndex.mCurrentSegment > 0)
+            {
+                aSegmentIndex--;
+            }
+            OMAF_LOG_V("isAtSegmentBoundary, done %d", aSegmentIndex);
+            return true;
+        }
+        else if (mSampleIndex.mSegmentSampleIndex == mTrack->sampleProperties.size)
+        {
+            // in the end
+            OMAF_LOG_V("isAtSegmentBoundary is at the end of available segments %d", mSampleIndex.mCurrentSegment);
             return true;
         }
         else

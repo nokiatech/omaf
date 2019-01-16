@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cmath>
 #include <ctime>
+#include <map>
 
 #include "api/streamsegmenter/mpdtree.hpp"
 #include "utils.hpp"
@@ -246,6 +247,33 @@ namespace StreamSegmenter
                 }
 
                 return ret.str();
+            }
+
+            // TODO: broken regarding UTF8 encoding
+            std::string quotedXML(std::string x)
+            {
+                // https://en.wikipedia.org/wiki/List_of_XML_and_HTML_character_entity_references#Predefined_entities_in_XML
+                static std::map<char, std::string> predefinedEntities = {
+                    {'"', "quot"}, {'&', "amp"}, {'\'', "apos"}, {'<', "lt"}, {'>', "gt"}};
+
+                std::string quoted;
+                quoted.reserve(x.size());
+
+                for (char c : x)
+                {
+                    if (predefinedEntities.count(c))
+                    {
+                        quoted.append("&");
+                        quoted.append(predefinedEntities.at(c));
+                        quoted.append(";");
+                    }
+                    else
+                    {
+                        quoted.append(1u, c);
+                    }
+                }
+
+                return quoted;
             }
 
             /**
@@ -506,6 +534,18 @@ namespace StreamSegmenter
             writeXMLElementWithAttributes(out, indentLevel, "EssentialProperty", attrs, true);
         }
 
+        void BaseURL::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            out << quotedXML(url);
+        }
+
+        void BaseURL::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            out << indent(indentLevel) << "<BaseURL>";
+            writeInnerXML(out, indentLevel + 2);
+            out << "</BaseURL>" << std::endl;
+        }
+
         //
         // MPDNodeWithCommonAttributes
         //
@@ -716,6 +756,11 @@ namespace StreamSegmenter
             if (segmentTemplate)
             {
                 segmentTemplate->writeXML(out, indentLevel);
+            }
+
+            if (baseURL)
+            {
+                baseURL->writeXML(out, indentLevel);
             }
         }
 
@@ -995,7 +1040,15 @@ namespace StreamSegmenter
                 ret.push_back({"publishTime", toXml(UTCDateTime{*publishTime})});
             }
 
-            ret.push_back({"profiles", "urn:mpeg:dash:profile:isoff-live:2011"});
+            switch (profile)
+            {
+            case DashProfile::Live:
+                ret.push_back({"profiles", "urn:mpeg:dash:profile:isoff-live:2011"});
+                break;
+            case DashProfile::OnDemand:
+                ret.push_back({"profiles", "urn:mpeg:dash:profile:isoff-on-demand:2011"});
+                break;
+            }
 
             return ret;
         }

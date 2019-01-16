@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -57,7 +57,6 @@ OMAF_NS_BEGIN
 
     Error::Enum AACAudioRenderer::init()
     {
-        mInitialized = true;
         return Error::OK;
     }
     Error::Enum AACAudioRenderer::reset()
@@ -135,7 +134,8 @@ OMAF_NS_BEGIN
 
     Error::Enum AACAudioRenderer::initializeForEncodedInput(streamid_t nrStreams, uint8_t* codecData, size_t dataSize)
     {
-        if (dataSize != 2) {
+        if (dataSize != 2 && dataSize != 5) 
+        {
             return Error::INVALID_DATA;           
         }
 
@@ -143,6 +143,7 @@ OMAF_NS_BEGIN
         mSampleRate = sampleRateFromAACSampleRateIndex((aacHeader >> 7) & 0b00011111);
         mInputChannels = (aacHeader >> 3) & 0b00001111;
 
+        mInitialized = true;
         mObserver.onFlush();
         mObserver.onRendererReady();
 

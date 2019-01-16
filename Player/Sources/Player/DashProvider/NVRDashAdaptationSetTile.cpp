@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -149,39 +149,57 @@ OMAF_NS_BEGIN
         }
     }
 
-    // This is used only with OMAF partial adaptation sets
-    bool_t DashAdaptationSetTile::processSegmentDownloadTile(uint32_t aNextSegmentId, bool_t aCanSwitchRepresentations)
+    Error::Enum DashAdaptationSetTile::stopDownload()
+    {
+        for (Representations::Iterator it = mRepresentations.begin(); it != mRepresentations.end(); ++it)
+        {
+            OMAF_LOG_V("stopDownload %s", (*it)->getId());
+            (*it)->stopDownload();
+        }
+        return Error::OK;
+    }
+
+    bool_t DashAdaptationSetTile::processSegmentDownload()
     {
         mCurrentRepresentation->processSegmentDownload();
 
-        if (aCanSwitchRepresentations && mNextRepresentation != OMAF_NULL && mCurrentRepresentation != mNextRepresentation)
+        if (mNextRepresentation != OMAF_NULL)
         {
-            //technically the new stream/representation/decoder will get activated HERE!
-            //(stream activate gets called when init segment is processed)
             mNextRepresentation->processSegmentDownload();
+        }
+        return false; // no streams changed in this variant, ever
+    }
 
+    bool_t DashAdaptationSetTile::trySwitchingRepresentation(uint32_t aNextSegmentId)
+    {
+        if (mNextRepresentation != OMAF_NULL && mCurrentRepresentation != mNextRepresentation)
+        {
+            if (mNextRepresentation->peekSegment() != OMAF_NULL)
+            {
+                switchSegmentDownloaded(mNextRepresentation->peekSegment()->getSegmentId());
+            }
             // For ABR, check if there's a switch pending and switch ASAP (on next segment boundary), 
             // and synchronously with other sets, rather than waiting until all frames have been processed, since the merged picture should match the viewport ASAP
             mNextRepresentation->cleanUpOldSegments(aNextSegmentId);
-            if (readyToSwitch(aNextSegmentId))
+            if (readyToSwitch(mNextRepresentation, aNextSegmentId))
             {
-                OMAF_LOG_V("processSegmentDownloadTile: next representation has enough data starting from segment %d, switch", peekNextSegmentId());
+                OMAF_LOG_V("trySwitchingRepresentation: next representation has enough data starting from segment %d, switch", aNextSegmentId);
                 doSwitchRepresentation();
                 return true;
             }
             else
             {
-                // check if current one has data to show
+                // not safe to switch yet, but check if current one has data left to show
                 DashSegment* crSegment = mCurrentRepresentation->peekSegment();
                 if (crSegment != OMAF_NULL && crSegment->getSegmentId() == aNextSegmentId)
                 {
                     // can use the current one still
-                    OMAF_LOG_V("processSegmentDownloadTile: Keep using the current representation %s", mCurrentRepresentation->getId());
+                    OMAF_LOG_V("trySwitchingRepresentation: Keep using the current representation %s", mCurrentRepresentation->getId());
                     return false;
                 }
                 else
                 {
-                    OMAF_LOG_V("processSegmentDownloadTile: The old repr has no useful data left, has to switch and hope that the buffer of the new repr gets filled while playing");
+                    OMAF_LOG_V("trySwitchingRepresentation: The old repr has no useful data left, has to switch and hope that the buffer of the new repr gets filled while playing");
                     doSwitchRepresentation();
                     return true;
                 }
@@ -211,43 +229,43 @@ OMAF_NS_BEGIN
         }
     }
 
-    bool_t DashAdaptationSetTile::prepareForSwitch(uint32_t aNextNeededSegment, bool_t aGoToBackground)
+    bool_t DashAdaptationSetTile::prepareForSwitch(uint32_t aNextProcessedSegment, bool_t aGoToBackground)
     {
-        uint32_t adjustedSegment = aNextNeededSegment;
-        uint32_t downloadSkip = 0;
+        // initial estimate is the last downloaded segment
+        uint32_t estimatedSegment = mCurrentRepresentation->getLastSegmentId() + 1;
         if (mCurrentRepresentation->getLastSegmentId() == 0)
         {
-            // haven't downloaded any segment yet
-            adjustedSegment = 1;//TODO live cases??
+            // there are no segments downloaded, so switch must happen right after start. We shouldn't use 0, since we may be starting after resume.
+            estimatedSegment = aNextProcessedSegment;
         }
-        else if (aGoToBackground)
+        uint32_t downloadSkip = 0;
+        if (aGoToBackground)
         {
-            // lazy switch from fg to bg
-            adjustedSegment = min(adjustedSegment, mCurrentRepresentation->getLastSegmentId() + 1);
+            // lazy switch from fg to bg, use the last downloaded segment + 1. DepId never must have aGoToBackground true, as this cannot be applied to it
             //OMAF_LOG_D("%lld prepareForSwitch bg: to %s at %d (was %d)", Time::getClockTimeMs(), mNextRepresentation->getId(), adjustedSegment, aNextNeededSegment);
         }
         else
         {
             // check the latest segment mNextRepresentation already has
-            if (mNextRepresentation->getLastSegmentId() < adjustedSegment)
+            if (mNextRepresentation->getLastSegmentId() < estimatedSegment)
             {
                 // there are no useful segments cached
 
-                // add download latency
-                //TODO getDownloadSpeedFactor should give a global factor, not just for the current representation, as that may have been measured for a few segments only in VD
-                downloadSkip = (uint32_t)((float32_t)1 / getDownloadSpeedFactor() + 1);
-                adjustedSegment += downloadSkip; //round up as download always takes more than 0 ms
-
-                                                 // ensure there are no gaps when switching from current to next
-                adjustedSegment = min(adjustedSegment, mCurrentRepresentation->getLastSegmentId() + 1);
-                OMAF_LOG_V("prepareForSwitch adjusted segment id %d", adjustedSegment);
+                estimatedSegment = estimateSegmentIdForSwitch(estimatedSegment);
+                OMAF_LOG_V("prepareForSwitch estimated segment id for %s is %d", mNextRepresentation->getId(), estimatedSegment);
+            }
+            else
+            {
+                estimatedSegment = mNextRepresentation->getLastSegmentId() + 1;
             }
             //OMAF_LOG_D("%lld prepareForSwitch fg: to %s at %d (was %d, download delay: %d segments)", Time::getClockTimeMs(), mNextRepresentation->getId(), adjustedSegment, aNextNeededSegment, downloadSkip);
         }
+        //OMAF_LOG_V("%s cleanup", getCurrentRepresentationId().getData());
+        mNextRepresentation->cleanUpOldSegments(aNextProcessedSegment);
+        mNextRepresentation->startDownloadFromSegment(estimatedSegment, aNextProcessedSegment);
+        startedDownloadFromSegment(estimatedSegment);
 
-        mNextRepresentation->cleanUpOldSegments(adjustedSegment);
-        mNextRepresentation->startDownloadABR(adjustedSegment);
-        if (readyToSwitch(adjustedSegment))
+        if (!aGoToBackground && readyToSwitch(mNextRepresentation, aNextProcessedSegment))
         {
             OMAF_LOG_V("Using already downloaded segment(s) for %s", mNextRepresentation->getId());
             doSwitchRepresentation();
@@ -256,35 +274,12 @@ OMAF_NS_BEGIN
         return true;
     }
 
-    bool_t DashAdaptationSetTile::readyToSwitch(uint32_t aNextNeededSegment)
+    void_t DashAdaptationSetTile::cleanUpOldSegments(uint32_t aSegmentId)
     {
-        DashSegment* segment = mNextRepresentation->peekSegment();
-        if (segment == OMAF_NULL || segment->getSegmentId() > aNextNeededSegment)
+        for (Representations::Iterator it = mRepresentations.begin(); it != mRepresentations.end(); ++it)
         {
-            return false;
+            (*it)->cleanUpOldSegments(aSegmentId);
         }
-        uint64_t bufferedDataMs = 0;
-        uint64_t thresholdMs = 500;
-        uint64_t segmentDurationMs = 0;
-        if (mNextRepresentation->isSegmentDurationFixed(segmentDurationMs))
-        {
-            bufferedDataMs = mNextRepresentation->getNrSegments() * segmentDurationMs;
-            //TODO getDownloadSpeedFactor should give a global factor, not just for the current representation, as that may have been measured for a few segments only in VD
-            thresholdMs = max((uint64_t)(segmentDurationMs / getDownloadSpeedFactor()), (uint64_t)400); // e.g. duration = 1sec, speed factor = 4 (250 msec per segment) => threshold = max(250, 400)
-            OMAF_LOG_V("readyToSwitch: buffered %lld, threshold %lld, factor %f", bufferedDataMs, thresholdMs, getDownloadSpeedFactor());
-        }
-        else
-        {
-            // in timeline mode the durations are not fixed, so needs some other logic here
-            //bufferedDataMs = mNextRepresentation->getNrSegments() * XX
-        }
-
-        if (bufferedDataMs > thresholdMs)
-        {
-            //OMAF_LOG_D("%lld readyToSwitch to %s at %d", Time::getClockTimeMs(), mNextRepresentation->getId(), aNextNeededSegment);
-            return true;
-        }
-        return false;
     }
 
     void_t DashAdaptationSetTile::setBufferingTime(uint32_t aExpectedPingTimeMs)
@@ -300,9 +295,9 @@ OMAF_NS_BEGIN
         return mNrQualityLevels;
     }
 
-    bool_t DashAdaptationSetTile::selectQuality(uint8_t aQualityLevel, uint8_t aNrQualityLevels, uint32_t aNextNeededSegment)
+    bool_t DashAdaptationSetTile::selectQuality(uint8_t aQualityLevel, uint8_t aNrQualityLevels, uint32_t aNextProcessedSegment)
     {
-        OMAF_LOG_V("selectQuality new level %d segment %d", aQualityLevel, aNextNeededSegment);
+        OMAF_LOG_V("selectQuality new level %d", aQualityLevel);
         if (isABRSwitchOngoing())
         {
             //TODO the viewport direction should still be obeyed, perhaps the switching is ok, but it may be obsolete too? (eg quick look at left and then turn back => will now wait until left switch is completed, and may never switch back if no new changes?)
@@ -314,15 +309,36 @@ OMAF_NS_BEGIN
         {
             // Already switching to this quality
             OMAF_LOG_D("already switching to the requested representation");
-            return true;
+            return false;
         }
         else if (nextRepresentation == mCurrentRepresentation)
         {
-            OMAF_LOG_D("Switching back to", mCurrentRepresentation->getId());
-            //TODO anything special? We have stopped mCurrent
-            // but if mNext has better Q than mCurr, and it has segments, could we switch to it temporarily? adjustedSegment would then need to be taken from mNext
+            OMAF_LOG_D("Switching back to %s", mCurrentRepresentation->getId());
+            if (mNextRepresentation != OMAF_NULL)
+            {
+                OMAF_LOG_V("NextRepresentation %s was downloading, stop it", mNextRepresentation->getId());
+                mNextRepresentation->stopDownload();
+                mNextRepresentation = OMAF_NULL;
+            }
+            if (mCurrentRepresentation->isDownloading())
+            {
+                // don't stop, hence no need to restart
+                return false;
+            }
+            else
+            {
+                OMAF_LOG_V("Restart %s", getCurrentRepresentationId().getData());
+                uint32_t lastSegment = mCurrentRepresentation->getLastSegmentId();
+                if (lastSegment == 0)
+                {
+                    // can happen e.g. after pause + resume if tile switch takes place before anything downloaded (current was active before pause but switching and now switching back when resuming)
+                    lastSegment = aNextProcessedSegment;
+                }
+                mCurrentRepresentation->startDownloadFromSegment(lastSegment, aNextProcessedSegment);
+                return true;
+            }
         }
-        mCurrentRepresentation->stopDownloadAsync(false);
+        mCurrentRepresentation->stopDownloadAsync(false, false); // don't abort to avoid segment mismatches
         if (mNextRepresentation != OMAF_NULL)
         {
             OMAF_LOG_V("NextRepresentation %s was downloading, stop it", mNextRepresentation->getId());
@@ -330,23 +346,30 @@ OMAF_NS_BEGIN
         }
         mNextRepresentation = nextRepresentation;
 
-        return prepareForSwitch(aNextNeededSegment, (aQualityLevel >= aNrQualityLevels - 1));
+        return prepareForSwitch(aNextProcessedSegment, (aQualityLevel >= aNrQualityLevels));
     }
 
-    bool_t DashAdaptationSetTile::selectRepresentation(DependableRepresentations& aDependencies, uint32_t aNextNeededSegment)
+    bool_t DashAdaptationSetTile::selectRepresentation(DependableRepresentations& aDependencies, uint32_t aNextProcessedSegment)
     {
         OMAF_ASSERT(mContent.matches(MediaContent::Type::VIDEO_TILE), "Called selectRepresentation for other than tile adaptation set!");
         for (Representations::Iterator repr = mRepresentations.begin(); repr != mRepresentations.end(); ++repr)
         {
             if (aDependencies.contains((*repr)->getId()))
             {
+     	        if (mNextRepresentation != OMAF_NULL)
+                {
+                    OMAF_LOG_V("NextRepresentation %s was downloading, stop it", mNextRepresentation->getId());
+                    mNextRepresentation->stopDownload();
+                    mNextRepresentation = OMAF_NULL;
+                }
                 if (mCurrentRepresentation != *repr)
                 {
                     OMAF_LOG_V("selectRepresentation, found: %s", (*repr)->getId());
                     mNextRepresentation = *repr;
-                    mCurrentRepresentation->stopDownloadAsync(false);
-                    return prepareForSwitch(aNextNeededSegment, false);//TODO can we know if we go to background in this case? By quality rank in representation
+                    mCurrentRepresentation->stopDownloadAsync(false, false);    // don't abort since that can cause sync issues with segments
+                    return prepareForSwitch(aNextProcessedSegment, false);// lazy switch to background must never be used, as extractor needs exactly the representation it depends on
                 }
+                
                 return false;
             }
         }
@@ -477,13 +500,53 @@ OMAF_NS_BEGIN
 
     void_t DashAdaptationSetTile::doSwitchRepresentation()
     {
-#ifdef OMAF_PLATFORM_ANDROID
-        OMAF_LOG_V("%d Switch done from %d to %d", Time::getClockTimeMs(), mCurrentRepresentation->getBitrate(), mNextRepresentation->getBitrate());
-#else
-        OMAF_LOG_V("%lld Switch done from %s (%d) to %s (%d)", Time::getClockTimeMs(), mCurrentRepresentation->getId(), mCurrentRepresentation->getBitrate(), mNextRepresentation->getId(), mNextRepresentation->getBitrate());
-#endif
+        OMAF_LOG_V("%lld Switch done from %s (%d bps) to %s (%d bps)", Time::getClockTimeMs(), mCurrentRepresentation->getId(), mCurrentRepresentation->getBitrate(), mNextRepresentation->getId(), mNextRepresentation->getBitrate());
+        mCurrentRepresentation->switchedToAnother();
         mCurrentRepresentation = mNextRepresentation;
         mNextRepresentation = OMAF_NULL;
+    }
+
+    // Since OMAF requires that representations within an adaptation set have the same resolution, we should pick the highest quality one from cache. 
+    bool_t DashAdaptationSetTile::hasSegment(uint32_t aSegmentId, size_t& aSegmentSize)
+    {
+        uint32_t oldestAll = OMAF_UINT32_MAX;
+        for (Representations::ConstIterator it = mRepresentationsByQuality.begin(); it != mRepresentationsByQuality.end(); ++it)
+        {
+            uint32_t oldest = 0;
+            if ((*it)->hasSegment(aSegmentId, oldest, aSegmentSize))
+            {
+                return true;
+            }
+            // for logging only
+            if (oldest > 0 && oldest < oldestAll)
+            {
+                oldestAll = oldest;
+            }
+        }
+        if (oldestAll == OMAF_UINT32_MAX)
+        {
+            OMAF_LOG_V("segment %d for %s (or sisters) not yet available for concatenation, no segments", aSegmentId, getCurrentRepresentationId().getData());
+        }
+        else
+        {
+            OMAF_LOG_V("segment %d for %s (or sisters) not yet available for concatenation, oldest %d", aSegmentId, getCurrentRepresentationId().getData(), oldestAll);
+        }
+        return false;
+    }
+
+    DashSegment* DashAdaptationSetTile::getSegment(uint32_t aSegmentId)
+    {
+        for (Representations::ConstIterator it = mRepresentationsByQuality.begin(); it != mRepresentationsByQuality.end(); ++it)
+        {
+            size_t segmentSize = 0;
+            uint32_t oldest = 0;
+            if ((*it)->hasSegment(aSegmentId, oldest, segmentSize))
+            {
+                return (*it)->getSegment();
+            }
+        }
+        OMAF_LOG_V("segment %d for %s (or sisters) not yet available for concatenation", aSegmentId, getCurrentRepresentationId().getData());
+        return OMAF_NULL;
     }
 
 OMAF_NS_END

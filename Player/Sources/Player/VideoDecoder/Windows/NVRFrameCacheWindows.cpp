@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -442,6 +442,7 @@ void_t FrameCacheWindows::uploadTexture(DecoderFrame* frame)
             DecoderFrameDX11* dx11Frame = (DecoderFrameDX11*)frame;
             videoFrame.textures[0] = dx11Frame->mNativeY;
             videoFrame.textures[1] = dx11Frame->mNativeUV;
+            videoFrame.numTextures = 2;
             //OMAF_LOG_I("Rendering %p %p", dx11Frame->texture, dx11Frame->sharedTexture);            
             break;
         }

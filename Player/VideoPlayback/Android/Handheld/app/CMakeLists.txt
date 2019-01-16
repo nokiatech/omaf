@@ -2,7 +2,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -21,7 +21,7 @@ configure_file(${OMAF_PLAYER_LIBS}/${ANDROID_ABI}/libOMAFPlayer.so ${JNILIBS}/${
 configure_file(${OMAF_PLAYER_LIBS}/${ANDROID_ABI}/libmp4vr_shared.so ${JNILIBS}/${ANDROID_ABI}/libmp4vr_shared.so COPYONLY)
 configure_file(${OMAF_PLAYER_LIBS}/${ANDROID_ABI}/libheif_shared.so ${JNILIBS}/${ANDROID_ABI}/libheif_shared.so COPYONLY)
 configure_file(${OMAF_PLAYER_LIBS}/${ANDROID_ABI}/libdash.so ${JNILIBS}/${ANDROID_ABI}/libdash.so COPYONLY)
-configure_file($ENV{ANDROID_NDK}/sources/cxx-stl/llvm-libc++/libs/${ANDROID_ABI}/libc++_shared.so ${JNILIBS}/${ANDROID_ABI}/libc++_shared.so COPYONLY)
+configure_file(${ANDROID_NDK}/sources/cxx-stl/llvm-libc++/libs/${ANDROID_ABI}/libc++_shared.so ${JNILIBS}/${ANDROID_ABI}/libc++_shared.so COPYONLY)
 
 add_library( OMAFPlayer SHARED IMPORTED)
 add_library( MP4VR_shared SHARED IMPORTED)

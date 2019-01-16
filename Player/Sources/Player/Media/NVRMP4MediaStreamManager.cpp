@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -25,7 +25,7 @@ OMAF_LOG_ZONE(MP4MediaStreamManager);
         , mMediaFormatParser(OMAF_NULL)
         , mAudioStreams()
         , mVideoStreams()
-
+        , mMetadataStreams()
     {
 
     }
@@ -47,7 +47,7 @@ OMAF_LOG_ZONE(MP4MediaStreamManager);
         // create new mp4reader
         mMediaFormatParser = OMAF_NEW(mAllocator, MP4VRParser)();
 
-        Error::Enum result = mMediaFormatParser->openInput(mediaUri, mAudioStreams, mVideoStreams);
+        Error::Enum result = mMediaFormatParser->openInput(mediaUri, mAudioStreams, mVideoStreams, mMetadataStreams);
         for (MP4VideoStreams::ConstIterator it = mVideoStreams.begin(); it != mVideoStreams.end(); ++it)
         {
             (*it)->setMode(VideoStreamMode::BASE);
@@ -74,6 +74,13 @@ OMAF_LOG_ZONE(MP4MediaStreamManager);
             mAudioStreams.removeAt(0);
             OMAF_DELETE(mAllocator, audioStream);
         }
+        while (!mMetadataStreams.isEmpty())
+        {
+            MP4MediaStream* metaStream = mMetadataStreams[0];
+            metaStream->resetPackets();
+            mMetadataStreams.removeAt(0);
+            OMAF_DELETE(mAllocator, metaStream);
+        }
         mAudioStreams.clear();
     }
 
@@ -86,9 +93,13 @@ OMAF_LOG_ZONE(MP4MediaStreamManager);
     {
         return mVideoStreams;
     }
+    const MP4MetadataStreams& MP4MediaStreamManager::getMetadataStreams()
+    {
+        return mMetadataStreams;
+    }
     int32_t MP4MediaStreamManager::getNrStreams()
     {
-        return static_cast<int32_t>(mAudioStreams.getSize() + mVideoStreams.getSize());
+        return static_cast<int32_t>(mAudioStreams.getSize() + mVideoStreams.getSize() + mMetadataStreams.getSize());
     }
 
     MP4VRMediaPacket* MP4MediaStreamManager::getNextAudioFrame(MP4MediaStream& stream)
@@ -110,6 +121,15 @@ OMAF_LOG_ZONE(MP4MediaStreamManager);
         }
         return stream.peekNextFilledPacket();
     }
+    MP4VRMediaPacket* MP4MediaStreamManager::getMetadataFrame(MP4MediaStream& aStream, int64_t aCurrentTimeUs)
+    {
+        if (!aStream.hasFilledPackets())
+        {
+            bool_t segmentChanged = false;  // the value is not used in local file playback
+            mMediaFormatParser->readTimedMetadataFrame(aStream, segmentChanged, aCurrentTimeUs);
+        }
+        return aStream.peekNextFilledPacket();
+    }
 
     Error::Enum MP4MediaStreamManager::readVideoFrames(int64_t currentTimeUs)
     {
@@ -117,6 +137,11 @@ OMAF_LOG_ZONE(MP4MediaStreamManager);
         return Error::OK;
     }
     Error::Enum MP4MediaStreamManager::readAudioFrames()
+    {
+        // Do nothing here on file playback
+        return Error::OK;
+    }
+    Error::Enum MP4MediaStreamManager::readMetadata()
     {
         // Do nothing here on file playback
         return Error::OK;

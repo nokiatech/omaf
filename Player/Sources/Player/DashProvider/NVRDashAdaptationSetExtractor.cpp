@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -151,15 +151,49 @@ OMAF_NS_BEGIN
 
     Error::Enum DashAdaptationSetExtractor::startDownload(time_t startTime)
     {
-        mTargetNextSegmentId = 0;
-        return DashAdaptationSet::startDownload(startTime);
+        mTargetNextSegmentId = mNextSegmentToBeConcatenated;
+        Error::Enum result = DashAdaptationSet::startDownload(startTime);
+
+        for (SupportingAdaptationSets::Iterator it = mSupportingSets.begin(); it != mSupportingSets.end(); ++it)
+        {
+            if (!(*it)->isActive())
+            {
+                OMAF_LOG_V("start downloading supporting set %d for extractor set %d", (*it)->getId(), mAdaptationSetId);
+                (*it)->startDownloadFromSegment(mTargetNextSegmentId, mNextSegmentToBeConcatenated, mExpectedPingTimeMs);
+                // called from here, since not all tile configurations should measure the individual tile switches
+                (*it)->startedDownloadFromSegment(mTargetNextSegmentId);
+            }
+        }
+        return result;
     }
 
-    Error::Enum DashAdaptationSetExtractor::startDownload(uint64_t overridePTSUs, uint32_t overrideSegmentId, VideoStreamMode::Enum aMode, uint32_t aExpectedPingTimeMs)
+    Error::Enum DashAdaptationSetExtractor::startDownload(time_t startTime, uint32_t aExpectedPingTimeMs)
+    {
+        OMAF_LOG_V("startDownload with expected round-trip delay %d", aExpectedPingTimeMs);
+        mExpectedPingTimeMs = aExpectedPingTimeMs;
+        mCurrentRepresentation->setBufferingTime(aExpectedPingTimeMs);
+        for (SupportingAdaptationSets::Iterator it = mSupportingSets.begin(); it != mSupportingSets.end(); ++it)
+        {
+            (*it)->setBufferingTime(mExpectedPingTimeMs);
+        }
+        mTargetNextSegmentId = mNextSegmentToBeConcatenated;
+        return DashAdaptationSet::startDownload(startTime, aExpectedPingTimeMs);
+    }
+
+    Error::Enum DashAdaptationSetExtractor::startDownloadFromSegment(uint32_t& aTargetDownloadSegmentId, uint32_t aNextToBeProcessedSegmentId, uint32_t aExpectedPingTimeMs)
     {
         mExpectedPingTimeMs = aExpectedPingTimeMs;
-        mTargetNextSegmentId = overrideSegmentId;
-        return DashAdaptationSet::startDownload(overridePTSUs, overrideSegmentId, aMode, aExpectedPingTimeMs);
+        mCurrentRepresentation->setBufferingTime(aExpectedPingTimeMs);
+        for (SupportingAdaptationSets::Iterator it = mSupportingSets.begin(); it != mSupportingSets.end(); ++it)
+        {
+            (*it)->setBufferingTime(mExpectedPingTimeMs);
+        }
+        mTargetNextSegmentId = aTargetDownloadSegmentId;
+        if (aNextToBeProcessedSegmentId != INVALID_SEGMENT_INDEX)
+        {
+            mNextSegmentToBeConcatenated = aNextToBeProcessedSegmentId;
+        }
+        return DashAdaptationSet::startDownloadFromSegment(aTargetDownloadSegmentId, aNextToBeProcessedSegmentId, aExpectedPingTimeMs);
     }
 
     Error::Enum DashAdaptationSetExtractor::stopDownload()
@@ -169,21 +203,25 @@ OMAF_NS_BEGIN
             for (SupportingAdaptationSets::Iterator it = mSupportingSets.begin(); it != mSupportingSets.end(); ++it)
             {
                 (*it)->stopDownload();
+
+                // to avoid gaps in segment sequence after pause + resume (could have cached one representation over the pause, but then resumes a different one => can create tricky issues), 
+                // it is better to clean up old segments and also reset download counter
+                (*it)->cleanUpOldSegments(INVALID_SEGMENT_INDEX); 
             }
         }
         return DashAdaptationSet::stopDownload();
     }
 
-    Error::Enum DashAdaptationSetExtractor::stopDownloadAsync(bool_t aReset)
+    Error::Enum DashAdaptationSetExtractor::stopDownloadAsync(bool_t aAbort, bool_t aReset)
     {
         if (mSupportingSets.getSize() > 0)
         {
             for (SupportingAdaptationSets::Iterator it = mSupportingSets.begin(); it != mSupportingSets.end(); ++it)
             {
-                (*it)->stopDownloadAsync(aReset);
+                (*it)->stopDownloadAsync(aAbort, aReset);
             }
         }
-        return DashAdaptationSet::stopDownloadAsync(aReset);
+        return DashAdaptationSet::stopDownloadAsync(aAbort, aReset);
     }
 
     void_t DashAdaptationSetExtractor::clearDownloadedContent()
@@ -212,7 +250,45 @@ OMAF_NS_BEGIN
                 }
             }
         }
+        else
+        {
+            OMAF_LOG_V("%s is buffering", getCurrentRepresentationId().getData());
+        }
         return isBuffering;
+    }
+
+    bool_t DashAdaptationSetExtractor::isEndOfStream()
+    {
+        bool_t isEndOfStream = mCurrentRepresentation->isEndOfStream();
+        if (!isEndOfStream && !mSupportingSets.isEmpty())
+        {
+            for (SupportingAdaptationSets::Iterator it = mSupportingSets.begin(); it != mSupportingSets.end(); ++it)
+            {
+                if ((*it)->isEndOfStream())
+                {
+                    OMAF_LOG_V("%s is end of stream", (*it)->getCurrentRepresentation()->getId());
+                    return true;
+                }
+            }
+        }
+        return isEndOfStream;
+    }
+
+    bool_t DashAdaptationSetExtractor::isError()
+    {
+        bool_t isError = mCurrentRepresentation->isError();
+        if (!isError && !mSupportingSets.isEmpty())
+        {
+            for (SupportingAdaptationSets::Iterator it = mSupportingSets.begin(); it != mSupportingSets.end(); ++it)
+            {
+                if ((*it)->isError())
+                {
+                    OMAF_LOG_V("%s is error", (*it)->getCurrentRepresentation()->getId());
+                    return true;
+                }
+            }
+        }
+        return isError;
     }
 
     Error::Enum DashAdaptationSetExtractor::seekToMs(uint64_t& aSeekToTargetMs, uint64_t& aSeekToResultMs)
@@ -240,19 +316,26 @@ OMAF_NS_BEGIN
         {
             // this is an OMAF extractor track
             uint32_t nextSegmentId = peekNextSegmentId();
+            if (nextSegmentId == INVALID_SEGMENT_INDEX)
+            {
+                return false;
+            }
             if (getIsInitialized())
             {
                 for (SupportingAdaptationSets::Iterator it = mSupportingSets.begin(); it != mSupportingSets.end(); ++it)
                 {
                     if ((*it)->isActive())
                     {
-                        (*it)->processSegmentDownloadTile(nextSegmentId, true);
+                        (*it)->processSegmentDownload();
                     }
                     else
                     {
+                        OMAF_LOG_V("start downloading supporting set %d for extractor set %d", (*it)->getId(), mAdaptationSetId);
                         if (mTargetNextSegmentId > 0)
                         {
-                            (*it)->startDownload(OMAF_UINT64_MAX, mTargetNextSegmentId, VideoStreamMode::BASE, mExpectedPingTimeMs);
+                            (*it)->startDownloadFromSegment(mTargetNextSegmentId, mNextSegmentToBeConcatenated, mExpectedPingTimeMs);
+                            // called from here, since not all tile configurations should measure the individual tile switches
+                            (*it)->startedDownloadFromSegment(mTargetNextSegmentId);
                         }
                         else
                         {
@@ -324,6 +407,12 @@ OMAF_NS_BEGIN
         //OMAF_LOG_V("addSupportingSet %d for %d", aSupportingSet->getId(), mAdaptationSetId);
     }
 
+    uint32_t DashAdaptationSetExtractor::getNextProcessedSegmentId() const
+    {
+        return mNextSegmentToBeConcatenated;
+    }
+
+
     void_t DashAdaptationSetExtractor::concatenateAndParseSegments()
     {
         // check if we have segments to concatenate
@@ -346,8 +435,10 @@ OMAF_NS_BEGIN
             bool_t available = true;
             for (SupportingAdaptationSets::Iterator it = mSupportingSets.begin(); it != mSupportingSets.end(); ++it)
             {
+                (*it)->trySwitchingRepresentation(segmentId);
+
                 size_t segmentSize = 0;
-                if ((*it)->getCurrentRepresentation()->hasSegment(segmentId, segmentSize))
+                if ((*it)->hasSegment(segmentId, segmentSize))
                 {
                     totalSize += segmentSize;
                 }
@@ -368,7 +459,7 @@ OMAF_NS_BEGIN
                 concatenatedSegment->addSrcSegment(segment);
                 for (SupportingAdaptationSets::Iterator it = mSupportingSets.begin(); it != mSupportingSets.end(); ++it)
                 {
-                    segment = (*it)->getCurrentRepresentation()->getSegment();
+                    segment = (*it)->getSegment(segmentId);
                     // id was already checked above
                     memcpy(ptr + index, segment->getDataBuffer()->getDataPtr(), segment->getDataBuffer()->getSize());
                     index += segment->getDataBuffer()->getSize();

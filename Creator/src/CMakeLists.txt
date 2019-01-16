@@ -2,7 +2,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -167,15 +167,9 @@ set(HEIF_INCLUDE_APICPP "${CMAKE_CURRENT_SOURCE_DIR}/../../../heif/srcs/api-cpp"
 set(HEIF_INCLUDE_API "${CMAKE_CURRENT_SOURCE_DIR}/../../../heif/srcs/api")
 
 if(MSVC)
-    if (MSVC_VERSION EQUAL 1800)
-        set(VSVERSION VS2013)
-    elseif (MSVC_VERSION EQUAL 1900)
+    if (MSVC_VERSION EQUAL 1900)
         set(VSVERSION VS2015)
-    elseif (MSVC_VERSION EQUAL 1910)
-        set(VSVERSION VS2017)
-    elseif (MSVC_VERSION EQUAL 1911)
-        set(VSVERSION VS2017)
-    elseif (MSVC_VERSION EQUAL 1914)
+    elseif (MSVC_VERSION GREATER 1900)
         set(VSVERSION VS2017)
     else()
         message(FATAL_ERROR "Unsupported visual studio version!" ${MSVC_VERSION})

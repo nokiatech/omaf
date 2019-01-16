@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -42,7 +42,7 @@ DashDownloadManager::DashDownloadManager()
     , mVideoDownloaderCreated(false)
     , mViewportSetEvent(false, false)
     , mAudioAdaptationSet(OMAF_NULL)
-    , mAudioMetadataAdaptationSet(OMAF_NULL)
+    , mInvoMetadataAdaptationSet(OMAF_NULL)
     , mState(DashDownloadManagerState::IDLE)
     , mStreamType(DashStreamType::INVALID)
     , mMPDUpdateTimeMS(0)
@@ -380,24 +380,19 @@ Error::Enum DashDownloadManager::completeInitialization()
                 mAudioAdaptationSet = dashAdaptationSet;
             }
         }
-
-        for (uint32_t index = 0; index < mAdaptationSets.getSize(); index++)
+    }
+    for (uint32_t index = 0; index < mAdaptationSets.getSize(); index++)
+    {
+        DashAdaptationSet* dashAdaptationSet = mAdaptationSets.at(index);
+        if (dashAdaptationSet->getAdaptationSetContent().matches(MediaContent::Type::METADATA_INVO))
         {
-            DashAdaptationSet* dashAdaptationSet = mAdaptationSets.at(index);
-            if (dashAdaptationSet->getAdaptationSetContent().matches(MediaContent::Type::HAS_META))
-            {// find which adaptation set/representation this metadata adaptation set is associated to
-                RepresentationId associatedTo;
-                if (dashAdaptationSet->isAssociatedToRepresentation(associatedTo))
-                {
-                    for (size_t j = 0; j < mAdaptationSets.getSize(); j++)
-                    {
-                        if (mAdaptationSets.at(j)->getCurrentRepresentationId() == associatedTo)
-                        {
-                            //TODO invo or some other timed metadata?
-                        }
-                    }
-                }
-            }
+            mInvoMetadataAdaptationSet = dashAdaptationSet;
+        }
+		else
+        {
+            // find which adaptation set/representation this metadata adaptation set is associated to
+            //TODO if association would have real linkage where the packets are read together and handled by the same mediastream,
+            //we need to share the parser too (invo only loosely associated)
         }
     }
 
@@ -512,10 +507,10 @@ Error::Enum DashDownloadManager::startDownload()
         if (!isVideoAndAudioMuxed() && mAudioAdaptationSet != OMAF_NULL)
         {
             mAudioAdaptationSet->startDownload(startTime);
-            if (mAudioMetadataAdaptationSet != OMAF_NULL)
-            {
-                mAudioMetadataAdaptationSet->startDownload(startTime);
-            }
+        }
+        if (mInvoMetadataAdaptationSet != OMAF_NULL)
+        {
+            mInvoMetadataAdaptationSet->startDownload(startTime);
         }
 
 
@@ -562,7 +557,7 @@ void_t DashDownloadManager::updateStreams(uint64_t currentPlayTimeUs)
     }
     if (mVideoDownloader->isError() ||
         (mAudioAdaptationSet != OMAF_NULL && mAudioAdaptationSet->isError()) ||
-        (mAudioMetadataAdaptationSet != OMAF_NULL && mAudioMetadataAdaptationSet->isError()) )
+        (mInvoMetadataAdaptationSet != OMAF_NULL && mInvoMetadataAdaptationSet->isError()) )
     {
         mState = DashDownloadManagerState::STREAM_ERROR;
     }
@@ -586,10 +581,10 @@ Error::Enum DashDownloadManager::stopDownload()
         if (!isVideoAndAudioMuxed() && mAudioAdaptationSet != OMAF_NULL)
         {
             mAudioAdaptationSet->stopDownload();
-            if (mAudioMetadataAdaptationSet != OMAF_NULL)
-            {
-                mAudioMetadataAdaptationSet->stopDownload();
-            }
+        }
+        if (mInvoMetadataAdaptationSet != OMAF_NULL)
+        {
+            mInvoMetadataAdaptationSet->stopDownload();
         }
         mState = DashDownloadManagerState::STOPPED;
         return Error::OK;
@@ -606,15 +601,14 @@ void_t DashDownloadManager::clearDownloadedContent()
     {
         mVideoDownloader->clearDownloadedContent();
 
-        if (!isVideoAndAudioMuxed() && mAudioAdaptationSet != OMAF_NULL)
-        {
-            //order matters
-            if (mAudioMetadataAdaptationSet != OMAF_NULL)
-            {
-                mAudioMetadataAdaptationSet->clearDownloadedContent();
-            }
-            mAudioAdaptationSet->clearDownloadedContent();
-        }
+    }
+    if (!isVideoAndAudioMuxed() && mAudioAdaptationSet != OMAF_NULL)
+    {
+        mAudioAdaptationSet->clearDownloadedContent();
+    }
+    if (mInvoMetadataAdaptationSet != OMAF_NULL)
+    {
+        mInvoMetadataAdaptationSet->clearDownloadedContent();
     }
 }
 
@@ -648,10 +642,10 @@ Error::Enum DashDownloadManager::seekToMs(uint64_t& aSeekMs)
     {
         result = mAudioAdaptationSet->seekToMs(seekToTarget, seekToResultMs);
         aSeekMs = seekToResultMs;
-        if (mAudioMetadataAdaptationSet != OMAF_NULL)
-        {
-            mAudioMetadataAdaptationSet->seekToMs(seekToTarget, seekToResultMs);
-        }
+    }
+    if (mInvoMetadataAdaptationSet != OMAF_NULL)
+    {
+        mInvoMetadataAdaptationSet->seekToMs(seekToTarget, seekToResultMs);
     }
     return result;
 }
@@ -681,6 +675,15 @@ const MP4AudioStreams& DashDownloadManager::getAudioStreams()
     return mCurrentAudioStreams;
 }
 
+const MP4MetadataStreams& DashDownloadManager::getMetadataStreams()
+{
+    if (mInvoMetadataAdaptationSet != OMAF_NULL && mCurrentMetadataStreams.isEmpty())
+    {
+        mCurrentMetadataStreams.add(mInvoMetadataAdaptationSet->getCurrentMetadataStreams());
+    }
+    return mCurrentMetadataStreams;
+}
+
 Error::Enum DashDownloadManager::readVideoFrames(int64_t currentTimeUs)
 {
     return mVideoDownloader->readVideoFrames(currentTimeUs);
@@ -692,6 +695,11 @@ Error::Enum DashDownloadManager::readAudioFrames()
     return mAudioAdaptationSet->readNextAudioFrame();
 }
 
+Error::Enum DashDownloadManager::readMetadata()
+{
+    return Error::OK;
+}
+
 MP4VRMediaPacket* DashDownloadManager::getNextVideoFrame(MP4MediaStream &stream, int64_t currentTimeUs)
 {
     return mVideoDownloader->getNextVideoFrame(stream, currentTimeUs);
@@ -701,6 +709,33 @@ MP4VRMediaPacket* DashDownloadManager::getNextAudioFrame(MP4MediaStream &stream)
 {
     // With Dash we don't need to do anything special here
     return stream.peekNextFilledPacket();
+}
+
+MP4VRMediaPacket* DashDownloadManager::getMetadataFrame(MP4MediaStream& aStream, int64_t aCurrentTimeUs)
+{
+    if (mInvoMetadataAdaptationSet != OMAF_NULL)
+    {
+        for (;;)
+        {
+            MP4VRMediaPacket* packet = aStream.peekNextFilledPacket();
+            if (packet != OMAF_NULL)
+            {
+                if (packet->presentationTimeUs() == aCurrentTimeUs || aCurrentTimeUs < 0)
+                {
+                    return packet;
+                }
+                break;
+            }
+            else
+            {
+                if (mInvoMetadataAdaptationSet->readMetadataFrame(aCurrentTimeUs) != Error::OK)
+                {
+                    break;
+                }
+            }
+        }
+    }
+    return OMAF_NULL;
 }
 
 const CoreProviderSourceTypes& DashDownloadManager::getVideoSourceTypes()
@@ -1005,11 +1040,6 @@ void_t DashDownloadManager::processSegmentDownload()
     //OMAF_LOG_D("%lld processSegmentDownload in", Time::getClockTimeMs());
     if (mAudioAdaptationSet != OMAF_NULL)
     {
-        if (mAudioMetadataAdaptationSet != OMAF_NULL)
-        {
-            mAudioMetadataAdaptationSet->processSegmentDownload();
-        }
-
         if (mAudioAdaptationSet->processSegmentDownload())
         {
             // update audio streams
@@ -1018,6 +1048,14 @@ void_t DashDownloadManager::processSegmentDownload()
         }
     }
     mVideoDownloader->processSegmentDownload();
+    if (mInvoMetadataAdaptationSet != OMAF_NULL)
+    {
+        if (mInvoMetadataAdaptationSet->processSegmentDownload())
+        {
+            mCurrentMetadataStreams.clear();
+            mCurrentMetadataStreams.add(mInvoMetadataAdaptationSet->getCurrentMetadataStreams());
+        }
+    }
 }
 
 void_t DashDownloadManager::onNewStreamsCreated()

@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -93,6 +93,10 @@ OMAF_LOG_ZONE(HeifMediaStreamManager);
     {
         return mVideoStreams;
     }
+    const MP4MetadataStreams& HeifMediaStreamManager::getMetadataStreams()
+    {
+        return mMetadataStreams;
+    }
     int32_t HeifMediaStreamManager::getNrStreams()
     {
         return static_cast<int32_t>(mAudioStreams.getSize() + mVideoStreams.getSize());
@@ -112,6 +116,10 @@ OMAF_LOG_ZONE(HeifMediaStreamManager);
         }
         return stream.peekNextFilledPacket();
     }
+    MP4VRMediaPacket* HeifMediaStreamManager::getMetadataFrame(MP4MediaStream& aStream, int64_t aCurrentTimeUs)
+    {
+        return OMAF_NULL;
+    }
 
     Error::Enum HeifMediaStreamManager::readVideoFrames(int64_t currentTimeUs)
     {
@@ -119,6 +127,11 @@ OMAF_LOG_ZONE(HeifMediaStreamManager);
         return Error::OK;
     }
     Error::Enum HeifMediaStreamManager::readAudioFrames()
+    {
+        // Do nothing here on file playback
+        return Error::OK;
+    }
+    Error::Enum HeifMediaStreamManager::readMetadata()
     {
         // Do nothing here on file playback
         return Error::OK;

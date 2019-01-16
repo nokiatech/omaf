@@ -2,10 +2,10 @@
 @echo off
 REM This file is part of Nokia OMAF implementation
 REM
-REM Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+REM Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 REM
 REM Contact: omaf@nokia.com
-REM 
+REM
 REM This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
 REM subsidiaries. All rights are reserved.
 REM

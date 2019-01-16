@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -106,6 +106,8 @@ void_t VideoDecoderManager::shutdownStream(streamid_t stream)
         deactivateStream(stream);
     }
     mFrameCache->shutdownStream(stream);
+    mFrameCache->destroyTexture(stream);
+    mDecoders.at(stream).textureActive = false;
     mDecoders.at(stream).free = true;
 }
 

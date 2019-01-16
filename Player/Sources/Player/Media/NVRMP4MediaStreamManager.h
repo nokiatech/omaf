@@ -1,8 +1,8 @@
 
-/** 
+/**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -42,13 +42,16 @@ class MP4MediaStreamManager : public MP4StreamManager
 
         virtual const MP4AudioStreams& getAudioStreams();
         virtual const MP4VideoStreams& getVideoStreams();
+        virtual const MP4MetadataStreams& getMetadataStreams();
         virtual int32_t getNrStreams();
 
         virtual Error::Enum readVideoFrames(int64_t currentTimeUs);
         virtual Error::Enum readAudioFrames();
+        virtual Error::Enum readMetadata();
 
         virtual MP4VRMediaPacket* getNextAudioFrame(MP4MediaStream& stream);
         virtual MP4VRMediaPacket* getNextVideoFrame(MP4MediaStream& stream, int64_t currentTimeUs);
+        virtual MP4VRMediaPacket* getMetadataFrame(MP4MediaStream& stream, int64_t currentTimeUs);
 
         virtual const CoreProviderSourceTypes& getVideoSourceTypes();
         virtual const CoreProviderSources& getVideoSources();
@@ -76,6 +79,7 @@ class MP4MediaStreamManager : public MP4StreamManager
         // Adding/removing streams are protected by the control and render mutexes; reading them can be done via either of them
         MP4AudioStreams mAudioStreams;
         MP4VideoStreams mVideoStreams;
+        MP4MetadataStreams mMetadataStreams;
 
     };
 OMAF_NS_END
