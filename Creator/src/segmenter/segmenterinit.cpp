@@ -48,7 +48,9 @@ namespace VDD
     {
         std::ostringstream st;
         bool first = true;
-        for (auto streamId: mConfig.streamIds) {
+        for (auto streamId :
+             /* sort: */ std::set<StreamId>{mConfig.streamIds.begin(), mConfig.streamIds.end()})
+        {
             st << (first ? "" : ",");
             first = false;
             st << streamId;

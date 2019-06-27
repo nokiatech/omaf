@@ -201,6 +201,8 @@ namespace H265
         unsigned int mGeneralInterlacedSourceFlag;
         unsigned int mGeneralNonPackedConstraintFlag;
         unsigned int mGeneralFrameOnlyConstraintFlag;
+        unsigned int mReserved_22bits_1; // for preserving data on read/write cycle
+        unsigned int mReserved_22bits_2; // 22 bits
         unsigned int mGeneralLevelIdc;
         std::vector<unsigned int> mSubLayerProfilePresentFlag;
         std::vector<unsigned int> mSubLayerLevelPresentFlag;
@@ -429,7 +431,7 @@ namespace H265
         ShortTermRefPicSet mShortTermRefPicSet;
         ShortTermRefPicSetDerived mShortTermRefPicSetDerived;
         unsigned int mShortTermRefPicSetIdx;
-        ShortTermRefPicSetDerived* mCurrStRps;
+        const ShortTermRefPicSetDerived* mCurrStRps;
         unsigned int mNumPocTotalCurr;
 
         unsigned int mNumLongTermSps;
@@ -471,8 +473,8 @@ namespace H265
         std::vector<unsigned int> mPocLsbLt;
         std::vector<unsigned int> mUsedByCurrPicLt;
 
-        SequenceParameterSet* mSps;
-        PictureParameterSet*  mPps;
+        const SequenceParameterSet* mSps;
+        const PictureParameterSet*  mPps;
     };
     struct sliceHeaderOffset
     {

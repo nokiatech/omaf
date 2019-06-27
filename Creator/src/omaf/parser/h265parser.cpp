@@ -128,12 +128,10 @@ void H265Parser::writeSPS(Parser::BitStream& bitstr, SequenceParameterSet& sps, 
     }
     bitstr.writeBits(sps.mSpsTemporalMvpEnabledFlag, 1);
     bitstr.writeBits(sps.mStrongIntraSmoothingEnabledFlag, 1);
-    setVuiDefaults(sps.mProfileTierLevel, sps.mVuiParameters);
     bitstr.writeBits(sps.mVuiParametersPresentFlag, 1);
     if (sps.mVuiParametersPresentFlag)
     {
-        //TODO
-        //writeVuiParameters(bitstr, sps.mVuiParameters); //TODO
+        writeVuiParameters(bitstr, sps.mVuiParameters);
     }
     bitstr.writeBits(sps.mSpsExtensionFlag, 1);
     writeRbspTrailingBits(bitstr); // TODO
@@ -160,10 +158,9 @@ int H265Parser::writeProfileTierLevel(Parser::BitStream& bitstr, ProfileTierLeve
     bitstr.writeBits(ptl.mGeneralInterlacedSourceFlag, 1);
     bitstr.writeBits(ptl.mGeneralNonPackedConstraintFlag, 1);
     bitstr.writeBits(ptl.mGeneralFrameOnlyConstraintFlag, 1);
-    for (int i = 0; i < 2; ++i)  // general_reserved_zero_44bits
-    {
-        bitstr.writeBits(0, 22);
-    }
+    // general_reserved_zero_44bits
+    bitstr.writeBits(ptl.mReserved_22bits_1, 22);
+    bitstr.writeBits(ptl.mReserved_22bits_2, 22);
     bitstr.writeBits(ptl.mGeneralLevelIdc, 8);
     for (unsigned int i = 0; i < maxNumSubLayersMinus1; ++i)
     {
@@ -196,7 +193,7 @@ int H265Parser::writeProfileTierLevel(Parser::BitStream& bitstr, ProfileTierLeve
             bitstr.writeBits(ptl.mSubLayerProfileTierLevels[i].mSubLayerFrameOnlyConstraintFlag, 1);
             for (int j = 0; j < 2; ++j)  // sub_layer_reserved_zero_44bits
             {
-                bitstr.readBits(22);
+                bitstr.writeBits(0, 22);
             }
         }
         if (ptl.mSubLayerLevelPresentFlag[i])
@@ -304,6 +301,18 @@ void H265Parser::writeRbspTrailingBits(Parser::BitStream& bitstr)
     while ((8 - bitstr.getBitOffset()) & 0x7)
     {
         bitstr.writeBits(0, 1);
+    }
+}
+
+void H265Parser::parseRbspTrailingBits(Parser::BitStream& bitstr)
+{
+    bitstr.readBits(1);
+    // TODO: we expect to read '1', but we don't validate it due to
+    // complete lack of error handling here..
+    while ((8 - bitstr.getBitOffset()) & 0x7)
+    {
+        // TODO: we expect to read '0'
+        bitstr.readBits(1);
     }
 }
 
@@ -809,7 +818,7 @@ bool H265Parser::parseNextAU(H265InputStream& aInputStream, ParserInterface::Acc
             firstVclNaluFound = true;
             //picNaluHeader = naluHeader;
 
-            poc = decodePoc(sliceHeader, naluHeader);
+            poc = decodePoc(sliceHeader, naluHeader, mPrevPicOrderCntLsb, mPrevPicOrderCntMsb);
 
             mRefPicList0.clear();
             mRefPicList1.clear();
@@ -976,7 +985,7 @@ int H265Parser::parseNalUnit(const vector<uint8_t>& nalUnit, NalUnitHeader& nalu
     return 0;
 }
 
-SequenceParameterSet* H265Parser::findSps(const unsigned int spsId, const std::list<SequenceParameterSet*>& aSpsList)
+const SequenceParameterSet* H265Parser::findSps(const unsigned int spsId, const std::list<SequenceParameterSet*>& aSpsList)
 {
     SequenceParameterSet* sps = nullptr;
 
@@ -992,9 +1001,9 @@ SequenceParameterSet* H265Parser::findSps(const unsigned int spsId, const std::l
     return sps;
 }
 
-PictureParameterSet* H265Parser::findPps(unsigned int ppsId, const std::list<PictureParameterSet*>& aPpsList)
+const PictureParameterSet* H265Parser::findPps(unsigned int ppsId, const std::list<PictureParameterSet*>& aPpsList)
 {
-    PictureParameterSet* pps = nullptr;
+    const PictureParameterSet* pps = nullptr;
 
     for (auto& i : aPpsList)
     {
@@ -1043,23 +1052,23 @@ void H265Parser::removePps(const unsigned int ppsId)
     }
 }
 
-int H265Parser::decodePoc(const SliceHeader& slice, NalUnitHeader& naluHeader)
+int H265Parser::decodePoc(const SliceHeader& slice, NalUnitHeader& naluHeader, unsigned int& prevPicOrderCntLsb, int& prevPicOrderCntMsb)
 {
     int picOrderCntMsb;
     int picOrderCntVal;
     int maxPicOrderCnt = 1 << (slice.mSps->mLog2MaxPicOrderCntLsbMinus4 + 4);
 
-    if ((slice.mSlicePicOrderCntLsb < mPrevPicOrderCntLsb) && ((int(mPrevPicOrderCntLsb) - int(slice.mSlicePicOrderCntLsb)) >= (maxPicOrderCnt / 2)))
+    if ((slice.mSlicePicOrderCntLsb < prevPicOrderCntLsb) && ((int(prevPicOrderCntLsb) - int(slice.mSlicePicOrderCntLsb)) >= (maxPicOrderCnt / 2)))
     {
-        picOrderCntMsb = mPrevPicOrderCntMsb + maxPicOrderCnt;
+        picOrderCntMsb = prevPicOrderCntMsb + maxPicOrderCnt;
     }
-    else if ((slice.mSlicePicOrderCntLsb > mPrevPicOrderCntLsb) && ((int(slice.mSlicePicOrderCntLsb) - int(mPrevPicOrderCntLsb)) > (maxPicOrderCnt / 2)))
+    else if ((slice.mSlicePicOrderCntLsb > prevPicOrderCntLsb) && ((int(slice.mSlicePicOrderCntLsb) - int(prevPicOrderCntLsb)) > (maxPicOrderCnt / 2)))
     {
-        picOrderCntMsb = mPrevPicOrderCntMsb - maxPicOrderCnt;
+        picOrderCntMsb = prevPicOrderCntMsb - maxPicOrderCnt;
     }
     else
     {
-        picOrderCntMsb = mPrevPicOrderCntMsb;
+        picOrderCntMsb = prevPicOrderCntMsb;
     }
 
     picOrderCntVal = picOrderCntMsb + slice.mSlicePicOrderCntLsb;
@@ -1068,8 +1077,8 @@ int H265Parser::decodePoc(const SliceHeader& slice, NalUnitHeader& naluHeader)
         && !(naluHeader.mH265NalUnitType >= H265NalUnitType::CODED_SLICE_RADL_N && naluHeader.mH265NalUnitType <= H265NalUnitType::CODED_SLICE_RASL_R)
         && !(naluHeader.mH265NalUnitType <= H265NalUnitType::RESERVED_VCL_R15 && (int(naluHeader.mH265NalUnitType) & 1) == 0))
     {
-        mPrevPicOrderCntLsb = slice.mSlicePicOrderCntLsb;
-        mPrevPicOrderCntMsb = picOrderCntMsb;
+        prevPicOrderCntLsb = slice.mSlicePicOrderCntLsb;
+        prevPicOrderCntMsb = picOrderCntMsb;
     }
 
     return picOrderCntVal;
@@ -1129,6 +1138,14 @@ unsigned int H265Parser::ceilLog2(const unsigned int x)
     return i;
 }
 
+void H265Parser::writeNalUnitHeader(Parser::BitStream& bitstr, const H265::NalUnitHeader& naluHeader)
+{
+    bitstr.writeBits(0, 1);  // forbidden_zero_bit
+    bitstr.writeBits(unsigned(naluHeader.mH265NalUnitType), 6);
+    bitstr.writeBits(naluHeader.mNuhLayerId, 6);
+    bitstr.writeBits(naluHeader.mNuhTemporalIdPlus1, 3);
+}
+
 int H265Parser::parseNalUnitHeader(Parser::BitStream& bitstr, NalUnitHeader& naluHeader)
 {
     bitstr.readBits(1);  // forbidden_zero_bit
@@ -1153,10 +1170,8 @@ int H265Parser::parseProfileTierLevel(Parser::BitStream& bitstr, ProfileTierLeve
     ptl.mGeneralInterlacedSourceFlag = bitstr.readBits(1);
     ptl.mGeneralNonPackedConstraintFlag = bitstr.readBits(1);
     ptl.mGeneralFrameOnlyConstraintFlag = bitstr.readBits(1);
-    for (int i = 0; i < 2; ++i)  // general_reserved_zero_44bits
-    {
-        bitstr.readBits(22);
-    }
+    ptl.mReserved_22bits_1 = bitstr.readBits(22);
+    ptl.mReserved_22bits_2 = bitstr.readBits(22);
     ptl.mGeneralLevelIdc = bitstr.readBits(8);
     for (unsigned int i = 0; i < maxNumSubLayersMinus1; ++i)
     {
@@ -1398,7 +1413,7 @@ int H265Parser::parseRefPicListsModification(Parser::BitStream& bitstr, const Sl
 int H265Parser::decodeRefPicSet(SliceHeader& slice, RefPicSet& rps, const int poc)
 {
     Picture* pic;
-    ShortTermRefPicSetDerived& currStRps = *slice.mCurrStRps;
+    const ShortTermRefPicSetDerived& currStRps = *slice.mCurrStRps;
     int maxPicOrderCnt = 1 << (slice.mSps->mLog2MaxPicOrderCntLsbMinus4 + 4);
 
     rps.mPocStCurrBefore.clear();
@@ -1737,6 +1752,83 @@ void H265Parser::setVuiDefaults(ProfileTierLevel& ptl, VuiParameters& vui)
     vui.mLog2MaxMvLengthVertical = 15;
 }
 
+void H265Parser::writeVuiParameters(Parser::BitStream& bitstr, const H265::VuiParameters& vui)
+{
+    bitstr.writeBits(vui.mAspectRatioInfoPresentFlag, 1);
+    if (vui.mAspectRatioInfoPresentFlag)
+    {
+        bitstr.writeBits(vui.mAspectRatioIdc, 8);
+        if (vui.mAspectRatioIdc == EXTENDED_SAR)
+        {
+            bitstr.writeBits(vui.mSarWidth, 16);
+            bitstr.writeBits(vui.mSarHeight, 16);
+        }
+    }
+    bitstr.writeBits(vui.mOverscanInfoPresentFlag, 1);
+    if (vui.mOverscanInfoPresentFlag)
+    {
+        bitstr.writeBits(vui.mOverscanAppropriateFlag, 1);
+    }
+    bitstr.writeBits(vui.mVideoSignalTypePresentFlag, 1);
+    if (vui.mVideoSignalTypePresentFlag)
+    {
+        bitstr.writeBits(vui.mVideoFormat, 3);
+        bitstr.writeBits(vui.mVideoFullRangeFlag, 1);
+        bitstr.writeBits(vui.mColourDescriptionPresentFlag, 1);
+        if (vui.mColourDescriptionPresentFlag)
+        {
+            bitstr.writeBits(vui.mCcolourPrimaries, 8);
+            bitstr.writeBits(vui.mTransferCharacteristics, 8);
+            bitstr.writeBits(vui.mMatrixCoeffs, 8);
+        }
+    }
+    bitstr.writeBits(vui.mChromaLocInfoPresentFlag, 1);
+    if (vui.mChromaLocInfoPresentFlag)
+    {
+        bitstr.writeExpGolombCode(vui.mChromaSampleLocTypeTopField);
+        bitstr.writeExpGolombCode(vui.mChromaSampleLocTypeBottomField);
+    }
+    bitstr.writeBits(vui.mNeutralChromaIndicationFlag, 1);
+    bitstr.writeBits(vui.mFieldSeqFlag, 1);
+    bitstr.writeBits(vui.mFrameFieldInfoPresentFlag, 1);
+    bitstr.writeBits(vui.mDefaultDisplayWindowFlag, 1);
+    if (vui.mDefaultDisplayWindowFlag)
+    {
+        bitstr.writeExpGolombCode(vui.mDefDispWinLeftOffset);
+        bitstr.writeExpGolombCode(vui.mDefDispWinRightOffset);
+        bitstr.writeExpGolombCode(vui.mDefDispWinTopOffset);
+        bitstr.writeExpGolombCode(vui.mDefDispWinBottomOffset);
+    }
+    bitstr.writeBits(vui.mVuiTimingInfoPresentFlag, 1);
+    if (vui.mVuiTimingInfoPresentFlag)
+    {
+        bitstr.writeBits(vui.mVuiNumUnitsInTick, 32);
+        bitstr.writeBits(vui.mVuiTimeScale, 32);
+        bitstr.writeBits(vui.mVuiPocProportionalToTimingFlag, 1);
+        if (vui.mVuiPocProportionalToTimingFlag)
+        {
+            bitstr.writeExpGolombCode(vui.mVuiNumTicksPocDiffOneMinus1);
+            bitstr.writeBits(vui.mVuiHrdParametersPresentFlag, 1);
+            if (vui.mVuiHrdParametersPresentFlag)
+            {
+                // TODO
+            }
+        }
+    }
+    bitstr.writeBits(vui.mBitstreamRestrictionFlag, 1);
+    if (vui.mBitstreamRestrictionFlag)
+    {
+        bitstr.writeBits(vui.mTilesFixedStructureFlag, 1);
+        bitstr.writeBits(vui.mMotionVectorsOverPicBoundariesFlag, 1);
+        bitstr.writeBits(vui.mRestrictedRefPicListsFlag, 1);
+        bitstr.writeExpGolombCode(vui.mMinSpatialSegmentationIdc);
+        bitstr.writeExpGolombCode(vui.mMaxBytesPerPicDenom);
+        bitstr.writeExpGolombCode(vui.mMaxBitsPerMinCuDenom);
+        bitstr.writeExpGolombCode(vui.mLog2MaxMvLengthHorizontal);
+        bitstr.writeExpGolombCode(vui.mLog2MaxMvLengthVertical);
+    }
+}
+
 int H265Parser::parseVuiParameters(Parser::BitStream& bitstr, VuiParameters& vui)
 {
     vui.mAspectRatioInfoPresentFlag = bitstr.readBits(1);
@@ -1913,7 +2005,7 @@ int H265Parser::parseHrdParameters(Parser::BitStream& bitstr, HrdParameters& hrd
     return 0;
 }
 
-int H265Parser::parsePredWeightTable(Parser::BitStream& bitstr, SequenceParameterSet& sps, SliceHeader& slice, PredWeightTable& pwTable)
+int H265Parser::parsePredWeightTable(Parser::BitStream& bitstr, const SequenceParameterSet& sps, const SliceHeader& slice, PredWeightTable& pwTable)
 {
     array<int, 2> weights;
     array<int, 2> offsets;
@@ -2089,6 +2181,14 @@ int H265Parser::parseSPS(Parser::BitStream& bitstr, SequenceParameterSet& sps)
         sps.mLog2DiffMaxMinPcmLumaCodingBlockSize = bitstr.readExpGolombCode();
         sps.mPcmLoopFilterDisabledFlag = bitstr.readBits(1);
     }
+    else
+    {
+        sps.mPcmSampleBitDepthLumaMinus1 = {};
+        sps.mPcmSampleBitDepthChromaMinus1 = {};
+        sps.mLog2MinPcmLumaCodingBlockSizeMinus3 = {};
+        sps.mLog2DiffMaxMinPcmLumaCodingBlockSize = {};
+        sps.mPcmLoopFilterDisabledFlag = {};
+    }
     sps.mNumShortTermRefPicSets = bitstr.readExpGolombCode();
     sps.mShortTermRefPicSets.resize(sps.mNumShortTermRefPicSets);
     sps.mShortTermRefPicSetsDerived.resize(sps.mNumShortTermRefPicSets);
@@ -2116,6 +2216,7 @@ int H265Parser::parseSPS(Parser::BitStream& bitstr, SequenceParameterSet& sps)
         parseVuiParameters(bitstr, sps.mVuiParameters);
     }
     sps.mSpsExtensionFlag = bitstr.readBits(1);
+    parseRbspTrailingBits(bitstr);
 
     return 0;
 }
@@ -2235,8 +2336,8 @@ int H265Parser::parseSliceHeader(Parser::BitStream& bitstr, SliceHeader& slice, 
     slice.mSps = findSps(slice.mPps->mSpsId, aSpsList);
     assert(slice.mSps != nullptr);
 
-    SequenceParameterSet& sps = *slice.mSps;
-    PictureParameterSet& pps = *slice.mPps;
+    const SequenceParameterSet& sps = *slice.mSps;
+    const PictureParameterSet& pps = *slice.mPps;
 
     slice.mNumRefIdxL0ActiveMinus1 = pps.mNumRefIdxL0DefaultActiveMinus1;
     slice.mNumRefIdxL1ActiveMinus1 = pps.mNumRefIdxL1DefaultActiveMinus1;
@@ -2550,6 +2651,50 @@ bool H265Parser::isFirstVclNaluInPic(const vector<uint8_t>& nalUnit)
     else
     {
         return false;
+    }
+}
+
+void H265Parser::convertFromRBSP(const std::vector<uint8_t>& src, std::vector<uint8_t>& dest, bool byteStreamMode)
+{
+    dest.reserve(dest.size() + src.size() + 4);
+    if (byteStreamMode)
+    {
+        dest.push_back(0);
+        dest.push_back(0);
+        dest.push_back(0);
+        dest.push_back(1);
+    }
+
+    auto input = src.begin();
+    dest.push_back(*input);
+    ++input;
+    dest.push_back(*input);
+    ++input;
+
+    int numSeqZeroes = 0;
+
+    for (; input != src.end(); ++input)
+    {
+        if (*input == 0)
+        {
+            ++numSeqZeroes;
+            if (numSeqZeroes == 3)
+            {
+                dest.push_back(3);
+                numSeqZeroes = 1;
+            }
+        }
+        else if (*input <= 3 && numSeqZeroes == 2)
+        {
+            numSeqZeroes = 0;
+            dest.push_back(3);
+        }
+        else
+        {
+            numSeqZeroes = 0;
+        }
+        assert(numSeqZeroes <= 2);
+        dest.push_back(*input);
     }
 }
 

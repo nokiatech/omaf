@@ -78,7 +78,7 @@ namespace VDD {
 
 
     TileProducer::TileProducer(Config& config)
-        : mTileFilter(config.quality, config.projection)
+        : mTileFilter(config.quality, config.projection, config.resetExtractorLevelIDCTo51)
         , mTileConfig(config.tileConfig)
         , mExtractorMode(config.extractorMode)
         , mAUIndex(0)

@@ -41,6 +41,7 @@ namespace VDD {
             Projection projection;
             size_t tileCount;
             size_t frameCount;
+            bool resetExtractorLevelIDCTo51;
         };
         TileProducer(Config& config);
 

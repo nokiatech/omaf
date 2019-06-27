@@ -105,9 +105,9 @@ namespace VDD
             COUNT
         };
 
-        void readCommonInputVideoParams(const VDD::ConfigValue& aValue, Projection& aProjection, uint32_t& aFrameCount);
+        void readCommonInputVideoParams(const VDD::ConfigValue& aValue, uint32_t& aFrameCount);
         InputVideo& readInputVideoConfig(const VDD::ConfigValue& aVideoInputConfiguration, uint32_t aFrameCount, std::pair<int, int>& aTiles);
-        void associateTileProducer(InputVideo& aVideo, ExtractorMode aExtractor, Projection& aProjection);
+        void associateTileProducer(InputVideo& aVideo, ExtractorMode aExtractor);
         void rewriteIdsForTiles(InputVideo& aVideo);
 
         /** @brief Given an pipeline mode and base layer name, find an existing MP4VR producer for
@@ -179,6 +179,8 @@ namespace VDD
         VideoInputMode mVideoInputMode;
 
         std::string mDashBaseName;
+
+        Projection mProjection;
 
         friend class ControllerConfigure;
     };

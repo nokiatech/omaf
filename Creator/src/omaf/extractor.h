@@ -17,7 +17,7 @@
 #include <memory>
 #include <vector>
 #include "parser/h265datastructs.hpp"
-
+#include "processor/meta.h"
 
 namespace VDD {
 
@@ -32,8 +32,9 @@ namespace VDD {
         {
             // idx is internal member. It should be able to give the order of constructors, also between sample and inline, as they are expected to be interleaved. 
             // E.g. you add as many SampleConstruct instances until SampleConstruct::idx >= InlineConstruct::idx, and then add InlineConstruct instances 
-            size_t idx;      
-            std::uint8_t   trackId;
+            size_t idx;
+            // Actual track id; mapped later to the scal track reference index
+            TrackId        trackId;
             // sample offset not relevant with VD use cases
             std::uint64_t  dataOffset;
             std::uint64_t  dataLength;

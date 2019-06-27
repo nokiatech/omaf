@@ -113,7 +113,9 @@ namespace VDD
     {
         std::ostringstream st;
         bool first = true;
-        for (auto streamId: mConfig.streamIds) {
+        for (auto streamId :
+             /* sort: */ std::set<StreamId>{mConfig.streamIds.begin(), mConfig.streamIds.end()})
+        {
             st << (first ? "" : ",");
             first = false;
             st << streamId;
@@ -447,6 +449,13 @@ namespace VDD
     void Segmenter::packExtractors(const Data& aFrame, std::vector<Data>& aOutputData)
     {
         std::vector<std::uint8_t> extractorNALUnits;
+        TrackId extractorTrackId = 1;
+
+        if (auto trackIdTag = aFrame.getMeta().findTag<TrackIdTag>())
+        {
+            extractorTrackId = trackIdTag->get();
+        }
+
         if (aFrame.getStorageType() != StorageType::Empty)
         {
             // first place possible other NAL units (at least SEI)
@@ -486,7 +495,13 @@ namespace VDD
                     outputExtractor.sampleConstructor->sampleOffset = 0;
                     outputExtractor.sampleConstructor->dataOffset = sampleConstruct->dataOffset;
                     outputExtractor.sampleConstructor->dataLength = sampleConstruct->dataLength;
-                    outputExtractor.sampleConstructor->trackId = sampleConstruct->trackId;  // Note: this refers to the index in the track references. It works if trackIds are 1-based and contiguous, as the spec expects the index is 1-based. 
+
+                    ScalTrefIndex scalTrefIndex =
+                        mConfig.trackToScalTrafIndexMap.at(extractorTrackId)
+                            .at(sampleConstruct->trackId);
+
+                    // Note: this refers to the 1-based index in the track references.
+                    outputExtractor.sampleConstructor->trackId = scalTrefIndex.get();
                     sampleConstruct++;
                     // now we have a full extractor: either just a sample constructor, or inline+sample constructor pair
                     extractorData.samples.push_back(outputExtractor);

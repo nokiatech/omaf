@@ -14,7 +14,9 @@
  */
 #include <math.h>
 #include <sstream>
-#include "./tileproxy.h"
+#include "tileproxy.h"
+#include "tileutil.h"
+#include "async/graphbase.h"
 #include "processor/data.h"
 #include "parser/bitstream.hpp"
 #include "omafproperties.h"
@@ -188,7 +190,7 @@ namespace VDD {
         if (!mExtractorSEICreated)
         {
             mExtractorSEICreated = true;
-            return Data(std::move(createExtractorSEI(*cMeta.regionPacking, extractors.at(0).nuhTemporalIdPlus1)), std::move(meta), std::move(extractors), mExtractorStreamId);
+            return Data(std::move(createExtractorSEI(cMeta.regionPacking, extractors.at(0).nuhTemporalIdPlus1)), std::move(meta), std::move(extractors), mExtractorStreamId);
         }
         else
         {
@@ -196,7 +198,7 @@ namespace VDD {
         }
     }
 
-    CPUDataVector TileProxy::createExtractorSEI(const RegionPacking& aRegionPacking, unsigned int aTemporalIdPlus1)
+    CPUDataVector TileProxy::createExtractorSEI(VDD::Optional<RegionPacking> aRegionPacking, unsigned int aTemporalIdPlus1)
     {
         // add SEI NALs as data for the first extractor of each subpictures (may be needed only from one of them, but we don't know here which one)
         std::vector<std::uint8_t> seiBuffer;
@@ -209,13 +211,15 @@ namespace VDD {
         seiBuffer.insert(seiBuffer.end(), seiLengthField.getStorage().begin(), seiLengthField.getStorage().end());
         seiBuffer.insert(seiBuffer.end(), seiNalStr.getStorage().begin(), seiNalStr.getStorage().end());
 
-        seiNalStr.clear();
-        length = OMAF::createRwpkSEI(seiNalStr, aRegionPacking, aTemporalIdPlus1);
-        seiLengthField.clear();
-        seiLengthField.write32Bits(length);
-        seiBuffer.insert(seiBuffer.end(), seiLengthField.getStorage().begin(), seiLengthField.getStorage().end());
-        seiBuffer.insert(seiBuffer.end(), seiNalStr.getStorage().begin(), seiNalStr.getStorage().end());
-
+        if (aRegionPacking)
+        {
+            seiNalStr.clear();
+            length = OMAF::createRwpkSEI(seiNalStr, *aRegionPacking, aTemporalIdPlus1);
+            seiLengthField.clear();
+            seiLengthField.write32Bits(length);
+            seiBuffer.insert(seiBuffer.end(), seiLengthField.getStorage().begin(), seiLengthField.getStorage().end());
+            seiBuffer.insert(seiBuffer.end(), seiNalStr.getStorage().begin(), seiNalStr.getStorage().end());
+        }
         std::vector<std::vector<std::uint8_t>> matrix(1, std::move(seiBuffer));
         return CPUDataVector(std::move(matrix));
     }

@@ -52,6 +52,45 @@
 
 namespace VDD
 {
+    namespace
+    {
+        VideoInputMode readVideoInputMode(const VDD::ConfigValue& aValue)
+        {
+            std::string modeStr = Utils::lowercaseString(readString(aValue));
+            if (modeStr == "topbottom")
+            {
+                return VideoInputMode::TopBottom;
+            }
+            else if (modeStr == "sidebyside")
+            {
+                return VideoInputMode::LeftRight;
+            }
+            else if (modeStr == "mono")
+            {
+                return VideoInputMode::Mono;
+            }
+            else
+            {
+                throw ConfigValueInvalid("Invalid input_mode", aValue);
+            }
+        }
+
+        TrackToScalTrafIndexMap buildScalTrafIndexMap(const SegmenterInit::Config& aSegmenterInitConfig, TrackId aExtractorTrackId)
+        {
+            TrackToScalTrafIndexMap m;
+
+            int8_t index = 1;
+            for (auto trackId : aSegmenterInitConfig.tracks.at(aExtractorTrackId).trackReferences.at("scal"))
+            {
+                m[aExtractorTrackId][trackId] = index;
+                ++index;
+            }
+
+            assert(m.size());
+            return m;
+        }
+    }
+
     OmafVDController::OmafVDController(Config aConfig)
         : ControllerBase()
         , mLog(aConfig.log ? aConfig.log : std::shared_ptr<Log>(new ConsoleLog()))
@@ -111,7 +150,7 @@ namespace VDD
 
         if ((*mConfig)["dash"].valid())
         {
-            mDash.setupMpd(mDashBaseName);
+            mDash.setupMpd(mDashBaseName, mProjection);
         }
         setupDebug();
 
@@ -179,7 +218,6 @@ namespace VDD
 
         // go through the inputs in config
         auto inputVideoConfigs = (*mConfig)["video"];
-        Projection projection = { OmafProjectionType::None };
         std::pair<int, int> tilesXY;
         uint32_t frameCount = 0;
 
@@ -189,7 +227,7 @@ namespace VDD
             if (value.getName().find("common") != std::string::npos)
             {
                 // common parameters
-                readCommonInputVideoParams(value, projection, frameCount);
+                readCommonInputVideoParams(value, frameCount);
             }
         }
         // the common-section is mandatory
@@ -318,6 +356,12 @@ namespace VDD
             tileProxyConfig.tileCount = TileConfigurations::createERP6KConfig(tileProxyConfig.tileMergingConfig, fullResVideo, mediumResVideo, mediumResPolarVideo, lowResPolarVideo, tileProxyConfig.extractors);
         }
 
+        for (InputVideo& video : mInputVideos)
+        {
+            video.mTileProducerConfig.resetExtractorLevelIDCTo51 =
+                mVDMode == VDMode::MultiRes5K || mVDMode == VDMode::MultiRes6K;
+        }
+
         std::function<AsyncProcessorWrapper*(std::string aLabel)> tileProxyFactory;
 
         // create a single tile proxy
@@ -362,7 +406,7 @@ namespace VDD
 
             for (InputVideo& video : mInputVideos)
             {
-                associateTileProducer(video, extractorMode, projection);
+                associateTileProducer(video, extractorMode);
 
                 if (mVDMode == VDMode::MultiQ)
                 {
@@ -422,7 +466,10 @@ namespace VDD
                 if (mVDMode == VDMode::MultiQ)
                 {
                     // add all tile tracks
-                    mDash.addAdditionalVideoTracksToExtractorInitConfig(extractorId.second, dashSegmenterConfig.get().segmenterInitConfig, mInputVideos.at(0).mTileProducerConfig.tileConfig, mVideoTimeScale);
+                    mDash.addAdditionalVideoTracksToExtractorInitConfig(
+                        extractorId.second, dashSegmenterConfig.get().segmenterInitConfig,
+                        mInputVideos.at(0).mTileProducerConfig.tileConfig,
+                        mVideoTimeScale, adSetIds);
                 }
                 else
                 {
@@ -432,10 +479,18 @@ namespace VDD
                     for (auto& video : mInputVideos)
                     {
                         // we need to add all video track ids to all extractor init segments
-                        mDash.addAdditionalVideoTracksToExtractorInitConfig(extractorId.second, dashSegmenterConfig.get().segmenterInitConfig, video.mTileProducerConfig.tileConfig, mVideoTimeScale);
+                        mDash.addAdditionalVideoTracksToExtractorInitConfig(
+                            extractorId.second, dashSegmenterConfig.get().segmenterInitConfig,
+                            video.mTileProducerConfig.tileConfig, mVideoTimeScale, adSetIds);
                     }
                     direction++;
                 }
+
+                // a mouthful
+                dashSegmenterConfig.get()
+                    .segmenterAndSaverConfig.segmenterConfig.trackToScalTrafIndexMap =
+                    buildScalTrafIndexMap(dashSegmenterConfig.get().segmenterInitConfig,
+                                          extractorId.second);
 
                 dashSegmenterConfig.get().segmenterInitConfig.packedSubPictures = true;
                 dashSegmenterConfig->segmenterAndSaverConfig.segmenterConfig.log = mLog;
@@ -539,7 +594,7 @@ namespace VDD
                             }
                         }
                     }
-                    associateTileProducer(inVideo, extractorMode, projection);
+                    associateTileProducer(inVideo, extractorMode);
                     if (mVDMode == VDMode::MultiQ)
                     {
                         // only 1 extractor needed for multi-Q/single-res case
@@ -712,18 +767,18 @@ namespace VDD
 
     }
 
-    void OmafVDController::readCommonInputVideoParams(const VDD::ConfigValue& aValue, Projection& aProjection, uint32_t& aFrameCount)
+    void OmafVDController::readCommonInputVideoParams(const VDD::ConfigValue& aValue, uint32_t& aFrameCount)
     {
         std::string projection = readString(aValue["projection"]);
         if (projection.empty() || projection.find("equirect") != std::string::npos)
         {
             // OK, use the default
-            aProjection.projection = OmafProjectionType::EQUIRECTANGULAR;
+            mProjection.projection = OmafProjectionType::EQUIRECTANGULAR;
         }
         else if (projection.find("cubemap") != std::string::npos)
         {
             // in future could read the face order & rotation parameters
-            aProjection.projection = OmafProjectionType::CUBEMAP;
+            mProjection.projection = OmafProjectionType::CUBEMAP;
         };
         if (aValue["output_mode"].valid())
         {
@@ -840,11 +895,11 @@ namespace VDD
         }
     }
 
-    void OmafVDController::associateTileProducer(InputVideo& aInput, ExtractorMode aExtractorMode, Projection& aProjection)
+    void OmafVDController::associateTileProducer(InputVideo& aInput, ExtractorMode aExtractorMode)
     {
         // first fill the rest of common parameters
         aInput.mTileProducerConfig.extractorMode = aExtractorMode;
-        aInput.mTileProducerConfig.projection = aProjection;
+        aInput.mTileProducerConfig.projection = mProjection;
 
         // create a tile filter (which is also a source - to minimize code rewrite) 
         auto tileProducer = Utils::make_unique<TileProducer>(aInput.mTileProducerConfig);

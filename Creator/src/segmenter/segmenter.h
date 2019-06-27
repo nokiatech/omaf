@@ -29,6 +29,8 @@
 
 namespace VDD
 {
+    typedef StreamSegmenter::IdBase<std::int8_t, struct ScalTrefIndexTag> ScalTrefIndex;
+
     /** A hierarchical umbrella class for all Segmenter exceptions */
     class SegmenterException : public Exception
     {
@@ -79,6 +81,10 @@ namespace VDD
 
     using SegmentRoleTag = ValueTag<SegmentRole>;
 
+    // First key is the extractor track id, second key is the track id to map; result
+    // is obviously the final scal track reference index
+    using TrackToScalTrafIndexMap = std::map<TrackId, std::map<TrackId, ScalTrefIndex>>;
+
     class Segmenter : public Processor
     {
     public:
@@ -112,6 +118,9 @@ namespace VDD
             std::list<StreamId> streamIds; // more than 1 used at least with mp4 single file output; stream ids is just for gatekeeping; what streams to process and what to skip. No need to have exact mapping to tracks
 
             std::shared_ptr<Log> log;
+
+            // Special support for extractor tracks: map track ids to scal track reference indices
+            TrackToScalTrafIndexMap trackToScalTrafIndexMap;
         };
 
         Segmenter(Config aConfig, bool aCreateWriter = true);

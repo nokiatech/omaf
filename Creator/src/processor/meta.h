@@ -250,7 +250,11 @@ namespace VDD
         Meta(const Meta& aMeta);
         Meta(Meta&& aMeta);
         Meta(const RawFrameMeta& aRawFrameMeta);
+        // Copies tags
+        Meta(const RawFrameMeta& aRawFrameMeta, const Meta& aMeta);
         Meta(const CodedFrameMeta& aCodedFrameMeta);
+        // Copies tags
+        Meta(const CodedFrameMeta& aCodedFrameMeta, const Meta& aMeta);
         ~Meta() = default;
         Meta& operator=(const Meta&);
         Meta& operator=(Meta&&);

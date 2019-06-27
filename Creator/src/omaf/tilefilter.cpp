@@ -17,15 +17,16 @@
 #include "extractor.h"
 #include "omafproperties.h"
 #include <math.h>
-
+#include "tileutil.h"
 
 namespace VDD {
 
     static const uint8_t NALHeaderLength = 2;
 
-    TileFilter::TileFilter(std::uint8_t aQualityRank, Projection& aProjection)
+    TileFilter::TileFilter(std::uint8_t aQualityRank, Projection& aProjection, bool aResetExtractorLevelIDCTo51)
         : mQualityRank(aQualityRank)
         , mProjection(aProjection)
+        , mResetExtractorLevelIDCTo51(aResetExtractorLevelIDCTo51)
     {
     }
 
@@ -238,8 +239,6 @@ namespace VDD {
             spsListSubPicture.front()->mPicWidthInLumaSamples = mTileRegions.at(aTileConfig.at(i).tileIndex).width;
             spsListSubPicture.front()->mPicHeightInLumaSamples = mTileRegions.at(aTileConfig.at(i).tileIndex).height;
 
-            // TODO the H265Parser is not able to write VUI to SPS. Disable VUI for now
-            spsListSubPicture.front()->mVuiParametersPresentFlag = 0;
             mCbsSpsData.push_back(spsListSubPicture);
 
             mH265Parser->parseNalUnit(mNonVclNals.mPpsNals, naluHeader);
@@ -373,7 +372,7 @@ namespace VDD {
             }
             // When the dataLength == 0, reader is expected to copy a single full NAL unit; currently not useful for us 
 
-            sampleCtor.trackId = std::uint8_t(aConfig.trackId.get());
+            sampleCtor.trackId = aConfig.trackId;
 
             sampleCtor.sliceInfo.origSliceHeader = oldHeaderParsed;
             sampleCtor.sliceInfo.origSliceHeaderLength = origSliceHeaderLen;//including start code/length field
@@ -431,7 +430,12 @@ namespace VDD {
     }
 
 
-    CodedFrameMeta TileFilter::createMetadata(const TilePixelRegion& aTile, TrackId aTrackId, FrameTime aPresTime, int64_t aCodingIndex, FrameDuration aDuration, bool aIsIDR, size_t aAUIndex, CbsSpsData& aSps, CbsPpsData& aPps, int aBitrate)
+    CodedFrameMeta TileFilter::createMetadata(const TilePixelRegion& aTile, TrackId aTrackId,
+                                              FrameTime aPresTime,
+                                              int64_t aCodingIndex,
+                                              FrameDuration aDuration, bool aIsIDR, size_t aAUIndex,
+                                              const CbsSpsData& aSps, const CbsPpsData& aPps,
+                                              uint32_t aBitrate)
     {
         CodedFrameMeta codedMeta;
         codedMeta.inCodingOrder = true;
@@ -462,8 +466,13 @@ namespace VDD {
                 {
                     bitstr.write8Bits(mNonVclNals.mSpsNals.at(i));
                 }
+
+                // Adjust IDC level
+                auto sps = *aSps.front();
+                setSpsLevelIdc(sps, TileIDCLevel51);
+
                 // then encode the subpicture sps
-                mH265Parser->writeSPS(bitstr, *aSps.front(), false);
+                mH265Parser->writeSPS(bitstr, sps, false);
 
                 codedMeta.decoderConfig.insert(std::pair<ConfigType, std::vector<uint8_t>>(ConfigType::SPS, { bitstr.getStorage() }));
                 bitstr.clear();
@@ -509,13 +518,31 @@ namespace VDD {
         // insert the original SPS/PPS/VPS. This works with single resolution VD case
         if (aAUIndex == 0)
         {
-            codedMeta.regionPacking = std::move(createRwpk(aTile));
+            if (mProjection.projection ==
+                OmafProjectionType::EQUIRECTANGULAR)  // TODO as we support cubemap currently with
+                                                      // MultiQ option only and only OMAF cubemaps,
+                                                      // there is really no need to have RWPK for it,
+                                                      // but player can use defaults for face order &
+                                                      // transform
+            {
+                codedMeta.regionPacking = createRwpk(aTile);
+            }
 
             if (mNonVclNals.mSpsNals.size() > 0)
             {
-                // Write the original SPS
-                // the strange thing is that the mp4/dash writer expects SPS, PPS, VPS in byte stream format, but video data must be in NAL access unit format
-                codedMeta.decoderConfig.insert(std::pair<ConfigType, std::vector<uint8_t>>(ConfigType::SPS, { mNonVclNals.mSpsNals }));
+                if (mResetExtractorLevelIDCTo51)
+                {
+                    codedMeta.decoderConfig.insert(std::pair<ConfigType, std::vector<uint8_t>>(
+                        ConfigType::SPS, spsNalWithLevelIdc(mNonVclNals.mSpsNals, TileIDCLevel51)));
+                }
+                else
+                {
+                    // Write the original SPS
+                    // the strange thing is that the mp4/dash writer expects SPS, PPS, VPS in byte
+                    // stream format, but video data must be in NAL access unit format
+                    codedMeta.decoderConfig.insert(std::pair<ConfigType, std::vector<uint8_t>>(
+                        ConfigType::SPS, {mNonVclNals.mSpsNals}));
+                }
             }
             if (mNonVclNals.mPpsNals.size() > 0)
             {

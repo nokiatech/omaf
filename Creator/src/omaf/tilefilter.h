@@ -34,7 +34,7 @@ namespace VDD {
     class TileFilter
     {
     public:
-        TileFilter(std::uint8_t aQualityRank, Projection& aProjection);
+        TileFilter(std::uint8_t aQualityRank, Projection& aProjection, bool aResetExtractorLevelIDCTo51);
         ~TileFilter();
 
     public:
@@ -62,8 +62,17 @@ namespace VDD {
             const std::list<H265::SequenceParameterSet*>& aOldSpsList, const std::list<H265::PictureParameterSet*>& aOldPpsList,
             H265::SequenceParameterSet* aNewSps, H265::PictureParameterSet* aNewPps, H265::SliceHeader& aOldHeaderParsed, uint8_t& aNuhTemporalIdPlus1);
         void prepareParamSets(const OmafTileSets& aTileConfig, const CodedFrameMeta& aInputMeta);
-        CodedFrameMeta createMetadata(const TilePixelRegion& aTile, TrackId aTrackId, FrameTime aPresTime, int64_t aCodingIndex, FrameDuration aDuration, bool aIsIDR, size_t aAUIndex, CbsSpsData& aSps, CbsPpsData& aPps, int aBitrate);
-        CodedFrameMeta createExtractorMetadata(const TilePixelRegion& aTile, FrameTime aPresTime, int64_t aCodingIndex, FrameDuration aDuration, size_t aAUIndex, bool aIsIDR);
+        CodedFrameMeta createMetadata(const TilePixelRegion& aTile, TrackId aTrackId,
+                                      FrameTime aPresTime,
+                                      int64_t aCodingIndex,
+                                      FrameDuration aDuration, bool aIsIDR, size_t aAUIndex,
+                                      const CbsSpsData& aSps, const CbsPpsData& aPps,
+                                      uint32_t aBitrate);
+        CodedFrameMeta createExtractorMetadata(const TilePixelRegion& aTile,
+                                               FrameTime aPresTime,
+                                               int64_t aCodingIndex,
+                                               FrameDuration aDuration, size_t aAUIndex,
+                                               bool aIsIDR);
         RegionPacking createRwpk(const TilePixelRegion& aTile);
         void createSpherical(CodedFrameMeta& aCodedMeta);
 
@@ -92,6 +101,7 @@ namespace VDD {
         std::uint8_t mQualityRank;
         std::vector<int> mBitratePerSubpicture;
         Projection mProjection;
+        bool mResetExtractorLevelIDCTo51;
 
         std::vector<TilePixelRegion> mTileRegions;
     };

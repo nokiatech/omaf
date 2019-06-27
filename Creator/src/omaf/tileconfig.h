@@ -24,6 +24,7 @@
 #include "./omaf/parser/h265datastructs.hpp"
 
 namespace VDD {
+    static const unsigned TileIDCLevel51 = 51;
 
     struct OmafTileSetConfiguration
     {

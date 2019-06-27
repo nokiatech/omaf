@@ -4,6 +4,11 @@
 OMAF is a systems standard developed by the Moving Picture Experts Group (MPEG) for enabling standardized omnidirectional media applications, focusing on 360 video, images and audio. OMAF Creator/Player Engine is an implementation of OMAF standard in order to demonstrate its powerful features and capabilities, and to help achieving interoperability between OMAF implementations.
 
 ## News:
+27-Jun-2019: Three bugs fixed in Creator:
+* HEVC codec level set according to video resolution
+* scal track references contain only the needed tracks
+* cubemap projection set to MPD properly, and no RWPK added to extractor as only default OMAF cubemap supported
+
 16-Jan-2019: Version 2.1.0 released! Main changes include:
 * Windows sample application for OMAF Player supports Direct3D rendering providing improved playback performance (e.g. 6K@60 fps).
 * OMAF Player bug fixes and improvements especially in OMAF HEVC Viewport Dependent profile, OMAF Still image profile, and audio playback.

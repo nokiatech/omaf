@@ -102,8 +102,11 @@ namespace VDD
         {
             labeledMP4VRWriter.second->finalizePipeline();
         }
+        VDD::Projection projection;
+        // VI is always equirectangular
+        projection.projection = VDD::OmafProjectionType::EQUIRECTANGULAR;
 
-        mDash.setupMpd("");
+        mDash.setupMpd("", projection);
 
         setupDebug();
 

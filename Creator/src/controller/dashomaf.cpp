@@ -14,6 +14,8 @@
  */
 #include "dashomaf.h"
 
+#include <algorithm>
+
 #include "common.h"
 #include "controllerops.h"
 #include "controllerconfigure.h"
@@ -42,7 +44,7 @@ namespace VDD
 
     DashOmaf::~DashOmaf() = default;
 
-    void DashOmaf::setupMpd(const std::string& aName)
+    void DashOmaf::setupMpd(const std::string& aName, const Projection& aProjection)
     {
         if (mDashConfig.valid())
         {
@@ -64,6 +66,13 @@ namespace VDD
             mMpd.minBufferTime = StreamSegmenter::MPDTree::Duration{ 3, 1 }; //TODO
 
             mMpd.projectionFormat = StreamSegmenter::MPDTree::OmafProjectionFormat{};
+            if (aProjection.projection == VDD::OmafProjectionType::CUBEMAP)
+            {
+                // replace the default with cubemap
+                mMpd.projectionFormat->projectionType.clear();
+                mMpd.projectionFormat->projectionType.push_back(
+                    StreamSegmenter::MPDTree::OmafProjectionType::Cubemap);
+            }
             mMpd.periods.push_back(StreamSegmenter::MPDTree::OmafPeriod{});
 
             // TODO: mSegmentSavedSignal is not currently defined for audio-only case
@@ -561,7 +570,8 @@ namespace VDD
             aTrackId,
             aTimeScale,
             aOutput == PipelineOutput::Audio ? StreamSegmenter::MediaType::Audio :
-            StreamSegmenter::MediaType::Video // type
+            StreamSegmenter::MediaType::Video, // type
+            {}
         };
 
         c.segmenterAndSaverConfig.segmentSaverConfig.fileTemplate = Utils::replace(templ, "$Segment$", "$Number$");
@@ -589,23 +599,35 @@ namespace VDD
     }
 
     // In extractor case, we specify also subpicture video tracks for the extractor segmenterInit, but not to the extractor segmenter instance
-    void DashOmaf::addAdditionalVideoTracksToExtractorInitConfig(TrackId aExtractorTrackId, SegmenterInit::Config& aInitConfig, const TileFilter::OmafTileSets& aTileConfig, FrameDuration aTimeScale)
+    void DashOmaf::addAdditionalVideoTracksToExtractorInitConfig(
+        TrackId aExtractorTrackId, SegmenterInit::Config& aInitConfig,
+        const TileFilter::OmafTileSets& aTileConfig, FrameDuration aTimeScale,
+        const std::list<StreamId>& aAdSetIds)
     {
         for (auto& tile : aTileConfig)
         {
-            StreamSegmenter::TrackMeta trackMeta{
-                tile.trackId, // trackId
-                aTimeScale,
-                StreamSegmenter::MediaType::Video // type
-            };
-            SegmenterInit::TrackConfig trackConfig{};
-            trackConfig.meta = trackMeta;
+            if (std::find(aAdSetIds.begin(), aAdSetIds.end(), StreamId(tile.trackId.get())) !=
+                aAdSetIds.end())
+            {
+                StreamSegmenter::TrackMeta trackMeta{
+                    tile.trackId,  // trackId
+                    aTimeScale,
+                    StreamSegmenter::MediaType::Video,  // type
+                    {}                                  // trackType
+                };
+                SegmenterInit::TrackConfig trackConfig{};
+                trackConfig.meta = trackMeta;
 
-            aInitConfig.tracks[tile.trackId] = trackConfig;
-            aInitConfig.tracks.at(aExtractorTrackId).trackReferences["scal"].insert(tile.trackId);
-            aInitConfig.streamIds.push_back(tile.streamId);
+                aInitConfig.tracks[tile.trackId] = trackConfig;
+                // TODO: fragile mapping of stream ids and track ids
+                aInitConfig.tracks.at(aExtractorTrackId)
+                    .trackReferences["scal"]
+                    .insert(tile.trackId);
+                aInitConfig.streamIds.push_back(tile.streamId);
+            }
         }
     }
+
     void DashOmaf::addPartialAdaptationSetsToMultiResExtractor(const TileDirectionConfig& aDirection, std::list<StreamId>& aAdSetIds)
     {
         aAdSetIds.clear();

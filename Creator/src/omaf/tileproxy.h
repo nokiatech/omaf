@@ -47,7 +47,7 @@ namespace VDD {
         virtual bool extractorReadyForEoS() const;
         virtual void processExtractors(std::vector<Views>& aTiles);
         virtual void createEoS(std::vector<Views>& aTiles);
-        virtual CPUDataVector createExtractorSEI(const RegionPacking& aRegionPacking, unsigned int aTemporalIdPlus1);
+        virtual CPUDataVector createExtractorSEI(VDD::Optional<RegionPacking> aRegionPacking, unsigned int aTemporalIdPlus1);
 
     private:
         Data collectExtractors();

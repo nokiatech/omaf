@@ -42,6 +42,26 @@ namespace VDD
         // nothing
     }
 
+    Meta::Meta(const RawFrameMeta& aRawFrameMeta, const Meta& aMeta)
+        : mContentType(ContentType::RAW)
+        , mRawFrameMeta(aRawFrameMeta)
+    {
+        for (auto& tag : aMeta.mTags)
+        {
+            mTags.push_back(std::unique_ptr<MetaTag>(tag->clone()));
+        }
+    }
+
+    Meta::Meta(const CodedFrameMeta& aCodedFrameMeta, const Meta& aMeta)
+        : mContentType(ContentType::CODED)
+        , mCodedFrameMeta(aCodedFrameMeta)
+    {
+        for (auto& tag : aMeta.mTags)
+        {
+            mTags.push_back(std::unique_ptr<MetaTag>(tag->clone()));
+        }
+    }
+
     Meta::Meta(const RawFrameMeta& aRawFrameMeta)
         : mContentType(ContentType::RAW)
         , mRawFrameMeta(aRawFrameMeta)
