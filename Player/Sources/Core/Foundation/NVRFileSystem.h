@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,55 +18,55 @@
 #include "Platform/OMAFDataTypes.h"
 
 OMAF_NS_BEGIN
-    class FileStream;
-    
-    namespace FileSystem
+class FileStream;
+
+namespace FileSystem
+{
+    namespace AccessMode
     {
-        namespace AccessMode
+        enum Enum
         {
-            enum Enum
-            {
-                INVALID = -1,
-                
-                READ = 1 << 0,
-                WRITE = 1 << 1,
-                READ_WRITE = READ | WRITE,
-                
-                COUNT
-            };
-        }
-        
-        namespace CreateMode
-        {
-            enum Enum
-            {
-                INVALID = -1,
-                
-                CREATE,
-                APPEND,
-                
-                COUNT
-            };
-        }
-        
-        namespace StreamType
-        {
-            enum Enum
-            {
-                INVALID = -1,
-                
-                ASSET,
-                STORAGE,
-                FILE,
+            INVALID = -1,
 
-                COUNT
-            };
-        }
+            READ = 1 << 0,
+            WRITE = 1 << 1,
+            READ_WRITE = READ | WRITE,
 
-        bool_t fileExists(const char_t* path);
-        bool_t dirExists(const char_t* path);
-
-        FileStream* open(const char_t* filename, AccessMode::Enum mode);
-        void_t close(FileStream* fileStream);
+            COUNT
+        };
     }
+
+    namespace CreateMode
+    {
+        enum Enum
+        {
+            INVALID = -1,
+
+            CREATE,
+            APPEND,
+
+            COUNT
+        };
+    }
+
+    namespace StreamType
+    {
+        enum Enum
+        {
+            INVALID = -1,
+
+            ASSET,
+            STORAGE,
+            FILE,
+
+            COUNT
+        };
+    }
+
+    bool_t fileExists(const char_t* path);
+    bool_t dirExists(const char_t* path);
+
+    FileStream* open(const char_t* filename, AccessMode::Enum mode);
+    void_t close(FileStream* fileStream);
+}  // namespace FileSystem
 OMAF_NS_END

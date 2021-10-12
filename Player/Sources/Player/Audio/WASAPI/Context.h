@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,12 +14,12 @@
  */
 #pragma once
 
-#include "NVRNamespace.h"
-#include "Platform/OMAFDataTypes.h"
+#include <mmdeviceapi.h>
+#include "Foundation/NVRFixedQueue.h"
 #include "Foundation/NVRMemoryAllocator.h"
 #include "Foundation/NVRMutex.h"
-#include "Foundation/NVRFixedQueue.h"
-#include <mmdeviceapi.h>
+#include "NVRNamespace.h"
+#include "Platform/OMAFDataTypes.h"
 
 OMAF_NS_BEGIN
 class AudioRendererAPI;
@@ -28,25 +28,25 @@ namespace WASAPICommandEvent
 {
     enum Enum
     {
-        //event signals.
+        // event signals.
         TERMINATE = WAIT_OBJECT_0,
         DEVICE_CHANGED,
         COMMAND,
         NEED_MORE_SAMPLES,
-        //commands.
+        // commands.
         READY,
         PLAYING,
         PAUSED,
         FLUSH
-};
+    };
 }
 
 namespace WASAPIImpl
-{    
+{
 #ifdef WASAPI_LOGS
-    void write_message(const char* format, ...);//wasapi logging.
+    void write_message(const char* format, ...);  // wasapi logging.
 #else
-    #define write_message(x, ...)
+#define write_message(x, ...)
 #endif
     class Endpoint;
     class Context : public IMMNotificationClient
@@ -59,16 +59,18 @@ namespace WASAPIImpl
         Context(MemoryAllocator& allocator);
         virtual ~Context();
         void pushCommand(uint32_t);
-        //event listeners..
-        //IUnknown
-        HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, _COM_Outptr_ void __RPC_FAR *__RPC_FAR *ppvObject);
+        // event listeners..
+        // IUnknown
+        HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, _COM_Outptr_ void __RPC_FAR* __RPC_FAR* ppvObject);
         ULONG STDMETHODCALLTYPE AddRef(void);
         ULONG STDMETHODCALLTYPE Release(void);
-        //IMMNotificationClient
+        // IMMNotificationClient
         HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(_In_ LPCWSTR pwstrDeviceId, _In_ DWORD dwNewState);
         HRESULT STDMETHODCALLTYPE OnDeviceAdded(_In_ LPCWSTR pwstrDeviceId);
         HRESULT STDMETHODCALLTYPE OnDeviceRemoved(_In_ LPCWSTR pwstrDeviceId);
-        HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(_In_ EDataFlow flow, _In_ ERole role, _In_ LPCWSTR pwstrDefaultDeviceId);
+        HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(_In_ EDataFlow flow,
+                                                         _In_ ERole role,
+                                                         _In_ LPCWSTR pwstrDefaultDeviceId);
         HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(_In_ LPCWSTR pwstrDeviceId, _In_ const PROPERTYKEY key);
 
 #if 0
@@ -83,16 +85,16 @@ namespace WASAPIImpl
 #endif
         MemoryAllocator& mAllocator;
         uint32_t mSampleRate;
-        LONG64 mPosition;//number of consumed samples. TOTAL!
+        LONG64 mPosition;  // number of consumed samples. TOTAL!
         HANDLE mThread;
         HANDLE onTerminate;
-        HANDLE onNeedMoreSamples;   //device needs more samples... (wasapi event)
-        HANDLE onDeviceChanged;     //device changed/lost
+        HANDLE onNeedMoreSamples;  // device needs more samples... (wasapi event)
+        HANDLE onDeviceChanged;    // device changed/lost
         HANDLE onCommand;
-        HANDLE onFlushDone;         //Triggered when flush command has completed.
+        HANDLE onFlushDone;  // Triggered when flush command has completed.
         Mutex mCommandQueueMutex;
         FixedQueue<uint32_t, 64> mCommandQueue;
-        IMMDeviceEnumerator *mEnumerator;
+        IMMDeviceEnumerator* mEnumerator;
         IMMDevice* mDevice;
         static DWORD WINAPI threadEntry(LPVOID param);
         DWORD EventHandler();
@@ -105,5 +107,5 @@ namespace WASAPIImpl
         wchar_t mRequestedDevice[512];
         wchar_t mCurrentDevice[512];
     };
-}
+}  // namespace WASAPIImpl
 OMAF_NS_END

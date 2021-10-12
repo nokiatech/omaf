@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -22,13 +22,16 @@
 
 namespace VDD
 {
-    namespace {
+    namespace
+    {
         const char* kConfig = R"#(
         {
             "video": {
             },
-            "audio" : {
-            }
+            "audio": {
+            },
+            "overlays": [
+            ]
         })#";
     }
 
@@ -41,24 +44,45 @@ namespace VDD
             config->load(st, "config");
         }
 
-        config->setKeyValue("video.filename", aVDDConfig.inputMP4);
-        config->setKeyValue("audio.filename", aVDDConfig.inputMP4);
+        config->setKeyValue("video.filename", aVDDConfig.inputFile);
+
+        if (aVDDConfig.h265InputConfig)
+        {
+            config->setKeyValue("video.gop_length", std::to_string(aVDDConfig.h265InputConfig->gopLength));
+        }
+
+        if (!aVDDConfig.disableAudio)
+        {
+            config->setKeyValue("audio.filename", aVDDConfig.inputFile);
+        }
+
+        config->setKeyJsonValue("enable_dummy_metadata", aVDDConfig.enableDummyMetadata);
+
         config->setKeyValue("video.formats", "H265");
+        config->setKeyValue("video.modes", "mono, topbottom, sidebyside, nonvr");
         if (aVDDConfig.outputDASH.empty())
         {
             config->setKeyValue("mp4.filename", aVDDConfig.outputMP4);
-            config->setKeyValue("video.modes", "mono, topbottom, sidebyside");
         }
         else
         {
             config->setKeyValue("dash.mpd.filename", aVDDConfig.outputDASH);
+            config->setKeyValue("dash.profile", "on_demand");
             config->setKeyValue("dash.media.segment_name.video", "$Name$.video.$Segment$.mp4");
             config->setKeyValue("dash.media.segment_name.audio", "$Name$.audio.$Segment$.mp4");
-            config->setKeyValue("video.modes", "mono, topbottom, sidebyside");
         }
 
+        for (auto configName : aVDDConfig.jsonConfig)
+        {
+            std::ifstream file(configName);
+            if (!file)
+            {
+                throw ConfigLoadError("Failed to open " + configName);
+            }
+            config->load(file, configName);
+        }
 
-        for (auto kv: aVDDConfig.keyValues)
+        for (auto kv : aVDDConfig.keyValues)
         {
             config->setKeyJsonValue(kv.first, kv.second);
         }
@@ -77,4 +101,4 @@ namespace VDD
         return config;
     }
 
-}
+}  // namespace VDD

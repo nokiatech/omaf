@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -28,7 +28,6 @@ typedef FixedArray<HttpHeaderPair, 30> HttpHeaderPairList;
 class HttpHeaderList
 {
 public:
-
     HttpHeaderList();
 
     HttpHeaderList(const HttpHeaderList& other);
@@ -45,16 +44,14 @@ public:
 
     void_t clear();
 
-    HttpHeaderList& operator = (const HttpHeaderList& other);
+    HttpHeaderList& operator=(const HttpHeaderList& other);
 
-    bool_t operator == (const HttpHeaderList& other) const;
+    bool_t operator==(const HttpHeaderList& other) const;
 
-    bool_t operator != (const HttpHeaderList& other) const;
+    bool_t operator!=(const HttpHeaderList& other) const;
 
 private:
-
     HttpHeaderPairList mHeaders;
-
 };
 
 OMAF_NS_END

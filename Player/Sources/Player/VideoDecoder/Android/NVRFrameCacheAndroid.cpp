@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -12,11 +12,11 @@
  * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
  * written consent of Nokia.
  */
-#include <NVRGraphics.h>
 #include "VideoDecoder/Android/NVRFrameCacheAndroid.h"
-#include "VideoDecoder/NVRVideoDecoderFrame.h"
-#include "NVRMediaCodecDecoderHW.h"
+#include <NVRGraphics.h>
 #include "Foundation/NVRLogger.h"
+#include "NVRMediaCodecDecoderHW.h"
+#include "VideoDecoder/NVRVideoDecoderFrame.h"
 
 #if OMAF_GRAPHICS_API_FAMILY_OPENGL
 #include "Graphics/OpenGL/Windows/NVRGLFunctions.h"
@@ -43,7 +43,7 @@ DecoderFrame* FrameCacheAndroid::createFrame(uint32_t width, uint32_t height)
     return frame;
 }
 
-void_t FrameCacheAndroid::destroyFrame(DecoderFrame *frame)
+void_t FrameCacheAndroid::destroyFrame(DecoderFrame* frame)
 {
     OMAF_DELETE_HEAP(frame);
 }
@@ -51,7 +51,7 @@ void_t FrameCacheAndroid::destroyFrame(DecoderFrame *frame)
 
 void_t FrameCacheAndroid::uploadTexture(DecoderFrame* frame)
 {
-    MediaCodecDecoderHW* decoder = (MediaCodecDecoderHW*)frame->decoder;
+    MediaCodecDecoderHW* decoder = (MediaCodecDecoderHW*) frame->decoder;
     if (decoder == OMAF_NULL)
     {
         OMAF_LOG_E("no decoder for a frame!!");
@@ -62,7 +62,7 @@ void_t FrameCacheAndroid::uploadTexture(DecoderFrame* frame)
     VideoFrame& videoFrame = mCurrentVideoFrames.at(frame->streamId);
     OMAF_ASSERT(textureHandle.surface != OMAF_NULL, "No output texture");
 
-    SurfaceTexture *surfaceTexture = textureHandle.surface->getSurfaceTexture();
+    SurfaceTexture* surfaceTexture = textureHandle.surface->getSurfaceTexture();
     OMAF_ASSERT(surfaceTexture != OMAF_NULL, "No output texture");
 
     if (surfaceTexture != NULL)

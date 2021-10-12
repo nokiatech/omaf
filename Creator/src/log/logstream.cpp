@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -25,6 +25,16 @@ namespace VDD
         , mLog(aLog)
     {
         // nothing
+    }
+
+    LogStream::LogStream(LogStream&& aOther)
+        : std::ostream(&mLogStreamBuf)
+        , mLogStreamBuf(std::move(aOther.mLogStreamBuf))
+        , mLogLevel(aOther.mLogLevel)
+        , mLog(aOther.mLog)
+    {
+        // maybe the move above is not sufficient in theory..
+        rdbuf(&mLogStreamBuf);
     }
 
     void LogStream::writeLine(const std::string& aLine)

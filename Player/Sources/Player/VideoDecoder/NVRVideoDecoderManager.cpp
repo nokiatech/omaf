@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -39,7 +39,7 @@ VideoDecoderManager* VideoDecoderManager::getInstance()
     if (sInstance == OMAF_NULL)
     {
 #if OMAF_VIDEO_DECODER_NULL
-    //    sInstance = VideoDecoderNull::createDecoder(format);
+//    sInstance = VideoDecoderNull::createDecoder(format);
 #else
 #if OMAF_PLATFORM_ANDROID
         sInstance = OMAF_NEW_HEAP(MediaCodecDecoder);
@@ -63,8 +63,8 @@ void_t VideoDecoderManager::destroyInstance()
 
 VideoDecoderManager::VideoDecoderManager()
     : mByteStreamHeadersMode(true)
-    , mNextStreamID(0)
-    , mSharedStreamID(OMAF_UINT8_MAX)
+    , mSharedStreamID(InvalidStreamId)
+    , mPrevSharedStreamID(InvalidStreamId)
     , mLatestPts(0)
 {
     while (mDecoders.getSize() != MAX_STREAM_COUNT)
@@ -88,7 +88,7 @@ VideoDecoderManager::~VideoDecoderManager()
 
 Error::Enum VideoDecoderManager::initializeStream(streamid_t stream, const DecoderConfig& config)
 {
-    if (stream == mSharedStreamID && mDecoders.at(stream).decoderHW != OMAF_NULL)
+    if ((stream == mSharedStreamID || stream == mPrevSharedStreamID) && mDecoders.at(stream).decoderHW != OMAF_NULL)
     {
         return Error::OK_SKIPPED;
     }
@@ -109,6 +109,7 @@ void_t VideoDecoderManager::shutdownStream(streamid_t stream)
     mFrameCache->destroyTexture(stream);
     mDecoders.at(stream).textureActive = false;
     mDecoders.at(stream).free = true;
+    OMAF_LOG_V("shutdownStream %d", stream);
 }
 
 Error::Enum VideoDecoderManager::activateStream(streamid_t stream, uint64_t currentPTS)
@@ -142,11 +143,11 @@ void_t VideoDecoderManager::deactivateStream(streamid_t stream)
     if (mDecoders.at(stream).frameCacheActive)
     {
         mDecoders.at(stream).frameCacheActive = false;
-        // If the frame cache wasn't activated, then the decoder hasn't been fed any packets
-        // so decoder flushing is needed only when frame cache has been active
+// If the frame cache wasn't activated, then the decoder hasn't been fed any packets
+// so decoder flushing is needed only when frame cache has been active
 
-        // Android and Windows decoders don't store FrameCache frames internally between decode calls
-        // so the FrameCache should be flushed first to avoid error on Android
+// Android and Windows decoders don't store FrameCache frames internally between decode calls
+// so the FrameCache should be flushed first to avoid error on Android
 #if OMAF_PLATFORM_ANDROID || OMAF_PLATFORM_WINDOWS
         mFrameCache->deactivateStream(stream);
         mDecoders.at(stream).decoderHW->flush();
@@ -166,9 +167,7 @@ bool_t VideoDecoderManager::isActive(const Streams& streams)
     for (Streams::ConstIterator it = streams.begin(); it != streams.end(); ++it)
     {
         DecoderState& decoder = mDecoders.at(*it);
-        if (!decoder.frameCacheActive
-            || !decoder.textureActive
-            || !decoder.frameCacheActive)
+        if (!decoder.frameCacheActive || !decoder.textureActive || !decoder.frameCacheActive)
         {
             return false;
         }
@@ -246,8 +245,7 @@ void_t VideoDecoderManager::flushStream(streamid_t stream)
     {
         mDecoders.at(stream).decoderHW->flush();
     }
-    //TODO does not work with VAS since stops all streams if one joins later
-    //mDecoders.at(stream).initialBufferingDone = false;
+    // mDecoders.at(stream).initialBufferingDone = false;
     mFrameCache->flushFrames(stream);
 }
 
@@ -274,13 +272,20 @@ void_t VideoDecoderManager::setInputEOS(streamid_t stream)
     mDecoders.at(stream).decoderHW->setInputEOS();
 }
 
-Error::Enum VideoDecoderManager::preloadTexturesForPTS(
-    const Streams &baseStreams, const Streams &enhancementStreams, const Streams& skippedStreams,
-    uint64_t targetPTSUs, bool_t isAuxiliary)
+bool_t VideoDecoderManager::isInputEOS(streamid_t stream) const
+{
+    OMAF_ASSERT(mDecoders.at(stream).decoderHW != OMAF_NULL, "No decoder for stream");
+    return mDecoders.at(stream).decoderHW->isInputEOS();
+}
+
+Error::Enum VideoDecoderManager::preloadTexturesForPTS(const Streams& baseStreams,
+                                                       const Streams& additionalStreams,
+                                                       const Streams& skippedStreams,
+                                                       uint64_t targetPTSUs)
 {
     Streams allStreams;
     allStreams.add(baseStreams);
-    allStreams.add(enhancementStreams);
+    allStreams.add(additionalStreams);
     allStreams.add(skippedStreams);
     mFrameCache->clearDiscardedFrames(allStreams);
     return Error::OK;
@@ -309,39 +314,56 @@ void_t VideoDecoderManager::activateDecoder(const streamid_t streamId)
     }
 }
 
-Error::Enum VideoDecoderManager::uploadTexturesForPTS(
-    const Streams& baseStreams, const Streams& enhancementStreams,
-    uint64_t targetPTSUs, TextureLoadOutput& output, bool_t isAuxiliary)
+Error::Enum VideoDecoderManager::uploadTexturesForPTS(const Streams& baseStreams,
+                                                      const Streams& additionalStreams,
+                                                      uint64_t targetPTSUs,
+                                                      TextureLoadOutput& output)
 {
     for (Streams::ConstIterator it = baseStreams.begin(); it != baseStreams.end(); ++it)
     {
         activateDecoder(*it);
     }
-    for (Streams::ConstIterator it = enhancementStreams.begin(); it != enhancementStreams.end(); ++it)
+    for (Streams::ConstIterator it = additionalStreams.begin(); it != additionalStreams.end(); ++it)
     {
         activateDecoder(*it);
     }
 
     output.updatedStreams.clear();
-    
+
     FrameList frames;
-    
+
     // First get the required frames
-    Error::Enum result = mFrameCache->getSynchedFramesForPTS(baseStreams, enhancementStreams, targetPTSUs, frames);
-    Streams allStreams;
+    Error::Enum result = mFrameCache->getSynchedFramesForPTS(baseStreams, additionalStreams, targetPTSUs, frames);
+    
+	for (auto frame : frames)
+    {
+        OMAF_LOG_D(">>> Stream %d (%dx%d) synched frame pts: %d dts: %d duration: %d uploadTime: %d consumed: %d staged: %d flushed: %d", 
+			frame->streamId, 
+			frame->width, 
+			frame->height, 
+			frame->pts, 
+			frame->dts, 
+			frame->duration, 
+			frame->uploadTime, 
+			frame->consumed, 
+			frame->staged, 
+			frame->flushed);
+    }
+    
+	Streams allStreams;
     allStreams.add(baseStreams);
-    allStreams.add(enhancementStreams);
+    allStreams.add(additionalStreams);
     if (result != Error::OK)
     {
         mFrameCache->cleanUpOldFrames(allStreams, targetPTSUs);
         return result;
     }
-    
+
     // Upload all required
     for (FrameList::ConstIterator it = frames.begin(); it != frames.end(); ++it)
     {
         DecoderFrame* decoderFrame = *it;
-        
+
         output.updatedStreams.add(decoderFrame->streamId);
         mFrameCache->uploadFrame(decoderFrame, targetPTSUs);
     }
@@ -360,13 +382,24 @@ const VideoFrame& VideoDecoderManager::getCurrentVideoFrame(streamid_t stream)
     return mFrameCache->getCurrentVideoFrame(stream);
 }
 
-streamid_t VideoDecoderManager::generateUniqueStreamID()
+streamid_t VideoDecoderManager::generateUniqueStreamID(bool_t aMakeItShared)
 {
-    for (uint32_t i = 0; i < mDecoders.getSize(); i++) 
+    for (uint32_t i = 0; i < mDecoders.getSize(); i++)
     {
-        if (mDecoders[i].free) 
+        if (mDecoders[i].free)
         {
             mDecoders.at(i).free = false;
+            if (aMakeItShared)
+            {
+                // let's store the previous one too as it may be still needed if this is a viewpoint switch
+                mPrevSharedStreamID = mSharedStreamID;
+                mSharedStreamID = i;
+                OMAF_LOG_V("Generating a new shared stream id %d, old %d", mSharedStreamID, mPrevSharedStreamID);
+            }
+            else
+            {
+                OMAF_LOG_V("Generating a new unique stream id %d", i);
+            }
             return i;
         }
     }
@@ -375,13 +408,27 @@ streamid_t VideoDecoderManager::generateUniqueStreamID()
 }
 
 // the shared streams must have the same configuration (width, height etc)
-streamid_t VideoDecoderManager::getSharedStreamID() 
+streamid_t VideoDecoderManager::getSharedStreamID()
 {
     if (mSharedStreamID == OMAF_UINT8_MAX)
     {
         mSharedStreamID = generateUniqueStreamID();
+        OMAF_LOG_V("Generating a shared stream id %d", mSharedStreamID);
     }
     return mSharedStreamID;
+}
+
+void_t VideoDecoderManager::releaseSharedStreamID(streamid_t aStreamId)
+{
+    OMAF_LOG_V("releaseSharedStreamID: %d", aStreamId);
+    if (mPrevSharedStreamID == aStreamId)
+    {
+        mPrevSharedStreamID = InvalidStreamId;
+    }
+    else if (mSharedStreamID == aStreamId)
+    {
+        mSharedStreamID = InvalidStreamId;
+    }
 }
 
 bool_t VideoDecoderManager::syncStreams(streamid_t anchorStream, streamid_t stream)

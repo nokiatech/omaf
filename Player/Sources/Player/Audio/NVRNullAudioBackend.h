@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,38 +14,36 @@
  */
 #pragma once
 
+#include "Audio/NVRAudioBackend.h"
 #include "NVRNamespace.h"
 #include "Platform/OMAFDataTypes.h"
-#include "Audio/NVRAudioBackend.h"
 
 OMAF_NS_BEGIN
 
-    class AudioRenderer;
+class AudioRenderer;
 
-    class NullBackend : public AudioBackend
-    {
-    public:
-        NullBackend();
-        virtual ~NullBackend();
+class NullBackend : public AudioBackend
+{
+public:
+    NullBackend();
+    virtual ~NullBackend();
 
-    public: // AudioBackend
-        virtual void_t init(AudioRendererAPI *renderer, bool_t allowExclusiveMode, const wchar_t* audioDevice);
+public:  // AudioBackend
+    virtual void_t init(AudioRendererAPI* renderer, bool_t allowExclusiveMode, const wchar_t* audioDevice);
 
-        virtual void_t shutdown();
+    virtual void_t shutdown();
 
-    public: // AudioRendererObserver
+public:  // AudioRendererObserver
+    virtual void_t onRendererReady();
 
-        virtual void_t onRendererReady();
+    virtual void_t onRendererPlaying();
 
-        virtual void_t onRendererPlaying();
+    virtual void_t onRendererPaused();
 
-        virtual void_t onRendererPaused();
+    virtual void_t onFlush();
 
-        virtual void_t onFlush();
+    virtual int64_t onGetPlayedTimeUs();
 
-        virtual int64_t onGetPlayedTimeUs();
-
-        virtual void_t onErrorOccurred(Error::Enum error);
-
-    };
+    virtual void_t onErrorOccurred(Error::Enum error);
+};
 OMAF_NS_END

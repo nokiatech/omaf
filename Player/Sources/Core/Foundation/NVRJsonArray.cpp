@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,96 +15,96 @@
 #include "Foundation/NVRJsonArray.h"
 
 OMAF_NS_BEGIN
-    JsonArray::JsonArray(MemoryAllocator& allocator, size_t capacity)
+JsonArray::JsonArray(MemoryAllocator& allocator, size_t capacity)
     : JsonObject(allocator, capacity)
     , mOpen(false)
+{
+}
+
+JsonArray::~JsonArray()
+{
+}
+
+bool_t JsonArray::append(const utf8_t* value)
+{
+    if (StringLength(value) == 0)
     {
+        return false;
     }
-
-    JsonArray::~JsonArray()
+    else if (mData.isEmpty() || !mOpen)
     {
+        mData.append("[");
+        mOpen = true;
     }
-
-    bool_t JsonArray::append(const utf8_t* value)
+    else if (mData.findLast("[") != mData.getLength() - 1)
     {
-        if (StringLength(value) == 0)
-        {
-            return false;
-        }
-        else if (mData.isEmpty() || !mOpen)
-        {
-            mData.append("[");
-            mOpen = true;
-        }
-        else if (mData.findLast("[") != mData.getLength()-1)
-        {
-            mData.append(",");
-        }
-        mData.append("\"");
-        mData.append(value);
-        mData.append("\"");
-        return true;
+        mData.append(",");
     }
+    mData.append("\"");
+    mData.append(value);
+    mData.append("\"");
+    return true;
+}
 
-    bool_t JsonArray::append(int32_t value)
+bool_t JsonArray::append(int32_t value)
+{
+    if (mData.isEmpty() || !mOpen)
     {
-        if (mData.isEmpty() || !mOpen)
-        {
-            mData.append("[");
-            mOpen = true;
-        }
-        else if (mData.findLast("[") != mData.getLength() - 1)
-        {
-            mData.append(",");
-        }
-        mData.appendFormat("%d", value);
-
-        return true;
+        mData.append("[");
+        mOpen = true;
     }
-
-    bool_t JsonArray::append(int64_t value)
+    else if (mData.findLast("[") != mData.getLength() - 1)
     {
-        if (mData.isEmpty() || !mOpen)
-        {
-            mData.append("[");
-            mOpen = true;
-        }
-        else if (mData.findLast("[") != mData.getLength() - 1)
-        {
-            mData.append(",");
-        }
-        mData.appendFormat("%lld", value);
-
-        return true;
+        mData.append(",");
     }
+    mData.appendFormat("%d", value);
 
-    bool_t JsonArray::appendObject(const utf8_t* object)
+    return true;
+}
+
+bool_t JsonArray::append(int64_t value)
+{
+    if (mData.isEmpty() || !mOpen)
     {
-        if (mData.isEmpty() || !mOpen)
-        {
-            mData.append("[");
-            mOpen = true;
-        }
-        else if (mData.findLast("[") != mData.getLength() - 1)
-        {
-            mData.append(",");
-        }
-        mData.append(object);
-
-        return true;
+        mData.append("[");
+        mOpen = true;
     }
-
-    const utf8_t* JsonArray::getData(bool_t lineBreak)
+    else if (mData.findLast("[") != mData.getLength() - 1)
     {
-        if (!mData.isEmpty())
-        {
-            mData.append("]");
-            if (lineBreak)
-            {
-                mData.append("\n");
-            }
-        }
-        return mData.getData();
+        mData.append(",");
     }
+    mData.appendFormat("%lld", value);
+
+    return true;
+}
+
+bool_t JsonArray::appendObject(const utf8_t* object)
+{
+    if (mData.isEmpty() || !mOpen)
+    {
+        mData.append("[");
+        mOpen = true;
+    }
+    else if (mData.findLast("[") != mData.getLength() - 1)
+    {
+        mData.append(",");
+    }
+    mData.append(object);
+
+    return true;
+}
+
+const utf8_t* JsonArray::getData(bool_t lineBreak)
+{
+    if (!mData.isEmpty())
+    {
+        mData.append("]");
+        if (lineBreak)
+        {
+            mData.append("\n");
+        }
+    }
+    return mData.getData();
+}
 
 OMAF_NS_END

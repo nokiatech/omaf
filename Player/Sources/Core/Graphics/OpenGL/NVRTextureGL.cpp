@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,10 +14,10 @@
  */
 #include "Graphics/OpenGL/NVRTextureGL.h"
 
+#include "Graphics/OpenGL/NVRGLCompatibility.h"
+#include "Graphics/OpenGL/NVRGLError.h"
 #include "Graphics/OpenGL/NVRGLExtensions.h"
 #include "Graphics/OpenGL/NVRGLUtilities.h"
-#include "Graphics/OpenGL/NVRGLError.h"
-#include "Graphics/OpenGL/NVRGLCompatibility.h"
 #include "Math/OMAFMathFunctions.h"
 
 #include "Foundation/NVRLogger.h"
@@ -27,19 +27,19 @@ OMAF_NS_BEGIN
 OMAF_LOG_ZONE(TextureGL);
 
 TextureGL::TextureGL()
-: mHandle(0)
-, mTarget(0)
-, mType(TextureType::INVALID)
-, mComputeAccess(ComputeBufferAccess::INVALID)
-, mWidth(0)
-, mHeight(0)
-, mNumMipmaps(0)
-, mFormat(TextureFormat::INVALID)
-, mAddressModeU(TextureAddressMode::INVALID)
-, mAddressModeV(TextureAddressMode::INVALID)
-, mAddressModeW(TextureAddressMode::INVALID)
-, mFilterMode(TextureFilterMode::INVALID)
-, mNativeHandle(false)
+    : mHandle(0)
+    , mTarget(0)
+    , mType(TextureType::INVALID)
+    , mComputeAccess(ComputeBufferAccess::INVALID)
+    , mWidth(0)
+    , mHeight(0)
+    , mNumMipmaps(0)
+    , mFormat(TextureFormat::INVALID)
+    , mAddressModeU(TextureAddressMode::INVALID)
+    , mAddressModeV(TextureAddressMode::INVALID)
+    , mAddressModeW(TextureAddressMode::INVALID)
+    , mFilterMode(TextureFilterMode::INVALID)
+    , mNativeHandle(false)
 {
 }
 
@@ -267,27 +267,22 @@ bool_t TextureGL::create(const TextureDesc& desc)
             {
                 TextureFormatGL formatGL = getTextureFormatGL(desc.format);
 
-                const uint8_t* ptr = (uint8_t*)desc.data;
+                const uint8_t* ptr = (uint8_t*) desc.data;
 
                 if (!desc.generateMipMaps)
                 {
-                    for(uint16_t i = 0; i < mNumMipmaps; ++i)
+                    for (uint16_t i = 0; i < mNumMipmaps; ++i)
                     {
                         uint16_t mipMapLevelWidth = mWidth >> i;
                         uint16_t mipMapLevelHeight = mHeight >> i;
 
-                        uint32_t mipMapLevelSize = mipMapLevelWidth * mipMapLevelHeight * (description.bitsPerPixel / 8);
+                        uint32_t mipMapLevelSize =
+                            mipMapLevelWidth * mipMapLevelHeight * (description.bitsPerPixel / 8);
 
                         OMAF_GL_CHECK(glPixelStorei(GL_UNPACK_ROW_LENGTH, mipMapLevelWidth));
-                        OMAF_GL_CHECK(glTexImage2D(mTarget,
-                                                  i,
-                                                  formatGL.internalFormat,
-                                                  mipMapLevelWidth,
-                                                  mipMapLevelHeight,
-                                                  0,
-                                                  formatGL.format,
-                                                  formatGL.type,
-                                                  (GLubyte*)ptr));
+                        OMAF_GL_CHECK(glTexImage2D(mTarget, i, formatGL.internalFormat, mipMapLevelWidth,
+                                                   mipMapLevelHeight, 0, formatGL.format, formatGL.type,
+                                                   (GLubyte*) ptr));
                         OMAF_GL_CHECK(glPixelStorei(GL_UNPACK_ROW_LENGTH, 0));
 
                         ptr += mipMapLevelSize;
@@ -298,15 +293,8 @@ bool_t TextureGL::create(const TextureDesc& desc)
                     mNumMipmaps = (uint8_t)(floor(log2(max(desc.width, desc.height))) + 1);
 
                     OMAF_GL_CHECK(glPixelStorei(GL_UNPACK_ROW_LENGTH, desc.width));
-                    OMAF_GL_CHECK(glTexImage2D(mTarget,
-                                              0,
-                                              formatGL.internalFormat,
-                                              mWidth,
-                                              mHeight,
-                                              0,
-                                              formatGL.format,
-                                              formatGL.type,
-                                              (GLubyte*)ptr));
+                    OMAF_GL_CHECK(glTexImage2D(mTarget, 0, formatGL.internalFormat, mWidth, mHeight, 0, formatGL.format,
+                                               formatGL.type, (GLubyte*) ptr));
                     OMAF_GL_CHECK(glPixelStorei(GL_UNPACK_ROW_LENGTH, 0));
 
                     OMAF_GL_CHECK(glGenerateMipmap(GL_TEXTURE_2D));
@@ -336,7 +324,7 @@ bool_t TextureGL::create(const TextureDesc& desc)
 
 bool_t TextureGL::createNative(const NativeTextureDesc& desc)
 {
-    GLuint handle = *(GLuint*)desc.nativeHandle;
+    GLuint handle = *(GLuint*) desc.nativeHandle;
     GLenum target = getTextureTypeGL(desc.type);
 
     mType = desc.type;
@@ -377,7 +365,7 @@ void_t TextureGL::bindCompute(uint16_t stage, ComputeBufferAccess::Enum computeA
     GLenum access = getComputeBufferAccessGL(mComputeAccess);
     TextureFormatGL formatGL = getTextureFormatGL(mFormat);
 
-    OMAF_GL_CHECK(glBindImageTexture((GLuint)stage, mHandle, 0, GL_FALSE, 0, access, formatGL.internalFormat));
+    OMAF_GL_CHECK(glBindImageTexture((GLuint) stage, mHandle, 0, GL_FALSE, 0, access, formatGL.internalFormat));
 
 #else
 
@@ -393,7 +381,7 @@ void_t TextureGL::unbindCompute(uint16_t stage)
     GLenum access = getComputeBufferAccessGL(mComputeAccess);
     TextureFormatGL formatGL = getTextureFormatGL(mFormat);
 
-    OMAF_GL_CHECK(glBindImageTexture((GLuint)stage, 0, 0, GL_FALSE, 0, access, formatGL.internalFormat));
+    OMAF_GL_CHECK(glBindImageTexture((GLuint) stage, 0, 0, GL_FALSE, 0, access, formatGL.internalFormat));
 
 #else
 

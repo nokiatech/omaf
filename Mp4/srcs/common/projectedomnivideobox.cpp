@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -23,6 +23,7 @@ ProjectedOmniVideoBox::ProjectedOmniVideoBox()
     , mProjectionFormatBox()
     , mRegionWisePackingBox()
     , mCoverageInformationBox()
+    , mOverlayConfigBox()
 {
 }
 
@@ -38,6 +39,9 @@ ProjectedOmniVideoBox::ProjectedOmniVideoBox(const ProjectedOmniVideoBox& box)
               : UniquePtr<CoverageInformationBox>())
     , mRotationBox(box.mRotationBox ? makeCustomUnique<RotationBox, RotationBox>(*box.mRotationBox)
                                     : UniquePtr<RotationBox>())
+    , mOverlayConfigBox(box.mOverlayConfigBox
+                            ? makeCustomUnique<OverlayConfigBox, OverlayConfigBox>(*box.mOverlayConfigBox)
+                            : UniquePtr<OverlayConfigBox>())
 {
 }
 
@@ -46,7 +50,7 @@ ProjectionFormatBox& ProjectedOmniVideoBox::getProjectionFormatBox()
     return mProjectionFormatBox;
 }
 
-RegionWisePackingBox& ProjectedOmniVideoBox::getRegionWisePackingBox()
+RegionWisePackingBox& ProjectedOmniVideoBox::getRegionWisePackingBox() const
 {
     return *mRegionWisePackingBox;
 }
@@ -61,7 +65,7 @@ bool ProjectedOmniVideoBox::hasRegionWisePackingBox() const
     return !!mRegionWisePackingBox;
 }
 
-CoverageInformationBox& ProjectedOmniVideoBox::getCoverageInformationBox()
+CoverageInformationBox& ProjectedOmniVideoBox::getCoverageInformationBox() const
 {
     return *mCoverageInformationBox;
 }
@@ -76,7 +80,7 @@ bool ProjectedOmniVideoBox::hasCoverageInformationBox() const
     return !!mCoverageInformationBox;
 }
 
-RotationBox& ProjectedOmniVideoBox::getRotationBox()
+RotationBox& ProjectedOmniVideoBox::getRotationBox() const
 {
     return *mRotationBox;
 }
@@ -89,6 +93,21 @@ void ProjectedOmniVideoBox::setRotationBox(UniquePtr<RotationBox> rotnBox)
 bool ProjectedOmniVideoBox::hasRotationBox() const
 {
     return !!mRotationBox;
+}
+
+OverlayConfigBox& ProjectedOmniVideoBox::getOverlayConfigBox() const
+{
+    return *mOverlayConfigBox;
+}
+
+void ProjectedOmniVideoBox::setOverlayConfigBox(UniquePtr<OverlayConfigBox> ovlyBox)
+{
+    mOverlayConfigBox = std::move(ovlyBox);
+}
+
+bool ProjectedOmniVideoBox::hasOverlayConfigBox() const
+{
+    return !!mOverlayConfigBox;
 }
 
 void ProjectedOmniVideoBox::writeBox(ISOBMFF::BitStream& bitstr)
@@ -106,6 +125,10 @@ void ProjectedOmniVideoBox::writeBox(ISOBMFF::BitStream& bitstr)
     if (mRotationBox)
     {
         mRotationBox->writeBox(bitstr);
+    }
+    if (mOverlayConfigBox)
+    {
+        mOverlayConfigBox->writeBox(bitstr);
     }
     updateSize(bitstr);
 }
@@ -141,33 +164,14 @@ void ProjectedOmniVideoBox::parseBox(ISOBMFF::BitStream& bitstr)
             mRotationBox = makeCustomUnique<RotationBox, RotationBox>();
             mRotationBox->parseBox(subBitStream);
         }
+        else if (boxType == "ovly")
+        {
+            mOverlayConfigBox = makeCustomUnique<OverlayConfigBox, OverlayConfigBox>();
+            mOverlayConfigBox->parseBox(subBitStream);
+        }
         else
         {
             logWarning() << "Ignoring unknown BoxType found from povd box: " << boxType << std::endl;
         }
     }
-}
-
-void ProjectedOmniVideoBox::dump() const
-{
-    logInfo() << "---------------------------------- POVD ------------------------------" << std::endl
-              << "mProjectionFormatBox.getProjectionType: " << (std::uint32_t) mProjectionFormatBox.getProjectionType()
-              << std::endl;
-
-    if (mRegionWisePackingBox)
-    {
-        mRegionWisePackingBox->dump();
-    }
-
-    if (mCoverageInformationBox)
-    {
-        mCoverageInformationBox->dump();
-    }
-
-    if (mRotationBox)
-    {
-        logInfo() << "Also rotation box is present" << std::endl;
-    }
-
-    logInfo() << "-============================ End Of POVD ===========================-" << std::endl;
 }

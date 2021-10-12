@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,6 +15,7 @@
 #pragma once
 
 #include "processor/processor.h"
+#include "common/exceptions.h"
 
 namespace VDD
 {
@@ -24,13 +25,15 @@ namespace VDD
         {
             StreamSegmenter::Segmenter::SequenceId sequenceId;
         };
-        class InvalidTemplate : public std::runtime_error
+        class InvalidTemplate : public Exception
         {
         public:
-            InvalidTemplate()
-                : std::runtime_error("InvalidTemplate")
-            {
-            }
+            InvalidTemplate(std::string aMessage);
+
+            std::string message() const override;
+
+        private:
+            std::string mMessage;
         };
 
         std::string applyTemplate(std::string aTemplate, TemplateArguments aTemplateArguments);
@@ -79,11 +82,14 @@ namespace VDD
 
         // returns an empty Data upon processing data; this is useful for determining when the data
         // has been saved
-        std::vector<Views> process(const Views& data) override;
+        std::vector<Streams> process(const Streams& data) override;
+
+        std::string getGraphVizDescription() override;
 
     private:
         Config mConfig;
         StreamSegmenter::Segmenter::SequenceId mSequenceId;
+        std::string mPrevName;
     };
 }
 

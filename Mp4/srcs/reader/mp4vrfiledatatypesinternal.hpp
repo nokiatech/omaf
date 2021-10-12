@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -28,6 +28,7 @@
 #include "compatibleschemetypebox.hpp"
 #include "decodepts.hpp"
 #include "filetypebox.hpp"
+#include "metabox.hpp"
 #include "mp4vrfilestreamfile.hpp"
 #include "mp4vrfilestreaminternal.hpp"
 #include "schemetypebox.hpp"
@@ -243,6 +244,7 @@ namespace MP4VR
     typedef IdBase<std::uint32_t, InitSegmentIdTag> InitSegmentId;
     typedef IdBaseExplicit<std::uint32_t, ContextIdTag>
         ContextId;  // also known as track id (after removing the api client mapping)
+    typedef IdBaseExplicit<std::uint32_t, ContextIdTag> TrackGroupId;  // in the same number space as tracks
     typedef IdBase<std::uint32_t, SampleDescriptionIndexTag> SampleDescriptionIndex;
     typedef IdBase<std::uint32_t, SequenceTag> Sequence;
     typedef std::uint64_t Timestamp;
@@ -258,6 +260,7 @@ namespace MP4VR
     typedef Map<FourCCInt, Vector<IdVector>> GroupingMap;
     typedef Map<DecSpecInfoType, DataVector> ParameterSetMap;
     typedef DynArray<SegmentInformation> SegmentIndex;
+    typedef IdBase<std::uint32_t, struct ImdaIdTag> ImdaId;
 
     typedef std::pair<InitSegmentId, ContextId> InitSegmentTrackId;
     typedef std::pair<SegmentId, ContextId> SegmentTrackId;
@@ -385,6 +388,12 @@ namespace MP4VR
         // MetaBoxProperties metaBoxProperties;
     };
 
+    // Tells directly about the track group box contents
+    struct TrackGroupInfo {
+        IdVector ids; // Track group ids
+    };
+    using TrackGroupInfoMap = Map<FourCCInt, TrackGroupInfo>;
+
     /** @brief Track Property definition which contain sample properties.
      *
      * In the samplePropertiesMap, samples of the track are listed in the same order they appear
@@ -396,10 +405,11 @@ namespace MP4VR
         std::uint32_t alternateGroupId;
         String trackURI;  /// < only used for timed metadata tracks
         TrackFeature trackFeature;
-        IdVector alternateTrackIds;              ///< other tracks IDs with the same alternate_group id.
-        TypeToContextIdsMap referenceTrackIds;   ///< <reference_type, reference track ID> (coming from 'tref')
-        TypeToIdsMap trackGroupIds;              ///< <group_type, track IDs> ... coming from Track Group Box 'trgr'
+        IdVector alternateTrackIds;             ///< other tracks IDs with the same alternate_group id.
+        TypeToContextIdsMap referenceTrackIds;  ///< <reference_type, reference track ID> (coming from 'tref')
+        TrackGroupInfoMap trackGroupInfoMap;  ///< <group_type, track group info> ... coming from Track Group Box 'trgr'
         std::shared_ptr<const EditBox> editBox;  ///< If set, an edit list box exists
+        Vector<std::shared_ptr<const DataEntryBox>> dataEntries; ///< If set, you can fish imda data from here
     };
     typedef WriteOnceMap<ContextId, TrackProperties> TrackPropertiesMap;  ///< <track_id/context_id, TrackProperties>
 
@@ -412,7 +422,7 @@ namespace MP4VR
             compositionTimes;  ///< Timestamps of the sample. Possible edit list is considered here.
         SmallVector<std::uint64_t, 1> compositionTimesTS;  ///< Timestamps of the sample in time scale units. Possible
                                                            ///< edit list is considered here.
-        std::uint64_t dataOffset = 0;                      ///< File offset of sample data in bytes
+        ISOBMFF::Optional<std::uint64_t> dataOffset = 0;   ///< File offset of sample data in bytes, if data is available
         std::uint32_t dataLength = 0;                      ///< Length of same in bytes
         std::uint32_t width      = 0;                      ///< Width of the frame
         std::uint32_t height     = 0;                      ///< Height of the frame
@@ -427,6 +437,8 @@ namespace MP4VR
     };
     typedef Vector<SampleInfo> SampleInfoVector;
 
+    template <typename Property> using PropertyMap = WriteOnceMap<SampleDescriptionIndex, Property>;
+
     struct InitTrackInfo
     {
         std::uint32_t timeScale;  ///< timescale of the track.
@@ -436,35 +448,43 @@ namespace MP4VR
         FourCCInt sampleEntryType;  /// sample type from this track. Passed to segments sampleproperties.
 
         WriteOnceMap<SampleDescriptionIndex, ParameterSetMap> parameterSetMaps;  ///< Extracted decoder parameter sets
-        WriteOnceMap<SampleDescriptionIndex, chnlPropertyInternal>
+        PropertyMap<chnlPropertyInternal>
             chnlProperties;  ///< Clean chnl data from sample description entries
-        WriteOnceMap<SampleDescriptionIndex, SA3DPropertyInternal>
+        PropertyMap<SA3DPropertyInternal>
             sa3dProperties;  ///< Clean sa3d data from sample description entriesa
-        WriteOnceMap<SampleDescriptionIndex, StereoScopic3DProperty>
+        PropertyMap<StereoScopic3DProperty>
             st3dProperties;  ///< Clean st3d data from sample description entries
-        WriteOnceMap<SampleDescriptionIndex, SphericalVideoV1Property>
+        PropertyMap<SphericalVideoV1Property>
             googleSphericalV1Properties;  ///< Clean Google Global UUID data from sample description entries
-        WriteOnceMap<SampleDescriptionIndex, SphericalVideoV2Property>
+        PropertyMap<SphericalVideoV2Property>
             sv3dProperties;  ///< Clean sv3d data from sample description entries
-        WriteOnceMap<SampleDescriptionIndex, SampleSizeInPixels>
+        PropertyMap<SampleSizeInPixels>
             sampleSizeInPixels;  ///< Clean sample size information from sample description entries
-        WriteOnceMap<SampleDescriptionIndex, ProjectionFormatProperty>
+        PropertyMap<ProjectionFormatProperty>
             pfrmProperties;  ///< Projection format from povd sample description entries
-        WriteOnceMap<SampleDescriptionIndex, RegionWisePackingPropertyInternal>
+        PropertyMap<OverlayConfigProperty>
+            ovlyProperties;  ///< Overlay config from povd sample description entries
+        PropertyMap<DynamicViewpointConfigProperty>
+            dyvpProperties;  ///< Dynamic viewpoints config from dyvp sample description entries
+        PropertyMap<InitialViewpointConfigProperty>
+            invpProperties;  ///< Initial viewpoints config from invp sample description entries
+        PropertyMap<RegionWisePackingPropertyInternal>
             rwpkProperties;  ///< Region-Wise mapping information from povd sample description entries
-        WriteOnceMap<SampleDescriptionIndex, Rotation>
+        PropertyMap<RotationProperty>
             rotnProperties;  ///< Rotation information from povd sample description entriess
-        WriteOnceMap<SampleDescriptionIndex, PodvStereoVideoConfiguration>
+        PropertyMap<PodvStereoVideoConfiguration>
             stviProperties;  ///< Stereo Video arrangement information from povd sample description entriess
-        WriteOnceMap<SampleDescriptionIndex, CoverageInformationPropertyInternal>
+        PropertyMap<CoverageInformationPropertyInternal>
             coviProperties;  ///< Coverage information from povd sample description entriess
-        WriteOnceMap<SampleDescriptionIndex, SchemeTypesPropertyInternal> schemeTypesProperties;  ///< Scheme type and
-                                                                                                  ///< compatible scheme
-                                                                                                  ///< information from
-                                                                                                  ///< resv sample
-                                                                                                  ///< description
-                                                                                                  ///< entriess
-        WriteOnceMap<SampleDescriptionIndex, std::uint8_t> nalLengthSizeMinus1;
+        PropertyMap<RecommendedViewportProperty>
+            rcvpProperties;  ///< Information from rcvp sample description entriess
+        PropertyMap<SchemeTypesPropertyInternal> schemeTypesProperties;  ///< Scheme type and
+                                                                         ///< compatible scheme
+                                                                         ///< information from
+                                                                         ///< resv sample
+                                                                         ///< description
+                                                                         ///< entriess
+        PropertyMap<uint8_t> nalLengthSizeMinus1;
     };
 
     struct TrackInfo
@@ -501,6 +521,12 @@ namespace MP4VR
 
     typedef WriteOnceMap<Id, SampleDescriptionIndex> ItemToParameterSetMap;
 
+    struct ImdaInfo
+    {
+        StreamInterface::offset_t begin;
+        StreamInterface::offset_t end;
+    };
+
     struct SegmentProperties
     {
         InitSegmentId initSegmentId;  ///< Initialization segment track id for this segment
@@ -516,10 +542,20 @@ namespace MP4VR
 
         ItemToParameterSetMap
             itemToParameterSetMap;  ///< Map from every sample or image item to parameter set map entry
+
+        Map<ImdaId, ImdaInfo> imda; ///< Imda segments contained in this segment
     };
 
     typedef Map<SegmentId, SegmentProperties> SegmentPropertiesMap;
     typedef Map<Sequence, SegmentId> SequenceToSegmentMap;
+
+    /** Maps FourCCs to maps that map track ids opr track group ids to tracks */
+    struct TrackReferenceInfo {
+        Set<ContextId> trackIds;
+        Set<ContextId> extractorTrackIds; // "hvc2" tracks that point to this track or track group
+    };
+    using TrackReferenceInfoMap = Map<ContextId, TrackReferenceInfo>;
+    using FourCCTrackReferenceInfoMap = Map<FourCCInt, TrackReferenceInfoMap>;
 
     struct InitSegmentProperties
     {
@@ -531,8 +567,10 @@ namespace MP4VR
         std::uint32_t movieTimeScale;
 
         FileTypeBox ftyp;  ///< File Type Box for later information retrieval
+        ISOBMFF::Optional<MetaBox> meta;
 
         Map<ContextId, InitTrackInfo> initTrackInfos;
+        FourCCTrackReferenceInfoMap trackReferences;
 
         SegmentPropertiesMap segmentPropertiesMap;
         SequenceToSegmentMap sequenceToSegment;

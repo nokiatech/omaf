@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,22 +19,22 @@
 #include "Platform/OMAFDataTypes.h"
 
 OMAF_NS_BEGIN
-    OMAF_INLINE uint64_t FNVHash(const char_t* str);
+OMAF_INLINE uint64_t FNVHash(const char_t* str);
 
-    // Calculate FNV-1a hash for null-terminated C-string, http://isthe.com/chongo/tech/comp/fnv/
-    uint64_t FNVHash(const char_t* str)
+// Calculate FNV-1a hash for null-terminated C-string, http://isthe.com/chongo/tech/comp/fnv/
+uint64_t FNVHash(const char_t* str)
+{
+    static uint64_t offset = 2166136261u;
+    static uint64_t prime = 16777619u;
+
+    uint64_t hash = offset;
+
+    while (*str != OMAF_NULL)
     {
-        static uint64_t offset = 2166136261u;
-        static uint64_t prime = 16777619u;
-        
-        uint64_t hash = offset;
-        
-        while (*str != OMAF_NULL)
-        {
-            hash ^= (uint64_t)*str++;
-            hash *= prime;
-        }
-        
-        return hash;
+        hash ^= (uint64_t) *str++;
+        hash *= prime;
     }
+
+    return hash;
+}
 OMAF_NS_END

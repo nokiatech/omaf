@@ -4,15 +4,13 @@
 OMAF is a systems standard developed by the Moving Picture Experts Group (MPEG) for enabling standardized omnidirectional media applications, focusing on 360 video, images and audio. OMAF Creator/Player Engine is an implementation of OMAF standard in order to demonstrate its powerful features and capabilities, and to help achieving interoperability between OMAF implementations.
 
 ## News:
-27-Jun-2019: Three bugs fixed in Creator:
-* HEVC codec level set according to video resolution
-* scal track references contain only the needed tracks
-* cubemap projection set to MPD properly, and no RWPK added to extractor as only default OMAF cubemap supported
+12-Oct-2021: Version 2.2.0 released! Main changes include:
+* Support for OMAFv2 specification
 
 16-Jan-2019: Version 2.1.0 released! Main changes include:
 * Windows sample application for OMAF Player supports Direct3D rendering providing improved playback performance (e.g. 6K@60 fps).
 * OMAF Player bug fixes and improvements especially in OMAF HEVC Viewport Dependent profile, OMAF Still image profile, and audio playback.
-* OMAF Player sample applications both on Windows and Android enable to select input file via dialog (instead of hardcoded filename on source code).
+* OMAF Player sample application for Windows and Android enable to select input file via dialog (instead of hardcoded filename on source code).
 * Some other quality and stability improvements.
 
 11-Oct-2018: Version 2.0.0 released! Main changes include:
@@ -23,7 +21,7 @@ OMAF is a systems standard developed by the Moving Picture Experts Group (MPEG) 
 * Android sample application for OMAF Player is included, operating in handheld mode.
 
 ## Features:
-Nokia OMAF Creator/Player implements a subset of current OMAF version 1 standard, including the following main features:
+Nokia OMAF Creator/Player implements a subset of current OMAF version 2 standard, including the following main features:
 
 ### Convert 360-degree HEVC videos in equirectangular projection stored in conventional mp4 files to OMAF HEVC viewport independent profile files or DASH streams.
 * Input can be identified with filename suffix (_M for mono, _TB for top-bottom framepacked, and _LR for side-by-side framepacked; if no suffix mono is assumed). 
@@ -46,7 +44,7 @@ Nokia OMAF Creator/Player implements a subset of current OMAF version 1 standard
 * Output is a single heic file. 
 * Both mono and framepacked stereo in equirectangular projection are supported.
 
-### Playback OMAF HEVC Viewport-Independent and Viewport Dependent files and DASH streams (a sample application for Windows and Android provided)
+### Playback OMAF HEVC Viewport-Independent and Viewport Dependent files and DASH streams (a sample application for Windows provided)
 * Both mono and framepacked stereo video are supported.
 * The same viewport dependent schemes as produced by the Creator are supported, in both Equirectangular and Cubemap projection formats.
 * Viewport dependency is effective only with DASH streaming. Note! Tile switching latency may be further optimized.
@@ -56,20 +54,19 @@ Nokia OMAF Creator/Player implements a subset of current OMAF version 1 standard
 * DASH live profile streams are supported. All DASH modes other than segment template mode for OMAF viewport dependent delivery are experimental.
 * Bitrate adaptation support is disabled.
 
-### Playback OMAF Still Image files (a sample application for Windows and Android provided)
+### Playback OMAF Still Image files (a sample application for Windows provided)
 * Both mono and framepacked stereo images are supported.
-* Images in image sequences can be browsed by clicking space (Windows) or touching the screen (Android).
-
+* Images in image sequences can be browsed by clicking space.
 
 All the components compile and run on Windows 10. 
-OMAF Player requires in practice an HW accelerated HEVC decoder on Windows, available e.g. with NVidia 10xx display cards. With OpenGL, the playback rate is restricted to 4k@30 fps. With Direct3D, it is set as 6k@60 fps, which is ~8k@33 fps.
+OMAF Player requires in practice an HW accelerated HEVC decoder on Windows, available e.g. with NVidia 10xx display cards.  With Direct3D, it is set as 6k@60 fps, which is ~8k@33 fps.
 OMAF Creator can be compiled and run on Windows 10 and Linux.
 
 ## Contents of the Repository:
 This repository contains the following items:
 * OMAF Creator with the following command-line applications: omafvi.exe, omafvd.exe, and omafimage.exe 
 * OMAF Player engine
-* OMAF Player sample applications for Windows and Android
+* OMAF Player sample applications for Windows
 * OMAF MP4 reader and writer library, used by the Creator and Player.
 
 In addition, a LibDASH fork is provided in a separate repository: [LibDASH](https://github.com/nokia/libdash), and OMAF branch of the HEIF repository [heif](https://github.com/nokiatech/heif) is utilized as well. 
@@ -77,7 +74,6 @@ In addition, a LibDASH fork is provided in a separate repository: [LibDASH](http
 ## Supported operating systems
 ### OMAF Player
 * Windows 10
-* Android. Both Windows and Linux builds are supported for Android.
 
 ### OMAF Creator
 * Windows 10
@@ -87,10 +83,7 @@ In addition, a LibDASH fork is provided in a separate repository: [LibDASH](http
 Cmake-based build scripts are provided. 
 A CMake installation is required, version 3.8 or newer recommended
 * For Linux gcc 6+ is required
-* For Windows, Visual Studio 2015 or 2017 installation is expected
-* For Android player build, both Windows and Linux can be used. Further, Android NDK (r17) must be installed in addition to Android SDK (28 or higher). 
-* If building Android on Windows, Ninja.exe build tool is also needed. Download the tool here: https://github.com/ninja-build/ninja/releases and add it to the %PATH% variable.
-* The Creator can be built on Linux, and Linux can also be used to build the player for Android.
+* For Windows, Visual Studio 2019 installation is expected
 
 First clone the [LibDASH](https://github.com/nokia/libdash) to the root of your work area.
 Then clone the OMAF branch of [HEIF](https://github.com/nokiatech/heif) to the root of your work area.
@@ -108,8 +101,7 @@ Go to `OMAF/Build` and execute `build-visualstudio.bat` or some other build scri
 The Creator binary should appear in `/Creator/bin/{OS}/{Debug/Release}/`
 
 The Player libraries should appear in `/Player/Lib/{OS}/{Debug/Release}/`
-The Player sample application Visual Studio solution can be opened in `\Player\VideoPlayback\Windows\Monitor_Sample` and the sample for Android from
-`Player\VideoPlayback\Android\Handheld\`.
+The Player sample application Visual Studio solution can be opened in `\Player\VideoPlayback\Windows\Monitor_Sample`.
 
 The player supports by default both Direct3D and OpenGL on Windows. The sample player application from release 2.1 onwards supports D3D, so OpenGL support is not necessarily required. 
 If the OMAF Player is compiled with OpenGL enabled, OpenGL extension headers need to be downloaded and placed under OpenGLExt directory, see [Khronos](http://www.opengl.org/registry/)
@@ -143,16 +135,10 @@ https://github.com/nokiatech/omaf/wiki/Usage-instructions-for-OMAF-Creator-Still
 .uri files are text files with .uri extension, used for specifying DASH stream URL, i.e. the location of the MPD, e.g. http://myserver.com/omaf/video.mpd
 <br/>You can also specify the input name as a command line argument, e.g. `Monitor_sample.exe storage://video.mp4` or `Monitor_sample.exe http://myserver.com/omaf/video.mpd`
 
-### Playback an OMAF file / DASH stream on Android
-Open the following project in Android Studio:
-`\Player\VideoPlayback\Android\Handheld\` 
-<br/>The application packages .mp4, .heic, and .uri files from \Player\VideoPlayback\Android\Handheld\Assets to the assets and shows a list of them in the startup.
-.uri files are text files with .uri extension, used for specifying DASH stream URL, i.e. the location of the MPD, e.g. http://myserver.com/omaf/video.mpd
-
 ## License:
 Please see **[LICENSE.TXT](https://github.com/nokiatech/omaf/blob/master/LICENSE.txt)** file for the terms of use of the contents of this repository.
 
 For more information, please contact: <omaf@nokia.com>
 
-### Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies).
+### Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies).
 ### **All rights reserved.** 

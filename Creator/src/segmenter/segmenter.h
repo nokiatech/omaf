@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,6 +17,7 @@
 #include <fstream>
 #include <map>
 #include <set>
+#include <tuple>
 
 #include <streamsegmenter/autosegmenter.hpp>
 #include <streamsegmenter/segmenterapi.hpp>
@@ -24,13 +25,13 @@
 
 #include "common/optional.h"
 #include "common/exceptions.h"
+#include "processor/meta.h"
 #include "processor/processor.h"
 #include "log/log.h"
+#include "segmentercommon.h"
 
 namespace VDD
 {
-    typedef StreamSegmenter::IdBase<std::int8_t, struct ScalTrefIndexTag> ScalTrefIndex;
-
     /** A hierarchical umbrella class for all Segmenter exceptions */
     class SegmenterException : public Exception
     {
@@ -76,14 +77,63 @@ namespace VDD
     {
         InitSegment,
         SegmentIndex, // used if Config.separateSidx is enabled, otherwise embedded in TrackRunSegment
-        TrackRunSegment
+        TrackRunSegment,
+        ImdaSegment
     };
+
+    std::string to_string(SegmentRole);
 
     using SegmentRoleTag = ValueTag<SegmentRole>;
 
-    // First key is the extractor track id, second key is the track id to map; result
-    // is obviously the final scal track reference index
-    using TrackToScalTrafIndexMap = std::map<TrackId, std::map<TrackId, ScalTrefIndex>>;
+    // used for building sidx by MoofCombine (so for index segments)
+    // only available in cTrackRunStreamId
+    struct SegmentInfo
+    {
+        FrameTime firstPresentationTime;
+        FrameDuration segmentDuration;
+    };
+
+    using SegmentInfoTag = ValueTag<SegmentInfo>;
+
+    struct SegmentBitrate
+    {
+        std::uint64_t average;
+    };
+
+    // Why not use CodedFrameMeta.segmenterMeta? Because that as well should be moved here instead,
+    // so we don't end up populating the CodedFrameMeta interface with special needs.
+    using SegmentBitrateTag = ValueTag<SegmentBitrate>;
+
+    struct FragmentSequenceGenerator
+    {
+        const StreamSegmenter::Segmenter::SequenceId sequenceBase;
+        const StreamSegmenter::Segmenter::SequenceId sequenceStep;
+
+        FragmentSequenceGenerator(StreamSegmenter::Segmenter::SequenceId sequenceBase,
+                                  StreamSegmenter::Segmenter::SequenceId sequenceStep)
+            : sequenceBase(sequenceBase), sequenceStep(sequenceStep), mSequenceNext(sequenceBase)
+        {
+            // nothing
+        }
+
+        StreamSegmenter::Segmenter::SequenceId operator()()
+        {
+            auto seq = mSequenceNext;
+            mSequenceNext =
+                StreamSegmenter::Segmenter::SequenceId(mSequenceNext.get() + sequenceStep.get());
+            return seq;
+        }
+
+    private:
+        StreamSegmenter::Segmenter::SequenceId mSequenceNext;
+    };
+
+    enum class WriteSegmentHeader
+    {
+        None,
+        First,
+        All,
+    };
 
     class Segmenter : public Processor
     {
@@ -113,7 +163,7 @@ namespace VDD
             StreamSegmenter::Segmenter::SequenceId baseSequenceId;
 
             /** Push out segment indices separately; also disables writing segment type header */
-            bool separateSidx;
+            bool sidx = false;
 
             std::list<StreamId> streamIds; // more than 1 used at least with mp4 single file output; stream ids is just for gatekeeping; what streams to process and what to skip. No need to have exact mapping to tracks
 
@@ -121,7 +171,32 @@ namespace VDD
 
             // Special support for extractor tracks: map track ids to scal track reference indices
             TrackToScalTrafIndexMap trackToScalTrafIndexMap;
+
+            OutputMode mode = OutputMode::OMAFV1;
+
+            // if true, don't consider track runs being part of segments for the purpose of
+            // constructing sidx. used with OMAFv2 media tracks (moofs go to SidxAdjuster but
+            // segment indexes go directly to ondemand files)
+            bool noMetadataSidx = false;
+
+            Optional<FragmentSequenceGenerator> acquireNextImdaId;
+
+            // if not set, interpreted as true if mode == OMAFV1, false if mode == OMAFV2
+            Optional<bool> singleOutputStream;
+
+            // Whether to let the segmenter generate segment headers? With MoofCombine it already generates them.
+            WriteSegmentHeader segmentHeader = WriteSegmentHeader::None;
+
+            // What to stick in front of frame segments
+            Optional<SegmentHeader> frameSegmentHeader;
         };
+
+        static const StreamId cSingleStreamId;
+        static const StreamId cImdaStreamId;
+        static const StreamId cTrackRunStreamId;
+        static const StreamId cSidxStreamId;
+
+        static const int cSidxSpaceReserve = 10000;
 
         Segmenter(Config aConfig, bool aCreateWriter = true);
         virtual ~Segmenter() override;
@@ -129,15 +204,16 @@ namespace VDD
         /** Segmenter requires the data to be available in CPU memory */
         StorageType getPreferredStorageType() const override;
 
-        virtual std::vector<Views> process(const Views& data) override;
+        virtual std::vector<Streams> process(const Streams& data) override;
 
         virtual std::string getGraphVizDescription() override;
 
     protected:
-        std::vector<Views> doProcess(const Views& data);
+        std::vector<Streams> doProcess(const Streams& data);
 
         /* Feed the frame, with complete with presentation and coding times, to the */
-        void feed(TrackId aTrackId, const Data& aFrame, StreamSegmenter::FrameCts aCompositionCts);
+        void feed(TrackId aTrackId, const Data& aFrame, StreamSegmenter::FrameDts aDecodingTime,
+                  StreamSegmenter::FrameCts aCompositionTime);
 
         /* Keep track of frames by their presentation index */
         struct PendingFrameInfo
@@ -169,6 +245,9 @@ namespace VDD
 
             /* Has this stream reached its end? */
             bool end = false;
+
+            /* Used for calculating the bitrate passed on as metadata to MPD writer */
+            FrameDuration totalDuration;
         };
 
         /** Information about tracks that varies at runtime */
@@ -177,16 +256,33 @@ namespace VDD
         /** Configuration */
         const Config mConfig;
 
+        bool mSingleOutputStream;
+
         /** The auto segmenter instance */
         StreamSegmenter::AutoSegmenter mAutoSegmenter;
 
+        Optional<FragmentSequenceGenerator> mAcquireNextImdaId;
+
         bool mWaitForInitSegment = false;
+
+        bool mFirstSegment = true;
+
+        /* Used for calculating the bitrate passed on as metadata to MPD writer */
+        uint64_t mTotalNumberOfBits = 0ul;
 
         bool detectNonRefFrame(const Data& frame);
 
-        virtual void writeSegment(StreamSegmenter::Segmenter::Segments& aSegments, std::vector<Views>& aFrames);
+        // includes also frames that may not have been yet produced segments of, but it should be
+        // reasonably accurate
+        SegmentBitrate calculateBitrate() const;
 
-        void packExtractors(const Data& aFrame, std::vector<Data>& aOutput);
+        virtual void writeSegment(StreamSegmenter::Segmenter::Segments& aSegments,
+                                  std::vector<Streams>& aResultFrames);
+
+        void packExtractors(const Data& aFrame, Streams& aOutput);
+
+        // calculate current bitrate average and create a Meta for it
+        Meta segmentBitRateMeta(StreamSegmenter::Segmenter::Duration aSegmentDuration) const;
 
     private:
 

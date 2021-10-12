@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,85 +16,88 @@
 
 #include "NVREssentials.h"
 
+// include order here actually does matter
+// clang-format off
+
 // Platform specific
 #if OMAF_PLATFORM_ANDROID
 
-    #include <EGL/egl.h>
-    #include <EGL/eglext.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
 
-    // https://www.khronos.org/registry/OpenGL/index_es.php
+// https://www.khronos.org/registry/OpenGL/index_es.php
 
-    #if OMAF_GRAPHICS_API_OPENGL_ES >= 32
+#if OMAF_GRAPHICS_API_OPENGL_ES >= 32
 
-        #include <GLES3/gl32.h>
-        #include <GLES2/gl2ext.h>
+#include <GLES3/gl32.h>
+#include <GLES2/gl2ext.h>
 
-    #elif OMAF_GRAPHICS_API_OPENGL_ES >= 31
+#elif OMAF_GRAPHICS_API_OPENGL_ES >= 31
 
-        #include <GLES3/gl31.h>
-        #include <GLES2/gl2ext.h>
+#include <GLES3/gl31.h>
+#include <GLES2/gl2ext.h>
 
-    #elif OMAF_GRAPHICS_API_OPENGL_ES >= 30
+#elif OMAF_GRAPHICS_API_OPENGL_ES >= 30
 
-        #include <GLES3/gl3.h>
-        #include <GLES2/gl2ext.h>
+#include <GLES3/gl3.h>
+#include <GLES2/gl2ext.h>
 
-    #elif OMAF_GRAPHICS_API_OPENGL_ES >= 20
+#elif OMAF_GRAPHICS_API_OPENGL_ES >= 20
 
-        #include <GLES2/gl2.h>
-        #include <GLES2/gl2ext.h>
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
 
-    #else
+#else
 
-        #error Invalid OpenGL ES version
+#error Invalid OpenGL ES version
 
-    #endif
+#endif
+
+// clang-format on
 
 #elif OMAF_PLATFORM_UWP
 
 #define D3D11_NO_HELPERS
 
-    #include "Foundation\NVRDependencies.h"
-    #include <d3d11_1.h>
-    #include <d3dcompiler.h>
-    #include <d3d11shader.h>
+#include <comdef.h>
+#include <d3d11_1.h>
+#include <d3d11shader.h>
+#include <d3dcompiler.h>
 
-    #include <comdef.h>
+#include "Foundation\NVRDependencies.h"
 
 #elif OMAF_PLATFORM_WINDOWS
 #define NOMINMAX
 
 #include <windows.h>
-    #if OMAF_GRAPHICS_API_OPENGL
-        #include <gl/gl.h>
-        #include <gl/glext.h>
-        #include <wgl/wglext.h>
+#if OMAF_GRAPHICS_API_OPENGL
+#include <gl/gl.h>
+#include <gl/glext.h>
+#include <wgl/wglext.h>
 
-    #endif
+#endif
 
-    #if OMAF_GRAPHICS_API_D3D11
+#if OMAF_GRAPHICS_API_D3D11
 
-        #include <sal.h>
+#include <sal.h>
 
-        #define D3D11_NO_HELPERS
+#define D3D11_NO_HELPERS
 
-        #include <d3d11_1.h>
+#include <comdef.h>
+#include <d3d11_1.h>
+#include <d3d11shader.h>
+#include <d3dcompiler.h>
 
-        #include <d3dcompiler.h>
-        #include <d3d11shader.h>
+#endif
 
-        #include <comdef.h>
+#if OMAF_GRAPHICS_API_VULKAN
 
-    #endif
+#include <vulkan/vulkan.h>
 
-    #if OMAF_GRAPHICS_API_VULKAN
-
-        #include <vulkan/vulkan.h>
-
-    #endif
+#endif
 
 #else
 
-    #error Unsupported platform
+#error Unsupported platform
 
 #endif

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -42,7 +42,7 @@ void MediaDataBox::writeBox(std::ofstream& output) const
     }
 }
 
-void MediaDataBox::writeBox(ISOBMFF::BitStream& bitstr) const
+void MediaDataBox::writeBox(ISOBMFF::BitStream& bitstr)
 {
     const Vector<uint8_t>& data = mHeaderData.getStorage();
     bitstr.write8BitsArray(data, data.size());

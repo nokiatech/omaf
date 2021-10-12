@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -26,6 +26,7 @@
 #include <vector>
 #include <map>
 #include "meta.h"
+#include "streamfilter.h"
 #include "common/exceptions.h"
 #include "common/rational.h"
 #include "common/optional.h"
@@ -290,27 +291,6 @@ namespace VDD
 
     class MismatchingStorageTypeException;
 
-#ifdef FUTURE
-    /** @brief Processor-specific way to indicate what to do with the frame */
-
-    class Instructions
-    {
-        Instructions();
-        virtual ~Instructions();
-    };
-
-    class NoInstructions : public Instructions
-    {
-    };
-
-    class Ticket
-    {
-    public:
-        /** @brief Node-specific processing instructions for this packet */
-        Instructions& getInstructions() const;
-    };
-#endif
-
     extern const Meta defaultMeta;
 
     /** @brief Data is a reference-counted cheap-to-copy way to keep around
@@ -342,9 +322,6 @@ namespace VDD
 
         Data& operator=(const Data&);
         Data& operator=(Data&&) = default;
-
-        /** @brief Return true if this Data signals end of stream */
-        bool isEndOfStream() const;
 
         /** @brief Which host this information is located at? Typically
             only the controller needs to care about this, processors only
@@ -411,12 +388,21 @@ namespace VDD
         const Extractors& getExtractors() const;
 
         StreamId getStreamId() const;
-        StreamId setStreamId(StreamId aStreamId);
+
+        /* Return a version of Data with given stream id */
+        Data withStreamId(StreamId aStreamId) const;
 
         /* Return a version of Data with this tag attached */
         template <typename T> Data withTag(const T& aTag) const;
 
     private:
+        friend class Streams;
+
+        // slippery slope, but we want to at least predent isEndOfStream is private
+        friend class CombineSourceNode; // uses isEndOfStream()
+        /** @brief Return true if this Data signals end of stream */
+        bool isEndOfStream() const;
+
         std::shared_ptr<const Storage> mStorage; // protected by sDataStorageMutex
         Meta mMeta;
         friend bool operator==(const Data& aA, const Data& aB);

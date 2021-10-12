@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,8 +14,8 @@
  */
 #pragma once
 
-#include "Math/OMAFMathTypes.h"
 #include "Math/OMAFMathConstants.h"
+#include "Math/OMAFMathTypes.h"
 
 namespace OMAF
 {
@@ -26,8 +26,8 @@ namespace OMAF
 {
     Point makePoint(float32_t x, float32_t y)
     {
-        Point result = { x, y };
-        
+        Point result = {x, y};
+
         return result;
     }
-}
+}  // namespace OMAF

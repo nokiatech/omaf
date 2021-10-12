@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -25,12 +25,12 @@ namespace VDD
             size_t frameCount;  // how many frames to produce
             size_t chunkCount;  // how many of the frames to produce at a time
             size_t dataSize;    // how big is the data returned in bytes
-            size_t viewCount;   // how many views have that amount of data
+            size_t viewCount;   // how many streams have that amount of data
         };
         GeneratorSource(Config aConfig);
         ~GeneratorSource();
 
-        std::vector<Views> produce() override;
+        std::vector<Streams> produce() override;
 
     private:
         Config mConfig;

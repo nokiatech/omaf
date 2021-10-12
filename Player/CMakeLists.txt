@@ -2,7 +2,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -117,8 +117,7 @@ string(TOUPPER ${FIRST_LETTER} FIRST_LETTER)
 string(REGEX REPLACE "^.(.*)" "${FIRST_LETTER}\\1" LIB_TARGET_NAME "${OMAF_CMAKE_TARGET_OS}")
 
 set(API_LIB "${CMAKE_SOURCE_DIR}/Lib/${LIB_TARGET_NAME}")
-
-# TODO: fix these paths to point to ../Lib/Android/Release/armeabi-v7a, ../Lib/Windows/Debug/VS2015  etc. 
+ 
 if (TARGET_OS_ANDROID)
     #On android we need to add ABI to the path..
     set(OMAF_EXT_PATH_RELEASE_PREFIX ${OMAF_CMAKE_TARGET_OS}/release/${ANDROID_ABI})

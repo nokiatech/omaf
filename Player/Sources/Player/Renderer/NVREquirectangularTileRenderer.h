@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,41 +16,39 @@
 
 #include "NVRNamespace.h"
 
-#include "Renderer/NVRVideoRenderer.h"
-#include "Renderer/NVREquirectangularMesh.h"
-#include "Renderer/NVRVideoShader.h"
 #include "Foundation/NVRHashMap.h"
+#include "Renderer/NVREquirectangularMesh.h"
+#include "Renderer/NVRVideoRenderer.h"
+#include "Renderer/NVRVideoShader.h"
 
 OMAF_NS_BEGIN
-    class EquirectangularTileRenderer
-    : public VideoRenderer
-    {
-        public:
+class EquirectangularTileRenderer : public VideoRenderer
+{
+public:
+    EquirectangularTileRenderer();
+    ~EquirectangularTileRenderer();
 
-            EquirectangularTileRenderer();
-            ~EquirectangularTileRenderer();
+public:  // Implements PanoramaRenderer
+    virtual void_t render(const HeadTransform& headTransform,
+                          const RenderSurface& renderSurface,
+                          const CoreProviderSources& sources,
+                          const TextureID& renderMask = TextureID::Invalid,
+                          const RenderingParameters& renderingParameters = RenderingParameters());
 
-        public: // Implements PanoramaRenderer
+private:  // Implements PanoramaRenderer
+    virtual void_t createImpl();
+    virtual void_t destroyImpl();
 
-            virtual ProjectionType::Enum getType() const;
+private:
+    void_t create(VideoPixelFormat::Enum textureFormat);
 
-            virtual void_t render(const HeadTransform& headTransform, const RenderSurface& renderSurface, const CoreProviderSources& sources, const TextureID& renderMask = TextureID::Invalid, const RenderingParameters& renderingParameters = RenderingParameters());
+    VideoShader mOpaqueShader;
+    VideoShader mMaskShader;
 
-        private: // Implements PanoramaRenderer
+    MemoryAllocator& mAllocator;
+    typedef HashMap<sourceid_t, EquirectangularMesh*> EquirectTileMeshMap;
 
-            virtual void_t createImpl();
-            virtual void_t destroyImpl();
-
-        private:
-            void_t create(VideoPixelFormat::Enum textureFormat);
-
-            VideoShader mOpaqueShader;
-            VideoShader mMaskShader;
-
-            MemoryAllocator& mAllocator;
-            typedef HashMap<sourceid_t, EquirectangularMesh*> EquirectTileMeshMap;
-
-            EquirectTileMeshMap  mGeometryMap;
-            bool_t mDirtyShader;
-    };
+    EquirectTileMeshMap mGeometryMap;
+    bool_t mDirtyShader;
+};
 OMAF_NS_END

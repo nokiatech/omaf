@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,9 +13,9 @@
  * written consent of Nokia.
  */
 #pragma once
-#include "NVREssentials.h"
-#include "Foundation/NVRLogger.h"
 #include "Foundation/NVRFixedString.h"
+#include "Foundation/NVRLogger.h"
+#include "NVREssentials.h"
 
 OMAF_NS_BEGIN
 
@@ -31,6 +31,7 @@ public:
     void_t restart();
     void_t printIntervalTime(const char_t* logTag);
     void_t stop();
+
 private:
     OMAF_NO_DEFAULT(PerformanceLogger);
 
@@ -44,12 +45,23 @@ private:
 class PerformanceLogger
 {
 public:
-    PerformanceLogger(const char_t* logName, uint32_t minFilterMS = 0, bool_t startOnCreate = true) {}
-    ~PerformanceLogger() {}
+    PerformanceLogger(const char_t* logName, uint32_t minFilterMS = 0, bool_t startOnCreate = true)
+    {
+    }
+    ~PerformanceLogger()
+    {
+    }
 
-    void_t restart(){}
-    void_t printIntervalTime(const char_t* logTag) {}
-    void_t stop() {}
+    void_t restart()
+    {
+    }
+    void_t printIntervalTime(const char_t* logTag)
+    {
+    }
+    void_t stop()
+    {
+    }
+
 private:
     OMAF_NO_DEFAULT(PerformanceLogger);
 

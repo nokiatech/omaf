@@ -2,7 +2,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -22,7 +22,11 @@ endif()
 
 project( common LANGUAGES CXX )
 
+set(API_SRCS
+    commontypes.cpp)
+
 set(COMMON_SRCS
+    alternateitemsgroupbox.cpp
     customallocator.cpp
     avcparser.cpp
     audiosampleentrybox.cpp
@@ -42,8 +46,10 @@ set(COMMON_SRCS
     datainformationbox.cpp
     datareferencebox.cpp
     decodepts.cpp
+    dynamicviewpointsampleentrybox.cpp
     editbox.cpp
     elementarystreamdescriptorbox.cpp
+    entitytogroupbox.cpp
     filetypebox.cpp
     fourccint.cpp
     fullbox.cpp
@@ -58,11 +64,13 @@ set(COMMON_SRCS
     googlesphericalvideov2box.cpp
     googlesphericalvideoheaderbox.cpp
     googlestereoscopic3dbox.cpp
+    groupslistbox.cpp
     handlerbox.cpp
     hevcconfigurationbox.cpp
     hevcdecoderconfigrecord.cpp
     hevcsampleentry.cpp
     initialviewingorientationsampleentry.cpp
+    initialviewpointsampleentrybox.cpp
     itemdatabox.cpp
     iteminfobox.cpp
     itemlocationbox.cpp
@@ -87,10 +95,16 @@ set(COMMON_SRCS
     nalutil.cpp
     nullmediaheaderbox.cpp
     originalformatbox.cpp
+    overlayandbackgroundgroupingbox.cpp
+    overlayconfigbox.cpp
+    overlaysampleentrybox.cpp
+    overlayswitchalternativesbox.cpp
     primaryitembox.cpp
     projectedomnivideobox.cpp
     projectionformatbox.cpp
     protectionschemeinfobox.cpp
+    recommendedviewportinfobox.cpp
+    recommendedviewportsampleentry.cpp
     regionwisepackingbox.cpp
     restrictedschemeinfobox.cpp
     rotationbox.cpp
@@ -107,9 +121,12 @@ set(COMMON_SRCS
     segmentindexbox.cpp
     segmenttypebox.cpp
     soundmediaheaderbox.cpp
+    spatialrelationship2ddescriptionbox.cpp
+    spatialrelationship2dsourcebox.cpp
     sphereregionconfigbox.cpp
     sphereregionsampleentrybox.cpp
     stereovideobox.cpp
+    subpictureregionbox.cpp
     syncsamplebox.cpp
     timetosamplebox.cpp
     trackbox.cpp
@@ -129,11 +146,18 @@ set(COMMON_SRCS
     urimetasampleentrybox.cpp
     userdatabox.cpp
     videomediaheaderbox.cpp
+    viewpointentitygroupbox.cpp
     visualsampleentrybox.cpp
     xmlbox.cpp
     )
+    
+set(API_HDRS
+    ../api/isobmff/commontypes.h
+    ../api/isobmff/mp4vrfileexport.h
+)
 
 set(COMMON_HDRS
+    alternateitemsgroupbox.hpp
     customallocator.hpp
     avcparser.hpp
     androidhacks.hpp
@@ -148,7 +172,6 @@ set(COMMON_HDRS
     channellayoutbox.hpp
     chunkoffsetbox.hpp
     cleanaperturebox.hpp
-    commontypes.hpp
     compatibleschemetypebox.hpp
     compositionoffsetbox.hpp
     compositiontodecodebox.hpp
@@ -157,8 +180,11 @@ set(COMMON_HDRS
     datareferencebox.hpp
     decodepts.hpp
     decoderconfigrecord.hpp
+    dynarrayimpl.hpp
+    dynamicviewpointsampleentrybox.hpp
     editbox.hpp
     elementarystreamdescriptorbox.hpp
+    entitytogroupbox.hpp
     filetypebox.hpp
     fourccint.hpp
     fullbox.hpp
@@ -173,12 +199,14 @@ set(COMMON_HDRS
     googlesphericalvideov2box.hpp
     googlesphericalvideoheaderbox.hpp
     googlestereoscopic3dbox.hpp
+    groupslistbox.hpp
     handlerbox.hpp
     hevccommondefs.hpp
     hevcconfigurationbox.hpp
     hevcdecoderconfigrecord.hpp
     hevcsampleentry.hpp
     initialviewingorientationsampleentry.hpp
+    initialviewpointsampleentrybox.hpp
     itemdatabox.hpp
     iteminfobox.hpp
     itemlocationbox.hpp
@@ -203,10 +231,16 @@ set(COMMON_HDRS
     mp4visualsampleentrybox.hpp
     nullmediaheaderbox.hpp
     originalformatbox.hpp
+    overlayandbackgroundgroupingbox.cpp
+    overlayconfigbox.hpp
+    overlaysampleentrybox.hpp
+    overlayswitchalternativesbox.hpp
     primaryitembox.hpp
     projectedomnivideobox.hpp
     projectionformatbox.hpp
     protectionschemeinfobox.hpp
+    recommendedviewportinfobox.hpp
+    recommendedviewportsampleentry.hpp
     regionwisepackingbox.hpp
     restrictedschemeinfobox.hpp
     rotationbox.hpp
@@ -224,9 +258,12 @@ set(COMMON_HDRS
     segmenttypebox.hpp
     smallvector.hpp
     soundmediaheaderbox.hpp
+    spatialrelationship2ddescriptionbox.hpp
+    spatialrelationship2dsourcebox.hpp
     sphereregionconfigbox.hpp
     sphereregionsampleentrybox.hpp
     stereovideobox.hpp
+    subpictureregionbox.hpp
     syncsamplebox.hpp
     timetosamplebox.hpp
     trackbox.hpp
@@ -246,12 +283,13 @@ set(COMMON_HDRS
     urimetasampleentrybox.hpp
     userdatabox.hpp
     videomediaheaderbox.hpp
+    viewpointentitygroupbox.hpp
     visualsampleentrybox.hpp
     writeoncemap.hpp
     xmlbox.hpp
     )
 
-add_library(common_for_lib OBJECT ${COMMON_SRCS} ${COMMON_HDRS})
+add_library(common_for_lib OBJECT ${COMMON_SRCS} ${API_HDRS} ${COMMON_HDRS} ${API_SRCS})
 set_property(TARGET common_for_lib PROPERTY CXX_STANDARD 11)
 target_compile_definitions(common_for_lib PRIVATE "MP4VR_BUILDING_LIB")
 # target_compile_definitions(common_for_lib PUBLIC "MP4VR_USE_STATIC_LIB")
@@ -263,12 +301,16 @@ endif(IOS)
 set_property(TARGET common_for_lib PROPERTY POSITION_INDEPENDENT_CODE 1)
 
 if (NOT IOS)
+  add_library(api_for_dll OBJECT ${API_SRCS} ${API_HDRS})
+  set_property(TARGET api_for_dll PROPERTY CXX_STANDARD 11)
   add_library(common_for_dll OBJECT ${COMMON_SRCS} ${COMMON_HDRS})
   set_property(TARGET common_for_dll PROPERTY CXX_STANDARD 11)
+  target_compile_definitions(api_for_dll PRIVATE "MP4VR_BUILDING_DLL")
   target_compile_definitions(common_for_dll PRIVATE "MP4VR_BUILDING_LIB")
 #  target_compile_definitions(common_for_dll PUBLIC "MP4VR_USE_STATIC_LIB")
   # target_compile_definitions(common_for_dll PRIVATE "MP4VR_BUILDING_DLL")
   # Use the same objects for the shared library
+  set_property(TARGET api_for_dll PROPERTY POSITION_INDEPENDENT_CODE 1)
   set_property(TARGET common_for_dll PROPERTY POSITION_INDEPENDENT_CODE 1)
 endif(NOT IOS)
 

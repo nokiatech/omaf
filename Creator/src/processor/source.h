@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -45,7 +45,7 @@ namespace VDD
             each output stream an empty Data() (default-constructed Data)
             is returned.
         */
-        virtual std::vector<Views> produce() = 0;
+        virtual std::vector<Streams> produce() = 0;
 
         /** @brief Abort the Source. Next call to produce returns the
          * remaining frames and finally an EndOfStream.

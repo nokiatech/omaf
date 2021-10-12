@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,10 +14,10 @@
  */
 #include "Graphics/OpenGL/NVRShaderConstantGL.h"
 
+#include "Graphics/OpenGL/NVRGLCompatibility.h"
+#include "Graphics/OpenGL/NVRGLError.h"
 #include "Graphics/OpenGL/NVRGLExtensions.h"
 #include "Graphics/OpenGL/NVRGLUtilities.h"
-#include "Graphics/OpenGL/NVRGLError.h"
-#include "Graphics/OpenGL/NVRGLCompatibility.h"
 
 #include "Foundation/NVRLogger.h"
 
@@ -26,8 +26,8 @@ OMAF_NS_BEGIN
 OMAF_LOG_ZONE(ShaderConstantGL);
 
 ShaderConstantGL::ShaderConstantGL()
-: mHandle(0)
-, mType(ShaderConstantType::INVALID)
+    : mHandle(0)
+    , mType(ShaderConstantType::INVALID)
 {
 }
 
@@ -45,12 +45,12 @@ bool_t ShaderConstantGL::create(const char_t* name, ShaderConstantType::Enum typ
 {
     OMAF_ASSERT_NOT_NULL(name);
     OMAF_ASSERT(type != ShaderConstantType::INVALID, "");
-    
+
     HashFunction<const char_t*> hashFunction;
     mHandle = hashFunction(name);
-    
+
     mType = type;
-    
+
     return true;
 }
 

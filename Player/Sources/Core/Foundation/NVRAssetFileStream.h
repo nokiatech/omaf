@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,38 +14,35 @@
  */
 #pragma once
 
+#include "Foundation/NVRAssetManager.h"
 #include "Foundation/NVRCompatibility.h"
-#include "Platform/OMAFDataTypes.h"
 #include "Foundation/NVRFileStream.h"
 #include "Foundation/NVRFileSystem.h"
-#include "Foundation/NVRAssetManager.h"
+#include "Platform/OMAFDataTypes.h"
 
 OMAF_NS_BEGIN
-    class AssetFileStream
-    : public FileStream
-    {
-    public:
-        
-        AssetFileStream();
-        ~AssetFileStream();
-        
-        virtual bool_t openImpl(const char_t* filename, FileSystem::AccessMode::Enum mode);
-        virtual void_t closeImpl();
-        
-        virtual int64_t readImpl(void_t* destination, int64_t bytes);
-        virtual int64_t writeImpl(const void_t* source, int64_t bytes);
-        
-        virtual bool_t seekImpl(int64_t offset);
-        virtual int64_t tellImpl() const;
-        
-        virtual bool_t isOpenImpl() const;
-        
-        virtual int64_t getSizeImpl() const;
-        
-        virtual FileSystem::StreamType::Enum getTypeImpl() const;
-        
-    private:
-        
-        AssetManager::FileHandle mFileHandle;
-    };
+class AssetFileStream : public FileStream
+{
+public:
+    AssetFileStream();
+    ~AssetFileStream();
+
+    virtual bool_t openImpl(const char_t* filename, FileSystem::AccessMode::Enum mode);
+    virtual void_t closeImpl();
+
+    virtual int64_t readImpl(void_t* destination, int64_t bytes);
+    virtual int64_t writeImpl(const void_t* source, int64_t bytes);
+
+    virtual bool_t seekImpl(int64_t offset);
+    virtual int64_t tellImpl() const;
+
+    virtual bool_t isOpenImpl() const;
+
+    virtual int64_t getSizeImpl() const;
+
+    virtual FileSystem::StreamType::Enum getTypeImpl() const;
+
+private:
+    AssetManager::FileHandle mFileHandle;
+};
 OMAF_NS_END

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,8 +14,8 @@
  */
 #pragma once
 
-#include "NVRNamespace.h"
 #include "Foundation/NVRPathName.h"
+#include "NVRNamespace.h"
 
 #include "NVRPlayer.h"
 #include "OMAFPlayer.h"
@@ -38,15 +38,13 @@ namespace OMAF
         AudioOutputRange::Enum outputRange;
     };
 
-    class OmafPlayerPrivate
-    : public IOMAFPlayer
-    , public IRenderer
-    , public IPlaybackControls
-    , public IAudio
-    , public Private::AudioRendererObserver
+    class OmafPlayerPrivate : public IOMAFPlayer,
+                              public IRenderer,
+                              public IPlaybackControls,
+                              public IAudio,
+                              public Private::AudioRendererObserver
     {
     public:
-
         OmafPlayerPrivate();
         virtual ~OmafPlayerPrivate();
 
@@ -56,6 +54,7 @@ namespace OMAF
         virtual IAudio* getAudio();
         virtual IPlaybackControls* getPlaybackControls();
         virtual IRenderer* getRenderer();
+        virtual const Quaternion viewingOrientationOffset() const;
 
         virtual bool_t isFeatureSupported(Feature::Enum feature);
 
@@ -63,8 +62,7 @@ namespace OMAF
 
         virtual void_t resume();
 
-    public: // IAudio
-
+    public:  // IAudio
         virtual Result::Enum initializeAudioWithDirectRouting(bool_t allowExclusiveMode);
 
         virtual Result::Enum initializeAudioWithDirectRouting(bool_t allowExclusiveMode, const wchar_t* audioDevice);
@@ -81,24 +79,38 @@ namespace OMAF
 
         virtual void setHeadTransform(const HeadTransform& headTransform);
 
-    public: // IRenderer
-
-        virtual uint32_t createRenderTarget(const RenderTextureDesc* colorAttachment, const RenderTextureDesc* depthStencilAttachment);
+    public:  // IRenderer
+        virtual uint32_t createRenderTarget(const RenderTextureDesc* colorAttachment,
+                                            const RenderTextureDesc* depthStencilAttachment);
         virtual void destroyRenderTarget(uint32_t handle);
 
-        virtual void renderSurfaces(const HeadTransform& aHeadTransform, const RenderSurface** aRenderSurfaces, uint8_t aNumRenderSurfaces, const bool aDisplayWaterMark = false);
+        virtual void renderSurfaces(const HeadTransform& aHeadTransform,
+                                    const RenderSurface** aRenderSurfaces,
+                                    uint8_t aNumRenderSurfaces,
+                                    const bool aDisplayWaterMark = false);
 
-        virtual void renderSurfaces(const HeadTransform& aHeadTransform, const RenderSurface** aRenderSurfaces, uint8_t aNumRenderSurfaces, const RenderingParameters& aRenderingParameters = RenderingParameters());
+        virtual void renderSurfaces(const HeadTransform& aHeadTransform,
+                                    const RenderSurface** aRenderSurfaces,
+                                    uint8_t aNumRenderSurfaces,
+                                    const RenderingParameters& aRenderingParameters = RenderingParameters());
 
-    public: // IPlaybackControls
-
+    public:  // IPlaybackControls
         virtual void setVideoPlaybackObserver(OMAF::VideoPlaybackObserver* observer);
         virtual OMAF::VideoPlaybackState::Enum getVideoPlaybackState();
-        virtual OMAF::Result::Enum loadVideo(const char *uri, uint64_t initialPositionMS);
+
+        virtual OMAF::OverlayState getOverlayState(uint32_t ovlyId) const;
+
+        virtual OMAF::Result::Enum loadVideo(const char* uri, uint64_t initialPositionMS);
         virtual OMAF::Result::Enum play();
         virtual OMAF::Result::Enum pause();
         virtual OMAF::Result::Enum stop();
         virtual OMAF::Result::Enum next();
+        virtual OMAF::Result::Enum nextOverlayGroup();
+        virtual OMAF::Result::Enum prevOverlayGroup();
+
+        virtual IArray<UserAction>& getUserActions();
+        virtual Result::Enum runUserAction(const OverlayControl& cmd);
+
         virtual bool isSeekable();
         virtual OMAF::Result::Enum seekTo(uint64_t milliSeconds, SeekAccuracy::Enum accuracy);
         virtual uint64_t elapsedTime();
@@ -108,26 +120,7 @@ namespace OMAF
 
         virtual void_t setAudioVolume(float aVolume);
 
-        virtual void_t setAudioVolumeAuxiliary(float aVolume);
-
-
-        virtual Result::Enum loadAuxiliaryVideo(const char* aUri);
-
-        virtual OMAF::VideoPlaybackState::Enum getAuxiliaryVideoPlaybackState();
-
-        virtual Result::Enum playAuxiliary();
-
-        virtual Result::Enum pauseAuxiliary();
-
-        virtual Result::Enum stopAuxiliary();
-
-        virtual Result::Enum seekToAuxiliary(uint64_t aMilliSeconds);
-
-        virtual uint64_t elapsedTimeAuxiliary();
-        virtual uint64_t durationAuxiliary();
-
-    public: // AudioRenderer observer
-
+    public:  // AudioRenderer observer
         virtual void_t onRendererReady();
         virtual void_t onRendererPlaying();
         virtual void_t onFlush();
@@ -140,17 +133,18 @@ namespace OMAF
         void_t deinitialize();
 
     private:
-
-        Private::MemoryAllocator &mAllocator;
+        Private::MemoryAllocator& mAllocator;
         Private::VideoProvider* mVideoProvider;
         Private::RenderingManager* mRenderingManager;
         Private::AudioRendererAPI* mAudioRenderer;
-        Private::AudioBackend *mAudioBackend;
+        Private::AudioBackend* mAudioBackend;
 
         OMAF::AudioState mAudioState;
 
         bool_t mSuspended;
         Private::PathName mLastLoadedVideo;
         uint64_t mElapsedTimeAtSuspend;
+
+        Private::Array<UserAction> mUserActions;
     };
-}
+}  // namespace OMAF

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -41,23 +41,25 @@ namespace MP4VR
 
         enum ErrorCode
         {
-            OK = 0,
-            FILE_OPEN_ERROR,
-            FILE_HEADER_ERROR,
-            FILE_READ_ERROR,
-            UNSUPPORTED_CODE_TYPE,
-            INVALID_FUNCTION_PARAMETER,
-            INVALID_CONTEXT_ID,
-            INVALID_ITEM_ID,
-            INVALID_PROPERTY_INDEX,
-            INVALID_SAMPLE_DESCRIPTION_INDEX,
-            PROTECTED_ITEM,
-            UNPROTECTED_ITEM,
-            UNINITIALIZED,
-            NOT_APPLICABLE,
-            MEMORY_TOO_SMALL_BUFFER,
-            INVALID_SEGMENT,
-            ALLOCATOR_ALREADY_SET
+            OK = 0,                            // 0
+            FILE_OPEN_ERROR,                   // 1
+            FILE_HEADER_ERROR,                 // 2
+            FILE_READ_ERROR,                   // 3
+            UNSUPPORTED_CODE_TYPE,             // 4
+            INVALID_FUNCTION_PARAMETER,        // 5
+            INVALID_CONTEXT_ID,                // 6
+            INVALID_ITEM_ID,                   // 7
+            INVALID_PROPERTY_INDEX,            // 8
+            INVALID_SAMPLE_DESCRIPTION_INDEX,  // 9
+            PROTECTED_ITEM,                    // 10
+            UNPROTECTED_ITEM,                  // 11
+            UNINITIALIZED,                     // 12
+            NOT_APPLICABLE,                    // 13
+            MEMORY_TOO_SMALL_BUFFER,           // 14
+            INVALID_SEGMENT,                   // 15
+            ALLOCATOR_ALREADY_SET,             // 16
+            MISSING_DATA_FOR_SAMPLE,           // 17
+            NUMBER_OF_ERRORS                   // 18
         };
 
         /** Set an optional custom memory allocator. Call this before calling Create for the
@@ -134,6 +136,14 @@ namespace MP4VR
          * info from.
          *  @return ErrorCode: NO_ERROR or UNINITIALIZED */
         virtual int32_t getFileInformation(FileInformation& fileinfo, uint32_t initializationSegmentId = 0) const = 0;
+
+        /** Get file level entity groups.
+         *
+         *  @pre initialize() has been called successfully.
+         *  @param [out] trackProperties TrackProperties struct that hold track properties information.
+         *  @return ErrorCode: NO_ERROR or UNINITIALIZED */
+        virtual int32_t getFileGroupsList(GroupsListProperty& groupsList,
+                                          uint32_t initializationSegmentId = 0) const = 0;
 
         /** Get track information.
          *  These properties can be used to further initialize the presentation of the data in the track.
@@ -423,6 +433,44 @@ namespace MP4VR
                                                     uint32_t sampleId,
                                                     ProjectionFormatProperty& projectionFormatProperty) const = 0;
 
+        /** Get OMAF OverlayConfigBox from povd box.
+         *  @pre getTrackInformations() has been called successfully.
+         *  @param [in]  trackId      Track ID of a track.
+         *  @param [in]  sampleId     An sample id.
+         *  @param [out] overlayConfigProperty OverlayConfigProperty struct containing details about default overlay
+         * properties of sample.
+         *  @return ErrorCode: NO_ERROR, INVALID_CONTEXT_ID, INVALID_SAMPLE_DESCRIPTION_INDEX or UNINITIALIZED
+         */
+        virtual int32_t getPropertyOverlayConfig(uint32_t trackId,
+                                                 uint32_t sampleId,
+                                                 OverlayConfigProperty& overlayConfigProperty) const = 0;
+
+        /** Get OMAF DynamicViewpointsConfigBox from dyvp box.
+         *  @pre getTrackInformations() has been called successfully.
+         *  @param [in]  trackId      Track ID of a track.
+         *  @param [in]  sampleId     An sample id.
+         *  @param [out] dynamicViewpointConfigProperty DynamicViewpointConfigProperty struct containing details about
+         * default dynamicViewpoints properties of sample.
+         *  @return ErrorCode: NO_ERROR, INVALID_CONTEXT_ID, INVALID_SAMPLE_DESCRIPTION_INDEX or UNINITIALIZED
+         */
+        virtual int32_t
+        getPropertyDynamicViewpointConfig(uint32_t trackId,
+                                          uint32_t sampleId,
+                                          DynamicViewpointConfigProperty& dynamicViewpointConfigProperty) const = 0;
+
+        /** Get OMAF InitialViewpointsConfigBox from invp box.
+         *  @pre getTrackInformations() has been called successfully.
+         *  @param [in]  trackId      Track ID of a track.
+         *  @param [in]  sampleId     An sample id.
+         *  @param [out] initialViewpointConfigProperty InitialViewpointConfigProperty struct containing details about
+         * default initialViewpoints properties of sample.
+         *  @return ErrorCode: NO_ERROR, INVALID_CONTEXT_ID, INVALID_SAMPLE_DESCRIPTION_INDEX or UNINITIALIZED
+         */
+        virtual int32_t
+        getPropertyInitialViewpointConfig(uint32_t trackId,
+                                          uint32_t sampleId,
+                                          InitialViewpointConfigProperty& initialViewpointConfigProperty) const = 0;
+
         /** Get OMAF scheme type and compatible scheme type information
          *  @pre getTrackInformations() has been called successfully.
          *  @param [in]  trackId      Track ID of a track.
@@ -451,7 +499,20 @@ namespace MP4VR
          *  @param [in]  sampleId     An sample id.
          *  @param [out] rotation     Rotation information of podv sample descriptor.
          *  @return ErrorCode: NO_ERROR, INVALID_CONTEXT_ID, INVALID_SAMPLE_DESCRIPTION_INDEX or UNINITIALIZED */
-        virtual int32_t getPropertyRotation(uint32_t trackId, uint32_t sampleId, Rotation& rotationProperty) const = 0;
+        virtual int32_t getPropertyRotation(uint32_t trackId,
+                                            uint32_t sampleId,
+                                            RotationProperty& rotationProperty) const = 0;
+
+        /** Get OMAF SphereRegionConfigStruct and RecommendedViewportInfoStruct from rcvp box.
+         *  @pre getTrackInformations() has been called successfully.
+         *  @param [in]  trackId      Track ID of a track.
+         *  @param [in]  sampleId     An sample id.
+         *  @param [out] property     SphereRegionConfigStruct struct
+         *  @return ErrorCode: NO_ERROR, INVALID_CONTEXT_ID, INVALID_SAMPLE_DESCRIPTION_INDEX or UNINITIALIZED
+         */
+        virtual int32_t getPropertyRecommendedViewport(uint32_t trackId,
+                                                       uint32_t sampleId,
+                                                       RecommendedViewportProperty& property) const = 0;
 
     public:  // MP4VR segment parsing methods (DASH/Streaming)
         /** Parse Initialization Segment

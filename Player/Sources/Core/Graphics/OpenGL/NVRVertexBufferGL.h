@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,48 +16,48 @@
 
 #include "NVREssentials.h"
 
-#include "Graphics/NVRDependencies.h"
 #include "Graphics/NVRBufferAccess.h"
-#include "Graphics/NVRVertexDeclaration.h"
 #include "Graphics/NVRComputeBufferAccess.h"
+#include "Graphics/NVRDependencies.h"
+#include "Graphics/NVRVertexDeclaration.h"
 
 OMAF_NS_BEGIN
 
 class VertexBufferGL
 {
-    public:
-        
-        VertexBufferGL();
-        ~VertexBufferGL();
-    
-        GLuint getHandle() const;
-    
-        bool_t create(const VertexDeclaration& declaration, BufferAccess::Enum access, const void_t* data = OMAF_NULL, size_t bytes = 0);
-        void_t bufferData(size_t offset, const void_t* data, size_t bytes);
-        void_t destroy();
+public:
+    VertexBufferGL();
+    ~VertexBufferGL();
 
-        void_t bind();
-        void_t unbind();
+    GLuint getHandle() const;
 
-        void_t bindCompute(uint16_t stage, ComputeBufferAccess::Enum computeAccess);
-        void_t unbindCompute(uint16_t stage);
-        
-        GLsizei getNumVertices();
-        const VertexDeclaration& getVertexDeclaration() const;
-    
-    private:
-    
-        OMAF_NO_ASSIGN(VertexBufferGL);
-        OMAF_NO_COPY(VertexBufferGL);
-    
-    private:
-        
-        GLuint mHandle;
-        GLsizei mBytes;
+    bool_t create(const VertexDeclaration& declaration,
+                  BufferAccess::Enum access,
+                  const void_t* data = OMAF_NULL,
+                  size_t bytes = 0);
+    void_t bufferData(size_t offset, const void_t* data, size_t bytes);
+    void_t destroy();
 
-        ComputeBufferAccess::Enum mComputeAccess;
+    void_t bind();
+    void_t unbind();
 
-        VertexDeclaration mVertexDeclaration;
+    void_t bindCompute(uint16_t stage, ComputeBufferAccess::Enum computeAccess);
+    void_t unbindCompute(uint16_t stage);
+
+    GLsizei getNumVertices();
+    const VertexDeclaration& getVertexDeclaration() const;
+
+private:
+    OMAF_NO_ASSIGN(VertexBufferGL);
+    OMAF_NO_COPY(VertexBufferGL);
+
+private:
+    GLuint mHandle;
+    GLsizei mBytes;
+
+    ComputeBufferAccess::Enum mComputeAccess;
+
+    VertexDeclaration mVertexDeclaration;
 };
 
 OMAF_NS_END

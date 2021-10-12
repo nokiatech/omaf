@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -26,7 +26,16 @@ namespace VDD
     class ControllerOps
     {
     public:
+        struct Config {
+            Optional<std::string> prefix;
+        };
+
         ControllerOps(GraphBase& aGraph, std::shared_ptr<Log> aLog);
+        ControllerOps(const ControllerOps& aControllerOps, const Config& aConfig);
+        ControllerOps(const ControllerOps&) = default;
+        ControllerOps(ControllerOps&&) = default;
+        ControllerOps& operator=(const ControllerOps&) = delete;
+        ControllerOps& operator=(ControllerOps&&) = delete;
         ~ControllerOps() = default;
 
         /** @brief Given a ProcessorNodeBase, instantiate one and wrap it with a AsyncNode wrapper
@@ -50,9 +59,13 @@ namespace VDD
         /** @brief Access graph for some low-level ops */
         GraphBase& getGraph();
 
+        /** @brief Return the configuration for these controller ops */
+        const Config& getConfig() const;
+
     private:
         GraphBase& mGraph;
         std::shared_ptr<Log> mLog;
+        Config mConfig;
     };
 }
 

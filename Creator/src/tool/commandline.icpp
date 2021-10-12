@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -43,8 +43,20 @@ namespace VDD
         }
 
         template <typename T>
+        OptionallyReference<T> OptionallyReference<T>::allowDuplicates()
+        {
+            auto self = *this;
+            self.mAllowDuplicates = true;
+            return self;
+        }
+
+        template <typename T>
         void OptionallyReference<T>::set(const T& aValue) const
         {
+            if (mIsSet && !mAllowDuplicates)
+            {
+                throw ParseError("Argument provided twice");
+            }
             if (mResultOptional)
             {
                 *mResultOptional = aValue;
@@ -53,6 +65,7 @@ namespace VDD
             {
                 *mResult = aValue;
             }
+            mIsSet = true;
         }
 
         template <typename T>

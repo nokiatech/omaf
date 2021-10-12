@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,12 +14,12 @@
  */
 #pragma once
 
-#include "NVRNamespace.h"
+#include "Foundation/NVRFixedArray.h"
+#include "Foundation/NVRFixedString.h"
+#include "Foundation/NVRPair.h"
 #include "Graphics/NVRHandles.h"
 #include "Graphics/NVRShaderConstantType.h"
-#include "Foundation/NVRFixedArray.h"
-#include "Foundation/NVRPair.h"
-#include "Foundation/NVRFixedString.h"
+#include "NVRNamespace.h"
 
 #include "Renderer/NVRVideoRenderer.h"
 
@@ -28,14 +28,17 @@ OMAF_NS_BEGIN
 class VideoShader
 {
 public:
-
     VideoShader();
     ~VideoShader();
 
-    void_t create(const char_t *vertexShader, const char_t *fragmentShader, VideoPixelFormat::Enum videoTextureFormat = VideoPixelFormat::INVALID, VideoPixelFormat::Enum depthTextureFormat = VideoPixelFormat::INVALID, bool depthTextureVertexShaderFetch = false);
+    void_t create(const char_t* vertexShader,
+                  const char_t* fragmentShader,
+                  VideoPixelFormat::Enum videoTextureFormat = VideoPixelFormat::INVALID,
+                  VideoPixelFormat::Enum depthTextureFormat = VideoPixelFormat::INVALID,
+                  bool depthTextureVertexShaderFetch = false);
 
     void_t createDefaultVideoShader(VideoPixelFormat::Enum videoTextureFormat, const bool_t maskEnabled = false);
-    void_t setDefaultVideoShaderConstants(const Matrix44 mvp, const Matrix44 vtm);
+    void_t setDefaultVideoShaderConstants(const Matrix44 mvp, const Matrix44 vtm, const float32_t opacity = 1.0f);
 
     void_t createTintVideoShader(VideoPixelFormat::Enum videoTextureFormat);
     void_t setTintVideoShaderConstants(const Color4& tintColor);
@@ -54,7 +57,6 @@ public:
     void_t setConstant(const char_t* name, ShaderConstantType::Enum type, const void_t* values, uint32_t numValues = 1);
 
 private:
-
     ShaderID handle;
 
     typedef Pair<FixedString128, ShaderConstantID> ShaderConstantPair;

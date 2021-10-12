@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -53,6 +53,7 @@ public:
     virtual void_t destroyInstance();
 
     virtual void setInputEOS();
+    virtual bool_t isInputEOS() const;
 
     virtual bool_t isEOS();
     virtual DecodeResult::Enum decodeFrame(streamid_t stream, MP4VRMediaPacket* packet, bool_t seeking);

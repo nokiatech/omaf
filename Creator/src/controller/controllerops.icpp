@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -22,6 +22,10 @@ namespace VDD
     Async* ControllerOps::configureForGraph(std::unique_ptr<Async>&& async)
     {
         async->setLog(mLog->instance());
+        if (mConfig.prefix)
+        {
+            async->setName("[" + *mConfig.prefix + "] " + async->getName());
+        }
         return mGraph.giveOwnership(std::move(async));
     }
 

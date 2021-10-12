@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,18 +16,18 @@
 
 namespace OMAF
 {
-    #define OMAF_E 2.718281828f // e
+#define OMAF_E 2.718281828f  // e
 
-    #define OMAF_PI  3.141592654f // π
-    #define OMAF_2PI 6.283185307f // 2 * π
+#define OMAF_PI 3.141592654f   // PI
+#define OMAF_2PI 6.283185307f  // 2 * PI
 
-    #define OMAF_PI_DIV_2 1.570796327f // π / 2
-    #define OMAF_PI_DIV_4 0.785398163f // π / 4
+#define OMAF_PI_DIV_2 1.570796327f  // PI / 2
+#define OMAF_PI_DIV_4 0.785398163f  // PI / 4
 
-    #define OMAF_1_DIV_PI 0.318309886f // 1 / π
-    #define OMAF_1_DIV_2PI 0.159154943f // 2 / π
+#define OMAF_1_DIV_PI 0.318309886f   // 1 / PI
+#define OMAF_1_DIV_2PI 0.159154943f  // 2 / PI
 
-    #define OMAF_SINGULARITY_RADIUS 0.000000000001f
+#define OMAF_SINGULARITY_RADIUS 0.000000000001f
 
-    #define OMAF_FLOAT32_EPSILON (1.0e-5f)
-}
+#define OMAF_FLOAT32_EPSILON (1.0e-5f)
+}  // namespace OMAF

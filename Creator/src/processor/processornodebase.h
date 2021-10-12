@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -38,14 +38,24 @@ namespace VDD
         ProcessorNodeBase();
         ~ProcessorNodeBase();
 
+        // Set by the Async wrapper classes
+        void setId(unsigned int aId);
+
+        // yes, it's a two-phase setup.. for the rare case it's useful.
+        virtual void ready();
+
+        // Way to access the AsyncNodeId; 0 if not using ParallelGraph
+        unsigned int getId() const;
+
         void setLog(std::shared_ptr<Log> aLog);
 
-        Log& getLog();
-        LogStream& log(LogLevel aLog);
+        Log& getLog() const;
+        LogStream& log(LogLevel aLog) const;
 
         virtual std::string getGraphVizDescription() { return ""; }
 
     private:
         std::shared_ptr<Log> mLog;
+        unsigned int mId = 0;
     };
 }

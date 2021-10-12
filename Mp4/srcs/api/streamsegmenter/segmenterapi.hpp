@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -25,9 +25,11 @@
 #include <utility>
 #include <vector>
 
+#include "../isobmff/commontypes.h"
 #include "frame.hpp"
 #include "optional.hpp"
 #include "track.hpp"
+#include "union.hpp"
 
 // If you have access to the MP4 file, you may be able to use these to more easily construct initialization data
 class MovieHeaderBox;
@@ -42,14 +44,32 @@ namespace StreamSegmenter
 {
     namespace Segmenter
     {
+        enum WriterMode
+        {
+            CLASSIC,
+            OMAFV2
+        };
+
+        using ImdaId = IdBaseWithAdditions<std::uint32_t, class SequenceTag>;
+
+        struct OmafV2Config
+        {
+            bool writeSegmentHeader = true;
+        };
+
+        using WriterConfig = Utils::Union<WriterMode,
+                                          Utils::Empty,  // CLASSIC
+                                          OmafV2Config   // OMAFV2
+                                          >;
+
         struct FourCC
         {
             char value[5];
-            inline FourCC()
+            inline FourCC() noexcept
                 : value{}
             {
             }
-            inline FourCC(uint32_t v)
+            inline FourCC(uint32_t v) noexcept
             {
                 value[0] = char((v >> 24) & 0xff);
                 value[1] = char((v >> 16) & 0xff);
@@ -57,7 +77,7 @@ namespace StreamSegmenter
                 value[3] = char((v >> 0) & 0xff);
                 value[4] = '\0';
             }
-            inline FourCC(const char* str)
+            inline FourCC(const char* str) noexcept
             {
                 value[0] = str[0];
                 value[1] = str[1];
@@ -65,7 +85,7 @@ namespace StreamSegmenter
                 value[3] = str[3];
                 value[4] = '\0';
             }
-            inline FourCC(const FourCC& fourcc)
+            inline FourCC(const FourCC& fourcc) noexcept
             {
                 value[0] = fourcc.value[0];
                 value[1] = fourcc.value[1];
@@ -73,7 +93,7 @@ namespace StreamSegmenter
                 value[3] = fourcc.value[3];
                 value[4] = '\0';
             }
-            inline FourCC& operator=(const FourCC& other)
+            inline FourCC& operator=(const FourCC& other) noexcept
             {
                 value[0] = other.value[0];
                 value[1] = other.value[1];
@@ -82,17 +102,17 @@ namespace StreamSegmenter
                 value[4] = '\0';
                 return *this;
             }
-            inline bool operator==(const FourCC& other) const
+            inline bool operator==(const FourCC& other) const noexcept
             {
                 return (value[0] == other.value[0]) && (value[1] == other.value[1]) && (value[2] == other.value[2]) &&
                        (value[3] == other.value[3]);
             }
-            inline bool operator!=(const FourCC& other) const
+            inline bool operator!=(const FourCC& other) const noexcept
             {
                 return (value[0] != other.value[0]) || (value[1] != other.value[1]) || (value[2] != other.value[2]) ||
                        (value[3] != other.value[3]);
             }
-            inline bool operator<(const FourCC& other) const
+            inline bool operator<(const FourCC& other) const noexcept
             {
                 return (value[0] < other.value[0])
                            ? true
@@ -110,15 +130,15 @@ namespace StreamSegmenter
                                                                ? true
                                                                : (value[3] > other.value[3]) ? false : false;
             }
-            inline bool operator<=(const FourCC& other) const
+            inline bool operator<=(const FourCC& other) const noexcept
             {
                 return *this == other || *this < other;
             }
-            inline bool operator>=(const FourCC& other) const
+            inline bool operator>=(const FourCC& other) const noexcept
             {
                 return !(*this < other);
             }
-            inline bool operator>(const FourCC& other) const
+            inline bool operator>(const FourCC& other) const noexcept
             {
                 return !(*this <= other);
             }
@@ -157,15 +177,42 @@ namespace StreamSegmenter
 
         typedef RatU64 Duration;
 
+        enum class DataReferenceKind
+        {
+            Imdt,
+            Snim
+        };
+
+        // applicable to OMAFv2 tracks which use imda references (imdt or snim)
+        struct OMAFv2Link
+        {
+            ImdaId imdaId;  // can be either an imdt reference of sequence number, depending on dataReference
+            DataReferenceKind dataReferenceKind;
+        };
+
         struct Segment
         {
             TrackSegment tracks;
             SequenceId sequenceId;
             FrameTime t0;  // begin time of the segment (composition time)
             Duration duration;
+
+            // omafv2-specific info (imdt, snim)
+            Utils::Optional<OMAFv2Link> omafv2;
         };
 
         typedef std::list<Segment> Segments;
+
+        typedef std::vector<TrackId> TrackIds;
+
+        // This is used while actually writing the data down
+        struct SegmentMoofInfo
+        {
+            SegmentTrackInfo trackInfo;
+            std::int32_t moofToDataOffset; // applicable to CLASSIC
+        };
+
+        typedef std::map<TrackId, SegmentMoofInfo> SegmentMoofInfos;
 
         struct TrackFrames
         {
@@ -203,27 +250,8 @@ namespace StreamSegmenter
         struct TrackHeaderBox;
         struct SampleEntryBox;
         struct Region;
-
-        class Metadata
-        {
-        public:
-            Metadata();
-            ~Metadata();
-
-            void setSoftware(const std::string& aSoftware);
-            void setVersion(const std::string& aVersion);
-            void setOther(const std::string& aKey, const std::string& aValue);
-
-            std::string getSoftware() const;
-            std::string getVersion() const;
-
-            std::map<std::string, std::string> getOthers() const;
-
-        private:
-            std::string mSoftware;
-            std::string mVersion;
-            std::map<std::string, std::string> mOthers;
-        };
+        struct MetaBox;
+        struct EntityToGroupBox;
 
         struct InitSegment
         {
@@ -234,6 +262,7 @@ namespace StreamSegmenter
             ~InitSegment();
             std::unique_ptr<MovieBox> moov;
             std::unique_ptr<FileTypeBox> ftyp;
+            std::unique_ptr<MetaBox> meta;
         };
 
         struct MediaDescription
@@ -287,7 +316,7 @@ namespace StreamSegmenter
 
         struct RegionWisePackingRegion
         {
-            virtual ~RegionWisePackingRegion() = default;
+            virtual ~RegionWisePackingRegion()                 = default;
             virtual uint8_t packingType() const                = 0;
             virtual std::unique_ptr<Region> makeRegion() const = 0;
         };
@@ -309,7 +338,7 @@ namespace StreamSegmenter
             std::uint16_t packedTop;
             std::uint16_t packedLeft;
 
-            Utils::Optional<RegionWisePackingRegionGuardBand> guardBand;
+            ISOBMFF::Optional<RegionWisePackingRegionGuardBand> guardBand;
         };
 
         struct RegionWisePacking
@@ -320,7 +349,7 @@ namespace StreamSegmenter
             std::uint16_t packedPictureWidth;
             std::uint16_t packedPictureHeight;
 
-            std::vector<std::unique_ptr<RegionWisePackingRegion>> regions;
+            std::vector<std::shared_ptr<const RegionWisePackingRegion>> regions;
         };
 
         struct CoverageInformationRegion
@@ -345,7 +374,7 @@ namespace StreamSegmenter
             CoverageInformationShapeType coverageShape;
             bool viewIdcPresenceFlag;  // true ignores defaultViewIdc and writes viewIdc to each region
             ViewIdc defaultViewIdc;
-            std::vector<std::unique_ptr<CoverageInformationRegion>> regions;
+            std::vector<std::shared_ptr<const CoverageInformationRegion>> regions;
         };
 
         struct SchemeType
@@ -380,16 +409,20 @@ namespace StreamSegmenter
             uint32_t getWidthFP() const override;
             uint32_t getHeightFP() const override;
 
-            // if these are set, also generate restricted info scheme
-            Utils::Optional<ProjectionFormat> projectionFormat;
-            Utils::Optional<RegionWisePacking> rwpk;
-            Utils::Optional<CoverageInformation> covi;
-            Utils::Optional<PodvStereoVideoInfo> stvi;
-            Utils::Optional<Rotation> rotn;
+            // if projection format is set, rinf and povd boxes will be written
+            ISOBMFF::Optional<ProjectionFormat> projectionFormat;
+            ISOBMFF::Optional<RegionWisePacking> rwpk;
+            ISOBMFF::Optional<CoverageInformation> covi;
+            ISOBMFF::Optional<PodvStereoVideoInfo> stvi;
+            ISOBMFF::Optional<Rotation> rotn;
+
+            // ovly box is written to povd for omnivideo tracks and to visual sample entry for 2d tracks
+            ISOBMFF::Optional<ISOBMFF::OverlayStruct> ovly;
+
             std::vector<SchemeType> compatibleSchemes;
 
         protected:
-            void makePovdBoxes(std::unique_ptr<SampleEntryBox>& box) const;
+            void makeAdditionalBoxes(std::unique_ptr<SampleEntryBox>& box) const;
         };
 
         struct AvcVideoSampleEntry : public VisualSampleEntry
@@ -466,8 +499,8 @@ namespace StreamSegmenter
             std::string decSpecificInfo;  // tag 5
 
             bool nonDiegetic;
-            Utils::Optional<Ambisonic> ambisonic;
-            Utils::Optional<ChannelLayout> channelLayout;
+            ISOBMFF::Optional<Ambisonic> ambisonic;
+            ISOBMFF::Optional<ChannelLayout> channelLayout;
 
             std::unique_ptr<SampleEntryBox> makeSampleEntryBox() const override;
             std::unique_ptr<HandlerBox> makeHandlerBox() const override;
@@ -481,6 +514,8 @@ namespace StreamSegmenter
         {
             uint32_t getWidthFP() const override;
             uint32_t getHeightFP() const override;
+
+            std::unique_ptr<HandlerBox> makeHandlerBox() const override;
         };
 
         struct URIMetadataSampleEntry : public TimedMetadataSampleEntry
@@ -494,7 +529,6 @@ namespace StreamSegmenter
             } version;
 
             std::unique_ptr<SampleEntryBox> makeSampleEntryBox() const override;
-            std::unique_ptr<HandlerBox> makeHandlerBox() const override;
 
             URIMetadataSampleEntry() = default;
         };
@@ -502,9 +536,47 @@ namespace StreamSegmenter
         struct InitialViewingOrientationSampleEntry : public TimedMetadataSampleEntry
         {
             std::unique_ptr<SampleEntryBox> makeSampleEntryBox() const override;
-            std::unique_ptr<HandlerBox> makeHandlerBox() const override;
 
             InitialViewingOrientationSampleEntry() = default;
+        };
+
+        struct OverlaySampleEntry : public TimedMetadataSampleEntry
+        {
+            // also writing overlaystruct modifies some internals of it, so this needs to be mutable
+            // to be able to use it in makeSampleEntryBox() method
+            mutable ISOBMFF::OverlayStruct overlayStruct;
+
+            std::unique_ptr<SampleEntryBox> makeSampleEntryBox() const override;
+
+            OverlaySampleEntry() = default;
+        };
+
+        struct DynamicViewpointSampleEntry : public TimedMetadataSampleEntry
+        {
+            ISOBMFF::DynamicViewpointSampleEntry dynamicViewpointSampleEntry;
+
+            std::unique_ptr<SampleEntryBox> makeSampleEntryBox() const override;
+
+            DynamicViewpointSampleEntry() = default;
+        };
+
+        struct InitialViewpointSampleEntry : public TimedMetadataSampleEntry
+        {
+            ISOBMFF::InitialViewpointSampleEntry initialViewpointSampleEntry;
+
+            std::unique_ptr<SampleEntryBox> makeSampleEntryBox() const override;
+
+            InitialViewpointSampleEntry() = default;
+        };
+
+        struct RecommendedViewportSampleEntry : public TimedMetadataSampleEntry
+        {
+            ISOBMFF::SphereRegionConfigStruct sphereRegionConfig;
+            ISOBMFF::RecommendedViewportInfoStruct recommendedViewportInfo;
+
+            std::unique_ptr<SampleEntryBox> makeSampleEntryBox() const override;
+
+            RecommendedViewportSampleEntry() = default;
         };
 
         /**
@@ -538,8 +610,8 @@ namespace StreamSegmenter
          */
         struct HevcExtractor
         {
-            Utils::Optional<HevcExtractorSampleConstructor> sampleConstructor;
-            Utils::Optional<HevcExtractorInlineConstructor> inlineConstructor;
+            ISOBMFF::Optional<HevcExtractorSampleConstructor> sampleConstructor;
+            ISOBMFF::Optional<HevcExtractorInlineConstructor> inlineConstructor;
 
             FrameData toFrameData() const;
         };
@@ -561,6 +633,11 @@ namespace StreamSegmenter
             TrackGroupId groupId;
         };
 
+        struct ALTE
+        {
+            TrackGroupId groupId;
+        };
+
         struct TrackDescription
         {
             TrackDescription();
@@ -578,12 +655,21 @@ namespace StreamSegmenter
             std::unique_ptr<MediaHeaderBox> mediaHeaderBox;
             std::unique_ptr<HandlerBox> handlerBox;
             std::unique_ptr<TrackHeaderBox> trackHeaderBox;
+            // could possibly point to track group ids as well..
             std::map<std::string, std::set<TrackId>> trackReferences;  // map<track reference type, trackids>
-            Utils::Optional<std::uint16_t> alternateGroup;
-            Utils::Optional<OBSP> obsp;
+            ISOBMFF::Optional<std::uint16_t> alternateGroup;
+
+            // only one of these can be set:
+            ISOBMFF::Optional<OBSP> obsp;
+
+            // alternate track group
+            ISOBMFF::Optional<ALTE> alte;
 
             // only applicaple to video tracks
-            Utils::Optional<GoogleVRType> googleVRType;
+            ISOBMFF::Optional<GoogleVRType> googleVRType;
+
+            // omafv2-specific info (imdt, snim)
+            Utils::Optional<OMAFv2Link> omafv2;
         };
 
         typedef std::map<TrackId, TrackDescription> TrackDescriptions;
@@ -598,13 +684,80 @@ namespace StreamSegmenter
             SequenceId baseSequenceId;
         };
 
+        struct EntityToGroupSpec
+        {
+            uint32_t groupId;
+            std::vector<uint32_t> entityIds;
+
+            ///< fill basebox fields
+            void baseFill(EntityToGroupBox& boxToFill) const;
+            virtual std::unique_ptr<EntityToGroupBox> makeEntityToGroupBox() const = 0;
+            virtual ~EntityToGroupSpec();
+        };
+
+        struct AltrEntityGroupSpec : public EntityToGroupSpec
+        {
+            std::unique_ptr<EntityToGroupBox> makeEntityToGroupBox() const override;
+        };
+
+        struct OvbgGroupFlags
+        {
+            bool overlayFlag;
+            bool backgroundFlag;
+            ISOBMFF::Optional<std::vector<uint32_t>> overlaySubset;
+        };
+
+        struct OvbgEntityGroupSpec : public EntityToGroupSpec
+        {
+            uint32_t sphereDistanceInMm;
+            std::vector<OvbgGroupFlags> entityFlags;
+
+            virtual std::unique_ptr<EntityToGroupBox> makeEntityToGroupBox() const;
+        };
+
+        struct OvalEntityGroupSpec : public EntityToGroupSpec
+        {
+            std::vector<uint16_t> refOverlayIds;
+
+            virtual std::unique_ptr<EntityToGroupBox> makeEntityToGroupBox() const;
+        };
+
+        struct VipoEntityGroupSpec : public EntityToGroupSpec
+        {
+            uint32_t viewpointId;
+            std::string viewpointLabel;
+            ISOBMFF::ViewpointPosStruct viewpointPos;
+            ISOBMFF::ViewpointGroupStruct<true> viewpointGroup;
+            ISOBMFF::ViewpointGlobalCoordinateSysRotationStruct viewpointGlobalCoordinateSysRotation;
+
+            ISOBMFF::Optional<ISOBMFF::ViewpointGpsPositionStruct> viewpointGpsPosition;
+            ISOBMFF::Optional<ISOBMFF::ViewpointGeomagneticInfoStruct> viewpointGeomagneticInfo;
+            ISOBMFF::Optional<ISOBMFF::ViewpointSwitchingListStruct> viewpointSwitchingList;
+            ISOBMFF::Optional<ISOBMFF::ViewpointLoopingStruct> viewpointLooping;
+
+            virtual std::unique_ptr<EntityToGroupBox> makeEntityToGroupBox() const;
+        };
+
+        struct MetaSpec
+        {
+            std::vector<AltrEntityGroupSpec> altrGroups;
+            std::vector<OvbgEntityGroupSpec> ovbgGroups;
+            std::vector<OvalEntityGroupSpec> ovalGroups;
+            std::vector<VipoEntityGroupSpec> vipoGroups;
+        };
+
         struct MovieDescription
         {
             uint64_t creationTime;
             uint64_t modificationTime;
             RatU64 duration;
             std::vector<int32_t> matrix;
-            Utils::Optional<BrandSpec> fileType;
+            ISOBMFF::Optional<BrandSpec> fileType;
+            ISOBMFF::Optional<MetaSpec> fileMeta;
+
+            // written if not zero; typically the same as duration; not the duration of an individual fragment :D
+            // fragment. ISO 14496-12 2015 8.8.2 "Movie Extends Header Box"
+            RatU64 fragmentDuration;
         };
 
         /** @brief Use this for constructing the init segment per given
@@ -618,9 +771,18 @@ namespace StreamSegmenter
          * to the MP4VR box parser library. */
         MovieDescription makeMovieDescription(const ::MovieHeaderBox& aMovieHeaderBox);
 
-        void writeSegmentHeader(std::ostream& aOut);
+        extern const WriterConfig& defaultWriterConfig;
+        void writeSegmentHeader(std::ostream& aOut, const WriterConfig& aConfig = defaultWriterConfig);
         void writeInitSegment(std::ostream& aOut, const InitSegment& aInitSegment);
-        void writeTrackRunWithData(std::ostream& aOut, const Segment& aSegment);
+        void writeTrackRunWithData(std::ostream& aOut,
+                                   const Segment& aSegment,
+                                   const WriterConfig& aConfig = defaultWriterConfig);
+        void writeMoof(std::ostream& aOut,
+                       const TrackIds& aTrackIds,
+                       const Segment& aSegment,
+                       const SegmentMoofInfos& aSegmentMoofInfos,
+                       const std::map<TrackId, Frames>& aFrames,
+                       const StreamSegmenter::Segmenter::WriterConfig& aConfig);
         Segments makeSegmentsOfTracks(FrameAccessors&& aFrameAccessors, const SegmenterConfig& aSegmenterConfig);
         Segments makeSegmentsOfMp4(const MP4Access& aMp4, const SegmenterConfig& aSegmenterConfig);
 
@@ -644,16 +806,56 @@ namespace StreamSegmenter
 
         virtual void addSubsegmentSize(std::streampos aSubsegmentSize) = 0;
 
-        virtual Utils::Optional<SidxInfo> writeSidx(std::ostream& aOutput,
-                                                    Utils::Optional<std::ostream::pos_type> aPosition) = 0;
+        // Update the previous segment to include this size
+        // relative=0 -> update the latest
+        // relative=1 -> update the one before that, etc
+        virtual void updateSubsegmentSize(int relative, std::streampos aSubsegmentSize) = 0;
+
+        virtual ISOBMFF::Optional<SidxInfo> writeSidx(std::ostream& aOutput,
+                                                      ISOBMFF::Optional<std::ostream::pos_type> aPosition) = 0;
 
         virtual void setOutput(std::ostream* aOutput) = 0;
+    };
+
+    /** Given a segment index contents with two iterators aBegin and aEnd, patch it so that for first segment its
+        size is increased by aSizes[0], for the second aSize[1], etc, as far as there are aSizes around.
+
+        Returns the new index ISOBMFF-serialized segment
+     */
+    std::vector<char> patchSidxSegmentSizes(const char* aBegin,
+                                            const char* aEnd,
+                                            const std::vector<uint32_t> aAdjustments,
+                                            size_t aReserveTotal);
+
+    struct SidxReference {
+        bool          referenceType;
+        uint32_t      referencedSize; // to store 31 bit value
+        FrameDuration subsegmentDuration;
+        bool          startsWithSAP;
+        uint8_t       sapType;        // to store 3 bit value
+        FrameDuration sapDeltaTime;   // to store 28 bit value
+    };
+
+    std::vector<char> generateSidx(uint32_t aReferenceId,
+                                   FrameTime aEarliestPresentationTime,
+                                   uint64_t aFirstOffset,
+                                   std::vector<SidxReference> aReferences,
+                                   size_t aReserveTotal);
+
+    enum class WriterFlags: int
+    {
+        METADATA = 1,
+        MEDIADATA = 2,
+        SIDX = 4,
+        ALL = 7,
+        APPEND = 8, // append this data to the previous segment when not writing all at once (for sidx maintenance purposes)
+        SKIPSIDX = 16 // writing data that should not go to sidx, e.g. the moof for media?
     };
 
     class Writer
     {
     public:
-        static Writer* create();
+        static Writer* create(Segmenter::WriterMode mode = Segmenter::CLASSIC);
         static void destruct(Writer*);
 
         /** @brief If you are writing segments in individual files and you're using segment
@@ -666,9 +868,13 @@ namespace StreamSegmenter
 
         virtual void setWriteSegmentHeader(bool aWriteSegmentHeader) = 0;
 
-        virtual void writeInitSegment(std::ostream& aOut, const Segmenter::InitSegment& aInitSegment)       = 0;
-        virtual void writeSegment(std::ostream& aOut, const Segmenter::Segment aSegment)                    = 0;
-        virtual void writeSubsegments(std::ostream& aOut, const std::list<Segmenter::Segment> aSubsegments) = 0;
+        virtual void writeInitSegment(std::ostream& aOut, const Segmenter::InitSegment& aInitSegment) = 0;
+        virtual void writeSegment(std::ostream& aOut,
+                                  const Segmenter::Segment aSegment,
+                                  WriterFlags flags = WriterFlags::ALL)                              = 0;
+        virtual void writeSubsegments(std::ostream& aOut,
+                                      const std::list<Segmenter::Segment> aSubsegments,
+                                      WriterFlags flags = WriterFlags::ALL)                          = 0;
 
     protected:
         Writer();

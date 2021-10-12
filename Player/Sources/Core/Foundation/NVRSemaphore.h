@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,8 +14,8 @@
  */
 #pragma once
 
-#include "Platform/OMAFDataTypes.h"
 #include "Platform/OMAFCompiler.h"
+#include "Platform/OMAFDataTypes.h"
 #include "Platform/OMAFPlatformDetection.h"
 
 #include "Foundation/NVRCompatibility.h"
@@ -29,57 +29,55 @@ OMAF_NS_BEGIN
 // - OS semaphores: Windows family (Win32), Apple family (iOS, macOS, tvOS)
 // - POSIX semaphores: Linux family (Android, Linux)
 //
-// Note: Apple family (iOS, macOS, tvOS) doesn't support unnamed POSIX semaphores so it will use Mach semaphores instead.
+// Note: Apple family (iOS, macOS, tvOS) doesn't support unnamed POSIX semaphores so it will use Mach semaphores
+// instead.
 //
 
 class Semaphore
 {
-    public:
-    
+public:
 #if OMAF_PLATFORM_WINDOWS || OMAF_PLATFORM_UWP
-    
-        typedef HANDLE Handle;
-    
+
+    typedef HANDLE Handle;
+
 #elif OMAF_PLATFORM_ANDROID
-    
-        typedef sem_t Handle;
-    
+
+    typedef sem_t Handle;
+
 #else
-    
-    #error Unsupported platform
-    
+
+#error Unsupported platform
+
 #endif
-    
-    public:
-    
-        // Creates OS semaphore with initial count.
-        Semaphore(uint32_t initialCount = 1);
-    
-        // Destroys OS semaphore.
-        ~Semaphore();
-    
-        // Increments (unlocks) the count of OS semaphore.
-        void_t signal();
-    
-        // Decrements (locks) the count of OS semaphore.
-        void_t wait();
-    
-        // Decrements (locks) the count of OS semaphore, on success returns true. If the decrement cannot be immediately performed, then call returns false.
-        bool_t tryWait();
-    
-        // Destroys and creates a new OS semaphore.
-        void_t reset();
-    
-    private:
-    
-        OMAF_NO_COPY(Semaphore);
-        OMAF_NO_ASSIGN(Semaphore);
-    
-    private:
-    
-        Handle mHandle;
-    
-        uint32_t mInitialCount;
+
+public:
+    // Creates OS semaphore with initial count.
+    Semaphore(uint32_t initialCount = 1);
+
+    // Destroys OS semaphore.
+    ~Semaphore();
+
+    // Increments (unlocks) the count of OS semaphore.
+    void_t signal();
+
+    // Decrements (locks) the count of OS semaphore.
+    void_t wait();
+
+    // Decrements (locks) the count of OS semaphore, on success returns true. If the decrement cannot be immediately
+    // performed, then call returns false.
+    bool_t tryWait();
+
+    // Destroys and creates a new OS semaphore.
+    void_t reset();
+
+private:
+    OMAF_NO_COPY(Semaphore);
+    OMAF_NO_ASSIGN(Semaphore);
+
+private:
+    Handle mHandle;
+
+    uint32_t mInitialCount;
 };
 
 OMAF_NS_END

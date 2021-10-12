@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,17 +13,17 @@
  * written consent of Nokia.
  */
 #include "NVRFreeFrameGroup.h"
+#include "Foundation/NVRLogger.h"
 #include "VideoDecoder/NVRFrameCache.h"
 #include "VideoDecoder/NVRVideoDecoderHW.h"
-#include "Foundation/NVRLogger.h"
 
 OMAF_NS_BEGIN
 OMAF_LOG_ZONE(FreeFrameGroup)
 FreeFrameGroup::FreeFrameGroup(streamid_t stream, uint32_t width, uint32_t height)
-: mStream(stream)
-, mWidth(width)
-, mHeight(height)
-, mActive(false)
+    : mStream(stream)
+    , mWidth(width)
+    , mHeight(height)
+    , mActive(false)
 
 {
 }
@@ -35,7 +35,7 @@ FreeFrameGroup::~FreeFrameGroup()
 
 DecoderFrame* FreeFrameGroup::aquireFreeFrame()
 {
-    //OMAF_ASSERT(mActive, "Not activated");
+    // OMAF_ASSERT(mActive, "Not activated");
     Spinlock::ScopeLock lock(mSpinLock);
 
     if (mFrames.isEmpty())
@@ -59,7 +59,7 @@ void_t FreeFrameGroup::returnFreeFrame(DecoderFrame* frame)
 {
     OMAF_ASSERT(mActive, "Not activated");
     OMAF_ASSERT(frame->streamId == mStream, "Incorrect stream");
-    Spinlock::ScopeLock lock (mSpinLock);
+    Spinlock::ScopeLock lock(mSpinLock);
     if (frame->decoder != OMAF_NULL && !frame->consumed)
     {
         frame->decoder->consumedFrame(frame);
@@ -77,7 +77,7 @@ uint32_t FreeFrameGroup::getHeight() const
     return mHeight;
 }
 
-void_t FreeFrameGroup::activate(FrameList &frames)
+void_t FreeFrameGroup::activate(FrameList& frames)
 {
     OMAF_ASSERT(!mActive, "Already activated");
     Spinlock::ScopeLock lock(mSpinLock);
@@ -91,15 +91,15 @@ void_t FreeFrameGroup::activate(FrameList &frames)
 FrameList FreeFrameGroup::deactivate()
 {
     Spinlock::ScopeLock lock(mSpinLock);
- //   OMAF_ASSERT(mActive, "Not active");
-    //TODO activate is called from renderer thread, but deactivate can come from provider thread, before renderer thread has activated this
+    //   OMAF_ASSERT(mActive, "Not active");
+    // thread has activated this
     if (!mActive)
     {
         FrameList frames;
         return frames;
     }
     FrameList frames;
-    while(!mFrames.isEmpty())
+    while (!mFrames.isEmpty())
     {
         frames.add(mFrames.front());
         mFrames.pop();

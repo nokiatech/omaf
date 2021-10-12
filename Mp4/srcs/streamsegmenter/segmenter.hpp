@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -46,8 +46,10 @@ namespace StreamSegmenter
 
         void addSubsegmentSize(std::streampos aSubsegmentOffset) override;
 
-        Utils::Optional<SidxInfo> writeSidx(std::ostream& aOutput,
-                                            Utils::Optional<std::ostream::pos_type> aPosition) override;
+        void updateSubsegmentSize(int aRelative, std::streampos aSubsegmentSize) override;
+
+        ISOBMFF::Optional<SidxInfo> writeSidx(std::ostream& aOutput,
+                                              ISOBMFF::Optional<std::ostream::pos_type> aPosition) override;
 
         void setOutput(std::ostream* aOutput) override;
 
@@ -62,7 +64,7 @@ namespace StreamSegmenter
     class WriterImpl : public Writer
     {
     public:
-        WriterImpl();
+        WriterImpl(Segmenter::WriterMode aMode);
         ~WriterImpl();
 
         /** @brief If you are writing segments in individual files and you're using segment
@@ -71,17 +73,21 @@ namespace StreamSegmenter
          * @param aSidxWriter a pointer to a SidxWriter owned by Writer
          * @param aOutput a pointer to an alternative output stream, instead the provided to Writer
          */
-        SidxWriter* newSidxWriter(size_t aExpectedSize = 0);
+        SidxWriter* newSidxWriter(size_t aExpectedSize = 0) override;
 
-        void setWriteSegmentHeader(bool aWriteSegmentHeader);
+        void setWriteSegmentHeader(bool aWriteSegmentHeader) override;
 
-        void writeInitSegment(std::ostream& aOut, const Segmenter::InitSegment& aInitSegment);
-        void writeSegment(std::ostream& aOut, const Segmenter::Segment aSegment);
-        void writeSubsegments(std::ostream& aOut, const std::list<Segmenter::Segment> aSubsegments);
+        void writeInitSegment(std::ostream& aOut, const Segmenter::InitSegment& aInitSegment) override;
+        void writeSegment(std::ostream& aOut, const Segmenter::Segment aSegment, WriterFlags aFlags) override;
+        void writeSubsegments(std::ostream& aOut,
+                              const std::list<Segmenter::Segment> aSubsegments,
+                              WriterFlags aFlags) override;
 
     private:
         std::unique_ptr<SidxWriter> mSidxWriter;
         bool mWriteSegmentHeader = true;
+        Segmenter::WriterMode mMode;
+        StreamSegmenter::Segmenter::WriterConfig writerConfig() const;
     };
 
     class MovieWriterImpl : public MovieWriter
@@ -90,15 +96,15 @@ namespace StreamSegmenter
         MovieWriterImpl(std::ostream& aOut);
         ~MovieWriterImpl();
 
-        void writeInitSegment(const Segmenter::InitSegment& aInitSegment);
+        void writeInitSegment(const Segmenter::InitSegment& aInitSegment) override;
 
-        void writeSegment(const Segmenter::Segment& aSegment);
+        void writeSegment(const Segmenter::Segment& aSegment) override;
 
-        void finalize();
+        void finalize() override;
 
     private:
         std::ostream& mOut;
-        Utils::Optional<Segmenter::InitSegment> mInitSegment;
+        ISOBMFF::Optional<Segmenter::InitSegment> mInitSegment;
         bool mFinalized = false;
 
         struct Info

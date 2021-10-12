@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,14 +15,19 @@
 #include <fstream>
 
 #include "save.h"
+#include "common/utils.h"
 
 namespace VDD
 {
+    int sUsedTemplateIndex;
+    std::map<std::string, int> sUsedTemplates; // don't let code to write to the same template twice
+
     namespace FileNameTemplate
     {
         std::string applyTemplate(std::string aTemplate, TemplateArguments aTemplateArguments)
         {
             std::string result;
+            bool keywordApplied = false;
             for (std::string::size_type index = 0; index != aTemplate.size();)
             {
                 if (aTemplate[index] == '$')
@@ -30,7 +35,7 @@ namespace VDD
                     auto end = aTemplate.find('$', index + 1);
                     if (end == std::string::npos)
                     {
-                        throw InvalidTemplate();
+                        throw InvalidTemplate("No matchind $ found");
                     }
                     std::string keyword = aTemplate.substr(index + 1, end - (index + 1));
                     if (keyword == "Number")
@@ -39,10 +44,11 @@ namespace VDD
                     }
                     else
                     {
-                        throw InvalidTemplate();
+                        throw InvalidTemplate("Invalid parameter in the template");
                     }
 
                     index = end + 1;
+                    keywordApplied = true;
                 }
                 else
                 {
@@ -52,11 +58,21 @@ namespace VDD
             }
             return result;
         }
-    }
+
+        InvalidTemplate::InvalidTemplate(std::string aMessage)
+            : Exception("InvalidTemplate"), mMessage(aMessage)
+        {
+            // nothing
+        }
+
+        std::string InvalidTemplate::message() const
+        {
+            return mMessage;
+        }
+    }  // namespace FileNameTemplate
 
     CannotWriteException::CannotWriteException(std::string aFilename)
-        : Exception("CannotWriteException")
-        , mFilename(aFilename)
+        : Exception("CannotWriteException"), mFilename(aFilename)
     {
         // nothing
     }
@@ -73,7 +89,14 @@ namespace VDD
 
     Save::Save(Config aConfig) : mConfig(aConfig), mSequenceId(1)
     {
-        // nothing
+        if (sUsedTemplates.count(aConfig.fileTemplate))
+        {
+            std::cerr << "Template " << aConfig.fileTemplate << " used before with index "
+                      << sUsedTemplates[aConfig.fileTemplate] << std::endl;
+            abort();
+        }
+        sUsedTemplates[aConfig.fileTemplate] = sUsedTemplateIndex;
+        sUsedTemplateIndex += 1;
     }
 
     Save::~Save()
@@ -81,11 +104,11 @@ namespace VDD
         // nothing
     }
 
-    std::vector<Views> Save::process(const Views& streams)
+    std::vector<Streams> Save::process(const Streams& streams)
     {
         if (mConfig.disable)
         {
-            if (streams[0].isEndOfStream())
+            if (streams.isEndOfStream())
             {
                 return { streams };
             }
@@ -94,11 +117,18 @@ namespace VDD
                 return { { Data() } };
             }
         }
-        else if (!streams[0].isEndOfStream())
+        else if (!streams.isEndOfStream())
         {
             FileNameTemplate::TemplateArguments arguments;
             arguments.sequenceId = mSequenceId;
             std::string name = FileNameTemplate::applyTemplate(mConfig.fileTemplate, arguments);
+            if (name == mPrevName)
+            {
+                throw FileNameTemplate::InvalidTemplate(
+                    "Template resulted in overwriting file just written");
+            }
+            Utils::ensurePathForFilename(name);
+            mPrevName = name;
             std::ofstream stream(name, std::ios::binary);
 
             if (!stream)
@@ -106,33 +136,37 @@ namespace VDD
                 throw CannotOpenFile(name);
             }
 
-            switch (streams[0].getStorageType())
+            for (auto& frame: streams)
             {
-            case StorageType::Fragmented:
-            {
-                const FragmentedDataReference& frags = streams[0].getFragmentedDataReference();
-
-                for (size_t n = 0; n < frags.data.size(); ++n)
+                switch (frame.getStorageType())
                 {
-                    auto& data = dynamic_cast<const CPUDataReference&>(*frags.data[n]);
+                case StorageType::Fragmented:
+                {
+                    const FragmentedDataReference& frags = frame.getFragmentedDataReference();
+
+                    for (size_t n = 0; n < frags.data.size(); ++n)
+                    {
+                        auto& data = dynamic_cast<const CPUDataReference&>(*frags.data[n]);
+                        stream.write(reinterpret_cast<const char*>(data.address[0]),
+                                     std::streamsize(data.size[0]));
+                    }
+                }
+                break;
+
+                case StorageType::CPU:
+                {
+                    const CPUDataReference& data = frame.getCPUDataReference();
+
                     stream.write(reinterpret_cast<const char*>(data.address[0]),
                                  std::streamsize(data.size[0]));
                 }
-            }
-            break;
+                break;
 
-            case StorageType::CPU:
-            {
-                const CPUDataReference& data = streams[0].getCPUDataReference();
-
-                stream.write(reinterpret_cast<const char*>(data.address[0]),
-                             std::streamsize(data.size[0]));
+                default:
+                    assert(0);  // not supported
+                }
             }
-            break;
-
-            default:
-                assert(0);  // not supported
-            }
+            ++mSequenceId;
 
             stream.close();
             if (!stream)
@@ -140,14 +174,17 @@ namespace VDD
                 throw CannotWriteException(name);
             }
 
-            ++mSequenceId;
-
             return { { Data() } };
         }
         else
         {
             return { streams };
         }
+    }
+
+    std::string Save::getGraphVizDescription()
+    {
+        return "Save with template " + mConfig.fileTemplate;
     }
 
 }  // namespace VDD

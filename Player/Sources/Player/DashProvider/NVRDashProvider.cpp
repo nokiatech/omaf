@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,9 +14,9 @@
  */
 #include "DashProvider/NVRDashProvider.h"
 #include "DashProvider/NVRDashDownloadManager.h"
+#include "Foundation/NVRDeviceInfo.h"
 #include "Foundation/NVRLogger.h"
 #include "Foundation/NVRTime.h"
-#include "Foundation/NVRDeviceInfo.h"
 
 OMAF_NS_BEGIN
 
@@ -25,23 +25,23 @@ OMAF_LOG_ZONE(DashProvider)
 static const uint32_t DOWNLOAD_BUFFERING_WAIT = 100;
 
 DashProvider::DashProvider()
-: mAuxiliaryDownloadManager(OMAF_NULL)
 {
     mDownloadManager = OMAF_NEW_HEAP(DashDownloadManager);
+    mMediaStreamManager = mDownloadManager;  // base class reference for common operations
 }
 
 DashProvider::~DashProvider()
 {
     setState(VideoProviderState::CLOSING);
-    
+
     if (mParserThread.isValid())
     {
         mParserThread.stop();
         mParserThread.join();
     }
-    
+
     stopPlayback();
-    
+
     mDownloadManager->stopDownload();
     mDownloadManager->clearDownloadedContent();
     destroyInstance();
@@ -55,160 +55,51 @@ const CoreProviderSourceTypes& DashProvider::getSourceTypes()
     return mSourceTypes;
 }
 
-Error::Enum DashProvider::loadAuxiliaryStream(PathName &uri)
+const CoreProviderSources& DashProvider::getAllSources() const
 {
-    if (mAuxiliaryDownloadManager == OMAF_NULL)
-    {
-        mAuxiliaryDownloadManager = OMAF_NEW_HEAP(DashDownloadManager);
-
-        BasicSourceInfo sourceOverride;
-        sourceOverride.sourceDirection = SourceDirection::MONO;
-        sourceOverride.sourceType = SourceType::IDENTITY_AUXILIARY;
-        mAuxiliaryDownloadManager->disableABR();
-        Error::Enum result = mAuxiliaryDownloadManager->init(uri, sourceOverride);
-        if (result == Error::OK)
-        {
-            setAuxliaryState(VideoProviderState::LOADING);
-        }
-        else
-        {
-            setAuxliaryState(VideoProviderState::STREAM_ERROR);
-        }
-        return result;
-    }
-    else
-    {
-        return Error::INVALID_STATE;
-    }
+    return mDownloadManager->getAllSources();
 }
 
-Error::Enum DashProvider::playAuxiliary()
-{
-    if (mAuxiliaryDownloadManager != OMAF_NULL && !mAuxiliaryStreamPlaying)
-    {
-        mPendingUserActionMutex.lock();
-        mPendingUserAction = PendingUserAction::PLAY_AUXILIARY;
-        mPendingUserActionMutex.unlock();
-
-        if (!mUserActionSync.wait(ASYNC_OPERATION_TIMEOUT))
-        {
-            OMAF_ASSERT(false, "Auxiliary stream play timed out");
-        }
-
-        return Error::OK;
-    }
-    else
-    {
-        return Error::INVALID_STATE;
-    }
-}
-
-Error::Enum DashProvider::stopAuxiliary()
-{
-    if (mAuxiliaryDownloadManager != OMAF_NULL)
-    {
-        mPendingUserActionMutex.lock();
-        mPendingUserAction = PendingUserAction::STOP_AUXILIARY;
-        mPendingUserActionMutex.unlock();
-
-        if (!mUserActionSync.wait(ASYNC_OPERATION_TIMEOUT))
-        {
-            OMAF_ASSERT(false, "Auxiliary stream stop timed out");
-        }
-
-        return Error::OK;
-    }
-    else
-    {
-        return Error::INVALID_STATE;
-    }
-}
-
-Error::Enum DashProvider::pauseAuxiliary()
-{
-    if (mAuxiliaryDownloadManager != OMAF_NULL && mAuxiliaryStreamPlaying)
-    {
-        mPendingUserActionMutex.lock();
-        mPendingUserAction = PendingUserAction::PAUSE_AUXILIARY;
-        mPendingUserActionMutex.unlock();
-
-        if (!mUserActionSync.wait(ASYNC_OPERATION_TIMEOUT))
-        {
-            OMAF_ASSERT(false, "Auxiliary stream pause timed out");
-        }
-
-        return Error::OK;
-    }
-    else
-    {
-        return Error::INVALID_STATE;
-    }
-}
-
-Error::Enum DashProvider::seekToMsAuxiliary(uint64_t seekTargetMS)
-{
-    if (mDownloadManager == OMAF_NULL)
-    {
-        return Error::INVALID_STATE;
-    }
-    mSeekTargetUsAuxiliary = seekTargetMS * 1000;
-    return Error::OK;
-}
-
-uint64_t DashProvider::selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources &base, CoreProviderSources &enhancement)
+uint64_t DashProvider::selectSources(HeadTransform headTransform,
+                                     float32_t fovHorizontal,
+                                     float32_t fovVertical,
+                                     CoreProviderSources& base,
+                                     CoreProviderSources& additional)
 {
     float32_t longitude;
     float32_t latitude;
     float32_t roll;
     eulerAngles(headTransform.orientation, longitude, latitude, roll, EulerAxisOrder::YXZ);
 
-    streamid_t baseLayerStreamId = OMAF_UINT8_MAX;
+#if OMAF_ABR_LOGGING
+    OMAF_LOG_ABR("TRACKING %d %f %f %f", mSynchronizer.getElapsedTimeUs() / 1000, toDegrees(longitude),
+                 toDegrees(latitude), toDegrees(roll));
+#endif
 
     // does the tile picking, if necessary
     // the result of tile picking is visible in streams
-    const MP4VideoStreams& streams = mDownloadManager->selectSources(toDegrees(longitude),
-                                         toDegrees(latitude),
-                                         toDegrees(roll),
-                                         fovHorizontal, fovVertical, baseLayerStreamId);
+    const MP4VideoStreams& streams = mDownloadManager->selectSources(toDegrees(longitude), toDegrees(latitude),
+                                                                     toDegrees(roll), fovHorizontal, fovVertical);
 
     base.clear();
-    enhancement.clear();
+    additional.clear();
 
     // Loop through the streams to find out what are required and what optional
     uint64_t validFromPts = 0;
     for (MP4VideoStreams::ConstIterator it = streams.begin(); it != streams.end(); ++it)
     {
         MP4VideoStream* videoStream = *it;
-        streamid_t streamId = videoStream->getStreamId();
 
-        if (videoStream->getMode() == VideoStreamMode::BASE)
+        if (videoStream->getMode() == VideoStreamMode::BACKGROUND)
         {
             base.add(videoStream->getVideoSources(validFromPts));
         }
-        else if (videoStream->getMode() == VideoStreamMode::ENHANCEMENT_NORMAL)
+        else if (videoStream->getMode() == VideoStreamMode::OVERLAY)
         {
-            enhancement.add(videoStream->getVideoSources());
-        }
-        else if (videoStream->getMode() == VideoStreamMode::ENHANCEMENT_FAST_FORWARD)
-        {
-            //OMAF_LOG_D("check if stream %d is in sync", streamId);
-            // check if late => set seeking (commonly in the end), if not late => change to REQUIRED
-            if (!videoStream->isEoF() && mVideoDecoder->syncStreams(baseLayerStreamId, streamId))
-            {
-                // streams synced
-                OMAF_LOG_D("Stream %d synced", streamId);
-                videoStream->setMode(VideoStreamMode::ENHANCEMENT_NORMAL);
-                enhancement.add(videoStream->getVideoSources());
-            }
-            else
-            {
-                // for other streams this is handled automatically, but skipped streams need to take care of it themselves
-                mVideoDecoder->activateDecoder(streamId);
-            }
-
+            additional.add(videoStream->getVideoSources());
         }
     }
-    //OMAF_LOG_D("Rendering: required %zd, optional %zd", base.getSize(), enhancement.getSize());
+    // OMAF_LOG_D("Rendering: required %zd, optional %zd", base.getSize(), additional.getSize());
     return validFromPts;
 }
 
@@ -227,10 +118,8 @@ bool_t DashProvider::setInitialViewport(HeadTransform headTransform, float32_t f
     streamid_t baseLayerStreamId = OMAF_UINT8_MAX;
 
     // does the initial tile picking
-    return mDownloadManager->setInitialViewport(toDegrees(longitude),
-        toDegrees(latitude),
-        toDegrees(roll),
-        fovHorizontal, fovVertical);
+    return mDownloadManager->setInitialViewport(toDegrees(longitude), toDegrees(latitude), toDegrees(roll),
+                                                fovHorizontal, fovVertical);
 }
 
 void_t DashProvider::parserThreadCallback()
@@ -271,24 +160,24 @@ void_t DashProvider::parserThreadCallback()
         }
 
         uint32_t baseCodecs = 0;
-        uint32_t enhCodecs = 0;
-        mDownloadManager->getNrRequiredVideoCodecs(baseCodecs, enhCodecs);
+        uint32_t addCodecs = 0;
+        mDownloadManager->getNrRequiredVideoCodecs(baseCodecs, addCodecs);
         if (baseCodecs > 0)
         {
             mVideoDecoder->createVideoDecoders(mMediaInformation.baseLayerCodec, baseCodecs);
         }
-        if (mMediaInformation.videoType == VideoType::VIEW_ADAPTIVE && enhCodecs > 0)
+        if (addCodecs > 0)
         {
-            mVideoDecoder->createVideoDecoders(mMediaInformation.enchancementLayerCodec, enhCodecs);
+            mVideoDecoder->createVideoDecoders(mMediaInformation.enchancementLayerCodec, addCodecs);
         }
 
         setState(VideoProviderState::LOADED);
 
         bool_t invoRead = false;
+        bool_t viewpointSwitchStarted = false;
 
-        while(1)
+        while (1)
         {
-
             if (mSeekTargetUs != OMAF_UINT64_MAX)
             {
                 doSeek();
@@ -299,29 +188,47 @@ void_t DashProvider::parserThreadCallback()
             {
                 handlePendingUserRequest();
             }
+            auto providerState = getState();
 
-            if ((mAudioFull && mVideoDecoderFull) || getState() != VideoProviderState::PLAYING)
+            if (((!mAudioUsed || mAudioFull) && mVideoDecoderFull) ||
+                !(providerState == VideoProviderState::PLAYING || providerState == VideoProviderState::BUFFERING ||
+                  providerState == VideoProviderState::SWITCHING_VIEWPOINT))
             {
-    #if OMAF_PLATFORM_ANDROID
+#if OMAF_PLATFORM_ANDROID
                 if (!mParserThreadControlEvent.wait(20))
                 {
-                    //OMAF_LOG_D("Event timeout");
+                    // OMAF_LOG_D("Event timeout");
                 }
-    #else
+#else
                 Thread::sleep(0);
-    #endif
+#endif
             }
 
-            if (getState() == VideoProviderState::STOPPED || getState() == VideoProviderState::CLOSING)
+            if (providerState == VideoProviderState::STOPPED || providerState == VideoProviderState::CLOSING)
             {
                 break;
             }
-            else if (getState() == VideoProviderState::PAUSED
-                     || getState() == VideoProviderState::END_OF_FILE
-                     || getState() == VideoProviderState::LOADED)
+            else if (providerState == VideoProviderState::PAUSED ||
+                     providerState == VideoProviderState::END_OF_FILE ||
+                     providerState == VideoProviderState::LOADED)
             {
                 Thread::sleep(20);
                 continue;
+            }
+            else if (mSwitchViewpoint)
+            {
+                // We need to do the switch via state outside the handlePendingUserRequest to let the renderer thread do
+                // its work in parallel. In this case it needs to set the viewport to tile picker before we can start
+                // the new viewpoint. There is sync for that in the viewpoint initialization
+                if (mDownloadManager->setViewpoint(mNextViewpointId) == Error::OK)
+                {
+                    viewpointSwitchStarted = true;
+                    // the viewport is required when starting a new viewpoint download. This is
+                    // DASH-specific requirement
+                    mSignalViewport = true;
+                    setState(VideoProviderState::SWITCHING_VIEWPOINT);
+                }
+                mSwitchViewpoint = false;
             }
 
             mDownloadManager->updateStreams(mVideoDecoder->getLatestPTS());
@@ -340,29 +247,26 @@ void_t DashProvider::parserThreadCallback()
             }
             else if (downloadManagerState == DashDownloadManagerState::END_OF_STREAM)
             {
-                setState(VideoProviderState::END_OF_FILE);
-                stopPlayback();
                 mDownloadManager->stopDownload();
-                Thread::sleep(20);
-                continue;
             }
-            else if (downloadManagerState == DashDownloadManagerState::IDLE
-                     || downloadManagerState == DashDownloadManagerState::INITIALIZED)
+            else if (downloadManagerState == DashDownloadManagerState::IDLE ||
+                     downloadManagerState == DashDownloadManagerState::INITIALIZED)
             {
                 // DownloadManager hasn't started to download things yet
-                // TODO: Is this ever reached?
                 OMAF_LOG_D("Segment downloader Not yet loaded successfully");
                 Thread::sleep(20);
                 continue;
             }
 
-            // If the download is buffering, the state is set to BUFFERING and the method
-            // returns once buffering is over or a user action is given
-            waitForDownloadBuffering();
+            if (!viewpointSwitchStarted)
+            {
+                // If the download is buffering, the state is set to BUFFERING and the method
+                // returns once buffering is over or a user action is given
+                waitForDownloadBuffering();
+            }
 
             // Buffering can trigger error state or end of stream
             if (getState() == VideoProviderState::STREAM_ERROR ||
-                mDownloadManager->getState() == DashDownloadManagerState::END_OF_STREAM ||
                 mDownloadManager->getState() == DashDownloadManagerState::STREAM_ERROR)
             {
                 continue;
@@ -373,109 +277,40 @@ void_t DashProvider::parserThreadCallback()
             {
                 continue;
             }
-        
+            // Downloadmanager must have finished buffering by now
+            // (the waitForDownloadBuffering exits only if there is user action, and if
+            // there is, it loops back above and then continues waiting)?
+            // So we can start processing the data only after buffering has finished
+
             bool_t startPlaybackPending = false;
-            bool_t auxiliaryPlayPending = false;
-        
+
             if (getState() == VideoProviderState::BUFFERING)
             {
                 startPlaybackPending = true;
             }
 
+            mDownloadManager->processSegments();
             if (mSourceTypes.isEmpty())
             {
+                while (mDownloadManager->notReadyToGo())
+                {
+                    // just in case, loop until we have enough data processed to have video sources set up
+                    mDownloadManager->updateStreams(mVideoDecoder->getLatestPTS());
+                    mDownloadManager->processSegments();
+                }
                 // Lock needed?
                 mSourceTypes = mDownloadManager->getVideoSourceTypes();
                 OMAF_ASSERT(!mSourceTypes.isEmpty(), "No sourcetypes returned by DownloadManager");
-            
-                // At this point we can initialize the audio, this should be called only once
-                const MP4AudioStreams streams = mDownloadManager->getAudioStreams();
-                if (!streams.isEmpty())
-                {
-                    initializeAudioFromMP4(streams);
-                }
-                else
-                {
-                    mAudioInputBuffer->initializeForNoAudio();
-                }
-            }
-
-            if (mAuxiliaryDownloadManager != OMAF_NULL)
-            {
-                if (mAuxiliaryPlaybackState == VideoProviderState::LOADING)
-                {
-                    Error::Enum result = mAuxiliaryDownloadManager->checkInitialize();
-                    if (result == Error::OK)
-                    {
-                        setAuxliaryState(VideoProviderState::LOADED);
-                        mAuxiliarySyncPending = true;
-                        mAuxiliaryAudioInitPending = true;
-                        mMediaInformationAuxiliary = mAuxiliaryDownloadManager->getMediaInformation();
-                    }
-                    else if (result == Error::NOT_READY)
-                    {
-                        // Skip
-                    }
-                    else
-                    {
-                        DashDownloadManagerState::Enum auxDlManagerState = mAuxiliaryDownloadManager->getState();
-                        if (auxDlManagerState == DashDownloadManagerState::STREAM_ERROR)
-                        {
-                            setAuxliaryState(VideoProviderState::STREAM_ERROR);
-                            OMAF_DELETE_HEAP(mAuxiliaryDownloadManager);
-                            mAuxiliaryDownloadManager = OMAF_NULL;
-                        }
-                        else if (auxDlManagerState == DashDownloadManagerState::CONNECTION_ERROR)
-                        {
-                            setAuxliaryState(VideoProviderState::CONNECTION_ERROR);
-                            OMAF_DELETE_HEAP(mAuxiliaryDownloadManager);
-                            mAuxiliaryDownloadManager = OMAF_NULL;
-                        }
-                    }
-                }
-                else
-                {
-                    if (mSeekTargetUsAuxiliary != OMAF_UINT64_MAX)
-                    {
-                        doSeekAuxiliary();
-                    }
-                    if (mAuxiliaryStreamPlaying)
-                    {
-                        mAuxiliaryDownloadManager->updateStreams(0);
-                        DashDownloadManagerState::Enum auxDlManagerState = mAuxiliaryDownloadManager->getState();
-                        if (auxDlManagerState == DashDownloadManagerState::INITIALIZED)
-                        {
-                            mAuxiliaryDownloadManager->startDownload();
-                        }
-
-                        if (mAuxiliaryDownloadManager->isBuffering())
-                        {
-                            setAuxliaryState(VideoProviderState::BUFFERING);
-                        }
-                        else if (auxDlManagerState == DashDownloadManagerState::END_OF_STREAM)
-                        {
-                            setAuxliaryState(VideoProviderState::END_OF_FILE);
-                            mAuxiliaryStreamPlaying = false;
-                        }
-                        else
-                        {
-                            if (mAuxiliaryPlaybackState != VideoProviderState::PLAYING)
-                            {
-                                auxiliaryPlayPending = true;
-                            }
-                        }
-                    }
-                    else if (mAuxiliaryPlaybackState != VideoProviderState::END_OF_FILE)
-                    {
-                        setAuxliaryState(VideoProviderState::PAUSED);
-                    }
-                }
-
+                // At this point we can initialize the audio, this should be called only once per switch
+                MP4AudioStreams main, additional;
+                mDownloadManager->getAudioStreams(main, additional);
+                initializeAudioFromMP4(main, additional);
             }
 
             if (!invoRead)
             {
-                invoRead = retrieveInitialViewingOrientation(mDownloadManager, -1); // -1 == read the next (first) available metadata frame
+                invoRead =
+                    retrieveInitialViewingOrientation(-1);  // -1 == read the next (first) available metadata frame
             }
 
             bool_t buffering = true;
@@ -483,24 +318,59 @@ void_t DashProvider::parserThreadCallback()
 
             while (buffering)
             {
-                MP4StreamManager* auxManager = (mAuxiliaryPlaybackState == VideoProviderState::PLAYING || auxiliaryPlayPending) ? mAuxiliaryDownloadManager : OMAF_NULL;
+                if (viewpointSwitchStarted)
+                {
+                    if (mSignalViewport && mDownloadManager->isViewpointSwitchInitiated())
+                    {
+                        mSignalViewport = false;  // now the download was started, no need to signal any more
+                    }
+                    if (mDownloadManager->isViewpointSwitchReadyToComplete(
+                            (uint32_t)(mSynchronizer.getElapsedTimeUs() / 1000)))
+                    {
+                        // mStreamLock is more specific than enter-leave, and is used in provider side in more
+                        // occassions than enter-leave In renderer thread it is used inside prepareSources
+                        Spinlock::ScopeLock lock(mStreamLock);
+                        enter();
+                        bool_t backgroundAudioContinues = false;
+                        mDownloadManager->completeViewpointSwitch(backgroundAudioContinues);
+                        // clear provider-level stream id list, so that stream activation works for the new streams
+                        mPreviousStreams.clear();
+                        OMAF_LOG_V("Viewpoint switched, clear preparedSources");
+                        mPreparedSources.clear();
+                        leave();
+                        viewpointSwitchStarted = false;
+
+                        MP4AudioStreams main, additional;
+                        mDownloadManager->getAudioStreams(main, additional);
+                        if (backgroundAudioContinues)
+                        {
+                            // just add possible new additional audio streams
+                            addAudioStreams(additional);
+                        }
+                        else
+                        {
+                            // Re-init the audio subsystem
+
+
+                            initializeAudioFromMP4(main, additional);
+                            if (mAudioUsed)
+                            {
+                                mAudioInputBuffer->startPlayback();
+                            }
+                            // Resetting synchronizer reduces the possibility to be forced to skip some frames
+                            mSynchronizer.reset(mAudioUsed);
+                        }
+                        setState(VideoProviderState::PLAYING);
+                    }
+                }
 
                 bool_t bufferingAudio = false;
                 PacketProcessingResult::Enum resultAudio = PacketProcessingResult::OK;
                 if (!mAudioFull)
                 {
-                    resultAudio = processMP4Audio(*mDownloadManager, mAudioInputBuffer);
+                    resultAudio = processMP4Audio(mAudioInputBuffer);
                 }
 
-                if (auxManager != OMAF_NULL)
-                {
-                    if (mAuxiliaryAudioInitPending)
-                    {
-                        initializeAuxiliaryAudio(auxManager->getAudioStreams());
-                        mAuxiliaryAudioInitPending = false;
-                    }
-                    resultAudio = processMP4Audio(*auxManager, mAuxiliaryAudioInputBuffer);
-                }
                 if (resultAudio == PacketProcessingResult::BUFFERING)
                 {
                     if (getState() != VideoProviderState::BUFFERING)
@@ -512,15 +382,28 @@ void_t DashProvider::parserThreadCallback()
                     }
                 }
 
-                PacketProcessingResult::Enum result = processMP4Video(*mDownloadManager, auxManager);
+                // NOTE: not sure if anything should be done here with return value
+                processOverlayMetadataStream();
+
+                PacketProcessingResult::Enum result = processMP4Video();
 
                 if (result == PacketProcessingResult::END_OF_FILE)
                 {
                     buffering = bufferingAudio;
+                    OMAF_LOG_D("Last video packet read, set state to end of file");
+                    // Note: we could get a few more frames rendered by waiting until the decoder EOS is done, but
+                    // requires some more changes
+                    setState(VideoProviderState::END_OF_FILE);
+                    stopPlayback();
+                    break;
                 }
                 else if (result == PacketProcessingResult::BUFFERING)
                 {
-                    if (getState() != VideoProviderState::BUFFERING)
+                    if (viewpointSwitchStarted)
+                    {
+                        buffering = true;
+                    }
+                    else if (getState() != VideoProviderState::BUFFERING)
                     {
                         stopPlayback();
                         setState(VideoProviderState::BUFFERING);
@@ -534,14 +417,14 @@ void_t DashProvider::parserThreadCallback()
                     buffering = false;
                     break;
                 }
-                else 
+                else
                 {
                     buffering = bufferingAudio;
                 }
                 if (buffering)
                 {
-                    // TODO waitForDownloadBuffering should prevent entering this loop, but it doesn't
                     mDownloadManager->updateStreams(mVideoDecoder->getLatestPTS());
+                    mDownloadManager->processSegments();
                 }
                 if (mPendingUserAction != PendingUserAction::INVALID)
                 {
@@ -552,16 +435,17 @@ void_t DashProvider::parserThreadCallback()
             {
                 continue;
             }
-        
+
             if (startPlaybackPending)
             {
                 setState(VideoProviderState::PLAYING);
                 startPlayback(false);
             }
-            if (auxiliaryPlayPending)
+            else if (mOverlayAudioPlayPending)
             {
-                setAuxliaryState(VideoProviderState::PLAYING);
-                startAuxiliaryPlayback(false);
+                OMAF_LOG_D("Start audio playback");
+                mOverlayAudioPlayPending = false;
+                mAudioInputBuffer->startPlayback();
             }
         }
     }
@@ -576,80 +460,31 @@ void_t DashProvider::handlePendingUserRequest()
 
     switch (mPendingUserAction)
     {
-        case PendingUserAction::STOP:
-            setState(VideoProviderState::STOPPED);
-            stopPlayback();
-            mDownloadManager->stopDownload();
+    case PendingUserAction::STOP:
+        setState(VideoProviderState::STOPPED);
+        stopPlayback();
+        mDownloadManager->stopDownload();
+        break;
 
-            // Don't break to also stop the auxiliary stream
-        case PendingUserAction::STOP_AUXILIARY:
-            if (mAuxiliaryDownloadManager != OMAF_NULL)
-            {
-                mAuxiliaryStreamPlaying = false;
-                mAuxiliarySynchronizer.stopSyncRunning();
-                setAuxliaryState(VideoProviderState::STOPPED);
-                mAuxiliaryDownloadManager->stopDownload();
-                OMAF_DELETE_HEAP(mAuxiliaryDownloadManager);
-                mAuxiliaryDownloadManager = OMAF_NULL;
-                mAuxiliaryStreamInitialized = false;
-                {
-                    Spinlock::ScopeLock lock(mAuxiliarySourcesLock);
-                    mAuxiliarySources.clear();
-                }
-                mDownloadManager->setBandwidthOverhead(0);
-            }
-            break;
+    case PendingUserAction::PAUSE:
+        setState(VideoProviderState::PAUSED);
+        stopPlayback();
 
-        case PendingUserAction::PAUSE:
-            setState(VideoProviderState::PAUSED);
-            stopPlayback();
+        mDownloadManager->stopDownload();
 
-            mDownloadManager->stopDownload();
+        if (mDownloadManager->isDynamicStream())
+        {
+            clearDownloadedContent(mDownloadManager);
+        }
+        break;
 
-            if (mDownloadManager->isDynamicStream())
-            {
-                clearDownloadedContent(mDownloadManager);
-            }
-
-            // Don't break to also pause the auxiliary stream
-        case PendingUserAction::PAUSE_AUXILIARY:
-            if (mAuxiliaryDownloadManager != OMAF_NULL)
-            {
-                setAuxliaryState(VideoProviderState::PAUSED);
-                stopAuxiliaryPlayback();
-                if (mPendingUserAction == PendingUserAction::PAUSE_AUXILIARY)
-                {
-                    mAuxiliaryStreamPlaying = false;
-                }
-                mAuxiliaryDownloadManager->stopDownload();
-                if (mAuxiliaryDownloadManager->isDynamicStream())
-                {
-                     clearDownloadedContent(mAuxiliaryDownloadManager);
-                }
-                mDownloadManager->setBandwidthOverhead(0);
-            }
-            break;
-
-        case PendingUserAction::PLAY:
-            setState(VideoProviderState::BUFFERING);
-            mDownloadManager->startDownload();
-
-        case PendingUserAction::PLAY_AUXILIARY:
-            if (!(mPendingUserAction == PendingUserAction::PLAY && !mAuxiliaryStreamPlaying))
-            {
-                if (mAuxiliaryDownloadManager != OMAF_NULL)
-                {
-                    if (mAuxiliaryPlaybackState != VideoProviderState::LOADING)
-                    {
-                        setAuxliaryState(VideoProviderState::BUFFERING);
-                        mAuxiliaryDownloadManager->startDownload();
-                    }
-                    mAuxiliaryStreamPlaying = true;
-                    mAuxiliarySynchronizer.setSyncRunning(false);
-                    mDownloadManager->setBandwidthOverhead(mAuxiliaryDownloadManager->getCurrentBitrate());
-                }
-            }
-            break;
+    case PendingUserAction::PLAY:
+        setState(VideoProviderState::BUFFERING);
+        mDownloadManager->startDownload();
+        break;
+    case PendingUserAction::CONTROL_OVERLAY:
+        handleOverlayControl(mPendingOverlayControl);
+        break;
     }
 
     mUserActionSync.signal();
@@ -685,7 +520,7 @@ void_t DashProvider::clearDownloadedContent(DashDownloadManager* dlManager)
 
         mAudioInputBuffer->flush();
         mAudioFull = false;
-        mAudioSyncPending = true;
+        mSynchronizer.reset(mAudioUsed);
     }
     else
     {
@@ -693,10 +528,7 @@ void_t DashProvider::clearDownloadedContent(DashDownloadManager* dlManager)
         {
             mVideoDecoder->flushStream((*it)->getStreamId());
         }
-        mAuxiliaryAudioInputBuffer->flush();
-        mAuxiliarySyncPending = true;
     }
-
 }
 
 MP4AudioStream* DashProvider::getAudioStream()
@@ -718,7 +550,7 @@ void_t DashProvider::doSeek()
 {
     mDownloadManager->stopDownload();
     clearDownloadedContent(mDownloadManager);
-    
+
     uint64_t seekMs = mSeekTargetUs / 1000;
     mSeekResult = mDownloadManager->seekToMs(seekMs);
     if (mSeekResult == Error::OK)
@@ -727,33 +559,12 @@ void_t DashProvider::doSeek()
     }
     mSeekTargetUs = OMAF_UINT64_MAX;
     mSeekSyncronizeEvent.signal();
-    
-    if (getState() != VideoProviderState::PAUSED)
+
+    // if (getState() != VideoProviderState::PAUSED)
     {
         mDownloadManager->startDownload();
     }
 }
-
-void_t DashProvider::doSeekAuxiliary()
-{
-    if (mAuxiliaryDownloadManager != OMAF_NULL)
-    {
-        stopAuxiliaryPlayback();
-        mAuxiliaryDownloadManager->stopDownload();
-        clearDownloadedContent(mAuxiliaryDownloadManager);
-
-        uint64_t seekMs = mSeekTargetUsAuxiliary / 1000;
-        Error::Enum seekResult = mAuxiliaryDownloadManager->seekToMs(seekMs);
-
-        mSeekTargetUsAuxiliary = OMAF_UINT64_MAX;
-
-        if (mAuxiliaryPlaybackState != VideoProviderState::PAUSED)
-        {
-            mAuxiliaryDownloadManager->startDownload();
-        }
-    }
-}
-
 
 void_t DashProvider::waitForDownloadBuffering()
 {
@@ -782,25 +593,33 @@ void_t DashProvider::waitForDownloadBuffering()
                 mDownloadManager->startDownload();
             }
         }
+        else if (getState() == VideoProviderState::SWITCHING_VIEWPOINT)
+        {
+            // not sure if we ever end up here in this state, but at least we should get out as the state can switch
+            // back to playing only in the main loop.
+            // must not allow SWITCHING_VIEWPOINT, as setting state to buffering will break the switch
+            return;
+        }
         else
         {
-            // See how long we have been waiting so far, complain if too long, and we haven't encountered connection errors yet
+            // See how long we have been waiting so far, complain if too long, and we haven't encountered connection
+            // errors yet
             int32_t now = Time::getClockTimeMs();
             int32_t timeSinceStart = now - bufferingStartTime;
             int32_t timeSinceLastNotify = now - lastNotifyTime;
-            
+
             if (timeSinceStart > 2000 && timeSinceLastNotify > 1000)
             {
                 OMAF_LOG_D("Paused for buffering for %d ms", timeSinceStart);
                 lastNotifyTime = now;
             }
         }
-        
+
         if (mPendingUserAction != PendingUserAction::INVALID)
         {
             break;
         }
-        
+
         Thread::sleep(DOWNLOAD_BUFFERING_WAIT);
     }
 }

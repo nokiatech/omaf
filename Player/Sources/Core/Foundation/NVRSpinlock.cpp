@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,18 +21,17 @@
 OMAF_NS_BEGIN
 
 Spinlock::Spinlock()
-: mCounter(0)
+    : mCounter(0)
 {
 }
 
 Spinlock::~Spinlock()
 {
-    
 }
-    
+
 void_t Spinlock::lock()
 {
-    while(Atomic::compareExchange(&mCounter, 1, 0) != 0)
+    while (Atomic::compareExchange(&mCounter, 1, 0) != 0)
     {
         Thread::yield();
     }
@@ -42,33 +41,33 @@ void_t Spinlock::lock()
 bool_t Spinlock::tryLock()
 {
     int32_t locked = Atomic::compareExchange(&mCounter, 1, 0);
-    
+
     return (locked == 0);
 }
 
 bool_t Spinlock::tryLock(uint32_t numTries)
 {
     uint32_t counter = 0;
-    
+
     while (counter < numTries)
     {
         bool_t result = tryLock();
-        
+
         if (result)
         {
             return true;
         }
-        
+
         counter++;
     }
-    
+
     return true;
 }
-    
+
 void_t Spinlock::unlock()
 {
     OMAF_ASSERT(mCounter != 0, "Spinlock unlock failed");
-    
+
     Atomic::exchange(&mCounter, 0);
 }
 

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,15 +19,14 @@
 OMAF_NS_BEGIN
 
 VertexDeclaration::VertexDeclaration()
-: mStride(0)
+    : mStride(0)
 {
 }
 
 VertexDeclaration::VertexDeclaration(const VertexDeclaration& other)
-: mStride(other.mStride)
-, mAttributes(other.mAttributes)
+    : mStride(other.mStride)
+    , mAttributes(other.mAttributes)
 {
-    
 }
 
 VertexDeclaration::~VertexDeclaration()
@@ -36,12 +35,12 @@ VertexDeclaration::~VertexDeclaration()
     mAttributes.clear();
 }
 
-VertexDeclaration& VertexDeclaration::operator = (const VertexDeclaration& other)
+VertexDeclaration& VertexDeclaration::operator=(const VertexDeclaration& other)
 {
     mStride = other.mStride;
     mAttributes.clear();
     mAttributes.add(other.mAttributes);
-    
+
     return *this;
 }
 
@@ -57,33 +56,33 @@ VertexDeclaration& VertexDeclaration::addAttribute(const char_t* name,
 {
     OMAF_ASSERT_NOT_NULL(name);
     OMAF_ASSERT(StringByteLength(name) > 0, "");
-    
+
     // Create attribute
     HashFunction<const char_t*> hashFunction;
-    
+
     VertexAttribute attribute;
     attribute.name = hashFunction(name);
     attribute.format = format;
     attribute.offset = getStride();
     attribute.count = count;
     attribute.normalized = normalized;
-    
+
     mAttributes.add(attribute);
-    
+
     // Update stride
     uint32_t stride = 0;
-    
-    for(size_t i = 0; i < mAttributes.getSize(); ++i)
+
+    for (size_t i = 0; i < mAttributes.getSize(); ++i)
     {
         VertexAttribute& attribute = mAttributes[i];
         uint8_t bytes = VertexAttributeFormat::getSize(attribute.format);
         bytes *= attribute.count;
-        
+
         stride += bytes;
     }
-    
+
     mStride = stride;
-    
+
     return *this;
 }
 
@@ -96,23 +95,23 @@ uint16_t VertexDeclaration::getOffset(const char_t* name) const
 {
     HashFunction<const char_t*> hashFunction;
     HashValue nameHash = hashFunction(name);
-    
+
     for (size_t i = 0; i < mAttributes.getSize(); ++i)
     {
         const VertexAttribute& attribute = mAttributes[i];
-        
+
         if (attribute.name == nameHash)
         {
             return attribute.offset;
         }
     }
-    
+
     return 0;
 }
 
 uint32_t VertexDeclaration::getAttributeCount() const
 {
-    return (uint32_t)mAttributes.getSize();
+    return (uint32_t) mAttributes.getSize();
 }
 
 uint32_t VertexDeclaration::getStride() const

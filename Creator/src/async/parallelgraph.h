@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -34,6 +34,7 @@ namespace VDD {
         struct Config {
             bool enablePerformanceLogging;
             bool enableDebugDump;
+            bool singleThread;
         };
 
         ParallelGraph(const Config& config);
@@ -44,10 +45,12 @@ namespace VDD {
 
         void abort() override;
 
+        void stop() override;
+
         size_t numActiveNodes() const override;
 
     protected:
-        void nodeHasOutput(AsyncNode* aNode, const Views& aViews) override;
+        void nodeHasOutput(AsyncNode* aNode, const Streams& aStreams) override;
 
         void setNodeInactive(AsyncNode* mNode) override;
         const std::set<AsyncNode*>& getActiveNodes() override;
@@ -57,7 +60,7 @@ namespace VDD {
     private:
         Config mConfig;
 
-        void nodeHasInput(AsyncProcessor* aNode, const Views& aViews);
+        void nodeHasInput(AsyncProcessor* aNode, const Streams& aStreams);
 
         // A node didn't have data before, but now it does, and this is its time index. Ensures the
         // old data is purged from mNodeAge, however does not write new one because
@@ -75,8 +78,10 @@ namespace VDD {
         std::list<AsyncNode*> checkAndDecrementParentBlockedOutputs(NodeInfo& aNodeInfo);
 
         std::list<std::thread> mThreads;
+        std::atomic<size_t> mThreadsExitedCount;
 
         bool mQuit = false;
+        bool mStopped = false;
 
         // protects numActiveNodes, setNodeInactive, getActiveNodes
         mutable std::mutex mActiveNodesMutex;
@@ -91,6 +96,29 @@ namespace VDD {
 
         struct NodeInfo
         {
+            enum State
+            {
+                IDLE,           // no work
+                WAITING,        // waiting for its turn
+                RUNNING,        // running node
+                TERMINATED      // terminated node; entered when the node is terminated by a exception
+            };
+            static const char* stringOfState(NodeInfo::State state)
+            {
+                switch (state)
+                {
+                case IDLE:
+                    return "IDLE";
+                case WAITING:
+                    return "WAITING";
+                case RUNNING:
+                    return "RUNNING";
+                case TERMINATED:
+                    return "TERMINATED";
+                }
+                return "INVALID";
+            }
+
             // Protects the whole NodeInfo struct for this node
             mutable std::mutex nodeInfoMutex;
 
@@ -101,7 +129,7 @@ namespace VDD {
             // ..with a different type to avoid expensive dynamic casts during work
             AsyncProcessor* processor = nullptr;
 
-            // Sources are handled specially in areOutputsBlocked
+            // Sources were handled specially in areOutputsBlocked. Left here if that's done again.
             bool isSource = false;
 
             // Number of blocked outputs; can never be < 0
@@ -113,27 +141,24 @@ namespace VDD {
             // Was parent set blocked? So we can ensure we unblock it only in this case.
             bool setParentBlocked = false;
 
-            // Is this node being processed right now? Then it doesn't need a worker, because it
+            // Current state of the node. If it's running, then it doesn't need a worker, because it
             // will finish its job.
-            bool running = false;
+            State state = IDLE;
 
             // A flag set by the step do indicate whether a node is internally blocked (its isBlocked-flag)
             bool isInternallyBlocked = false;
 
             // Data waiting
-            std::list<Views> enqueued;
+            std::list<Streams> enqueued;
 
             // Tell the Index of the oldest data in the qqueue, without need to use mutex
             std::atomic<Index> oldestEnqueuedData = {};
 
             // Parent nodes; used for updating the numBlockedOutputs of them
-            std::list<NodeInfo*> parents;
+            std::vector<NodeInfo*> parents;
 
             // number of seconds this node has been running
             double runtime = 0.0;
-
-            // set when the node is terminated by a exception
-            bool terminated = false;
 
             // number of input invocations; for debugging
             std::atomic<size_t> numInputs;
@@ -142,10 +167,7 @@ namespace VDD {
             std::atomic<size_t> numOutputs;
 
             bool areOutputsBlocked() const {
-                return
-                    isSource
-                    ? numBlockedOutputs >= 1
-                    : numBlockedOutputs >= std::max(1, numOutputNodes);
+                return numBlockedOutputs >= 1;
             }
             bool nodeHasWork() const { return enqueued.size() > 0; }
             bool isNodeOverEmployed() const { return enqueued.size() >= 1 || isInternallyBlocked; }
@@ -159,8 +181,8 @@ namespace VDD {
 
         const NodeInfo& nodeInfoFor(int) const; //purely for debugging
 
-        int mNumWaiting = 0; // number of nodes with views enqueued
-        size_t mReadySequence = 0; // incremented when a node becomes unblocked without views enqueued
+        int mNumWaiting = 0; // number of nodes with streams enqueued
+        size_t mReadySequence = 0; // incremented when a node becomes unblocked without streams enqueued
         size_t mStepReadySequence = 0; // what was mReadySequence the last time we stepped? used to determine progress and throttle ::step.
         bool mAborted = false;
 

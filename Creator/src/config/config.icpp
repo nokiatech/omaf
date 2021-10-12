@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -20,14 +20,89 @@
 
 /* #included from config.h */
 
+#include "medialoader/mp4loader.h" // needed for some stream >> operators to compile...
+
 namespace VDD
 {
+    template <typename T>
+    template <typename Convert>
+    ParsedValue<T>::ParsedValue(const ConfigValue& aConfig, Convert aConvert)
+        : mValue({aConfig, aConvert(aConfig)})
+    {
+        // nothing
+    }
+
+    template <typename T>
+    template <typename Convert>
+    ParsedValue<T>& ParsedValue<T>::set(const ConfigValue& aConfig, Convert aConvert)
+    {
+        mValue = {Value{aConfig, aConvert(aConfig)}};
+        return *this;
+    }
+
+    template <typename T>
+    const T& ParsedValue<T>::operator*() const
+    {
+        return mValue->value;
+    }
+
+    template <typename T>
+    const T* ParsedValue<T>::operator->() const
+    {
+        return &mValue->value;
+    }
+
+    template <typename T>
+    const ConfigValue& ParsedValue<T>::getConfigValue() const
+    {
+        return mValue->configValue;
+    }
+
+    template <typename T>
+    bool operator<(const ParsedValue<T>& a, const ParsedValue<T>& b)
+    {
+        return *a < *b;
+    }
+
+    template <typename T>
+    bool operator>(const ParsedValue<T>& a, const ParsedValue<T>& b)
+    {
+        return *a > *b;
+    }
+
+    template <typename T>
+    bool operator<=(const ParsedValue<T>& a, const ParsedValue<T>& b)
+    {
+        return *a <= *b;
+    }
+
+    template <typename T>
+    bool operator>=(const ParsedValue<T>& a, const ParsedValue<T>& b)
+    {
+        return *a >= *b;
+    }
+
+    template <typename T>
+    bool operator==(const ParsedValue<T>& a, const ParsedValue<T>& b)
+    {
+        return *a == *b;
+    }
+
+    template <typename Convert>
+    auto readParsedValue(Convert aConvert)
+        -> std::function<ParsedValue<decltype(aConvert(ConfigValue()))>(const ConfigValue& aConfig)>
+    {
+        return [=](const ConfigValue& aConfig) {
+            return ParsedValue<decltype(aConvert(ConfigValue()))>(aConfig, aConvert);
+        };
+    }
+
     template <typename T>
     std::function<T(const ConfigValue& aNode)> readGeneric(std::string aTypeName)
     {
         return [=](const ConfigValue& aNode)
         {
-            if (!aNode.valid())
+            if (!aNode)
             {
                 throw ConfigKeyNotFound(aNode.getPath());
             }
@@ -44,7 +119,7 @@ namespace VDD
             }
             else
             {
-                throw ConfigValueTypeMismatches(Json::intValue, aNode);
+                throw ConfigValueTypeMismatches(Json::stringValue, aNode);
             }
         };
     }
@@ -54,7 +129,7 @@ namespace VDD
     {
         return [=](const ConfigValue& aNode)
         {
-            if (!aNode.valid())
+            if (!aNode)
             {
                 throw ConfigKeyNotFound(aNode.getPath());
             }
@@ -87,12 +162,37 @@ namespace VDD
         };
     }
 
+    // to overcome warning "warning: passing ‘unsigned char’ chooses ‘int’ over ‘unsigned int’
+    // [-Wsign-promo]" in readRangedIntegral call to to_string
+    inline std::string to_string(unsigned char x)
+    {
+        return std::to_string(int(x));
+    }
+
+    template <typename Read>
+    auto readRangedIntegral(std::string aName, Read aReader, decltype(aReader({})) aMin,
+                            decltype(aReader({})) aMax)
+        -> std::function<decltype(aReader({}))(const ConfigValue& aNode)>
+    {
+        return [=](const ConfigValue& aNode) {
+            auto value = aReader(aNode);
+            if (value < aMin || value > aMax)
+            {
+                using std::to_string;
+                throw ConfigValueInvalid(aName + " must be between " + to_string(aMin) + ".." +
+                                             to_string(aMax),
+                                         aNode);
+            }
+            return value;
+        };
+    }
+
     template <typename T, typename U>
     std::function<std::pair<T, U>(const ConfigValue& aNode)> readPair(std::string aTypeName, char aSeparator)
     {
         return [=](const ConfigValue& aNode)
         {
-            if (!aNode.valid())
+            if (!aNode)
             {
                 throw ConfigKeyNotFound(aNode.getPath());
             }
@@ -140,61 +240,82 @@ namespace VDD
     {
         return [=](const ConfigValue& aNode)
         {
-            (void) aTypeName; // not used for now
             std::list<decltype(aReader({}))> r;
-            for (const ConfigValue& value: aNode.childValues())
+            if (aNode->isArray())
             {
-                r.push_back(aReader(value));
-            }
-            return r;
-        };
-    }
-
-    template <typename Read>
-    auto readSet(std::string aTypeName, Read aReader) -> std::function<std::set<decltype(aReader({}))>(const ConfigValue& aNode)>
-    {
-        return [=](const ConfigValue& aNode)
-        {
-            (void) aTypeName; // not used for now
-            std::set<decltype(aReader({}))> r;
-            for (const ConfigValue& value: aNode.childValues())
-            {
-                auto x = aReader(value);
-                if (r.count(x))
+                for (const ConfigValue& value : aNode.childValues())
                 {
-                    throw ConfigValueInvalid("Duplicate values are not permitted", aNode);
+                    r.push_back(aReader(value));
                 }
-                else
-                {
-                    r.insert(x);
-                }
+                return r;
             }
-            return r;
-        };
-    }
-
-    template <typename Read>
-    auto readVector(std::string aTypeName, Read aReader) -> std::function<std::vector<decltype(aReader({}))>(const ConfigValue& aNode)>
-    {
-        return [=](const ConfigValue& aNode)
-        {
-            (void) aTypeName; // not used for now
-            std::vector<decltype(aReader({}))> r;
-            for (const ConfigValue& value: aNode.childValues())
+            else
             {
-                r.push_back(aReader(value));
+                throw ConfigValueTypeMismatches(Json::arrayValue, aTypeName, aNode);
             }
-            return r;
         };
     }
 
     template <typename Read>
-    auto readOptional(std::string aTypeName, Read aReader) -> std::function<Optional<decltype(aReader({}))>(const ConfigValue& aNode)>
+    auto readSet(std::string aTypeName, Read aReader)
+        -> std::function<std::set<decltype(aReader({}))>(const ConfigValue& aNode)>
     {
-        return [=](const ConfigValue& aNode)
-        {
-            (void) aTypeName; // not used for now, but could be used for better error message
-            if (aNode.valid())
+        return [=](const ConfigValue& aNode) {
+            if (aNode->isArray())
+            {
+                std::set<decltype(aReader({}))> r;
+                for (const ConfigValue& value : aNode.childValues())
+                {
+                    auto x = aReader(value);
+                    if (r.count(x))
+                    {
+                        throw ConfigValueInvalid("Duplicate values are not permitted", aNode);
+                    }
+                    else
+                    {
+                        r.insert(x);
+                    }
+                }
+                return r;
+            }
+            else
+            {
+                throw ConfigValueTypeMismatches(Json::arrayValue, aTypeName, aNode);
+            }
+        };
+    }
+
+    template <typename Read>
+    auto readVector(std::string aTypeName, Read aReader)
+        -> std::function<std::vector<decltype(aReader({}))>(const ConfigValue& aNode)>
+    {
+        return [=](const ConfigValue& aNode) {
+            if (aNode->isArray())
+            {
+                std::vector<decltype(aReader({}))> r;
+                for (const ConfigValue& value : aNode.childValues())
+                {
+                    r.push_back(aReader(value));
+                }
+                return r;
+            }
+            else
+            {
+                throw ConfigValueTypeMismatches(Json::arrayValue, aTypeName, aNode);
+            }
+        };
+    }
+
+    template <typename Read>
+    auto readOptional(Read aReader)
+        -> std::function<Optional<decltype(aReader({}))>(const ConfigValue& aNode)>
+    {
+        return [=](const ConfigValue& aNode) {
+            if (aNode &&
+                // allows representing None with null:
+                aNode->type() != Json::nullValue &&
+                // allows representing None with {}:
+                (aNode->type() != Json::objectValue || aNode->size() > 0))
             {
                 return Optional<decltype(aReader({}))>(aReader(aNode));
             }
@@ -206,10 +327,10 @@ namespace VDD
     }
 
     template <typename Read>
-    auto optionWithDefault(const ConfigValueBase& aConfig, std::string aPath, std::string aName, Read aReader, decltype(aReader({})) aDefault) -> decltype(aReader({}))
+    auto optionWithDefault(const ConfigValueBase& aConfig, std::string aPath, Read aReader, decltype(aReader({})) aDefault) -> decltype(aReader({}))
     {
         return
-            *VDD::coalesce(readOptional(aName, aReader)(aConfig.tryTraverse(configPathOfString(aPath))),
+            *VDD::coalesce(readOptional(aReader)(aConfig.tryTraverse(configPathOfString(aPath))),
                            Optional<decltype(aReader({}))>(aDefault));
     }
 
@@ -242,7 +363,14 @@ namespace VDD
         }
         throw ConfigKeyNotFound(lastIt->getPath());
     }
-}
+
+    template <typename T, typename U>
+    std::function<U(const ConfigValue&)> mapConfigValue(
+        std::function<T(const ConfigValue&)> aReadValue, std::function<U(const T&)> aMapValue)
+    {
+        return [=](const ConfigValue& aConfigValue) { return aMapValue(aReadValue(aConfigValue)); };
+    }
+}  // namespace VDD
 
 // Local Variables:
 // mode: c++

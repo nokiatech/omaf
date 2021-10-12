@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,7 +21,6 @@
 /**
  * Movie Header Box class
  * @details 'mvhd' box implementation as specified in the ISOBMFF specification.
- * @todo Currently only version zero box is supported. Extend to support version 1 box.
  */
 class MovieHeaderBox : public FullBox
 {

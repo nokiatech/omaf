@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -12,11 +12,11 @@
  * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
  * written consent of Nokia.
  */
-#include <NVRNamespace.h>
-#include "Platform/OMAFPlatformDetection.h"
-#include <NVRErrorCodes.h>
 #include "NVRNullAudioBackend.h"
+#include <NVRErrorCodes.h>
+#include <NVRNamespace.h>
 #include "Foundation/NVRLogger.h"
+#include "Platform/OMAFPlatformDetection.h"
 
 OMAF_NS_BEGIN
 
@@ -30,7 +30,7 @@ NullBackend::~NullBackend()
 {
 }
 
-void NullBackend::init(AudioRendererAPI *renderer, bool_t allowExclusiveMode, const wchar_t* audioDevice)
+void NullBackend::init(AudioRendererAPI* renderer, bool_t allowExclusiveMode, const wchar_t* audioDevice)
 {
 }
 

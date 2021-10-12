@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,7 +16,6 @@
 #include <cassert>
 
 #include "api/streamsegmenter/autosegmenter.hpp"
-#include "api/streamsegmenter/optional.hpp"
 #include "autosegmenterimpl.hpp"
 #include "debug.hpp"
 #include "utils.hpp"
@@ -156,7 +155,7 @@ namespace StreamSegmenter
             hasSubsegmentful = false;
             //            trackDurationForSegment += trackDurationForSubsegment;
             trackDurationForSubsegment -=
-                Utils::coalesce(mImpl->mConfig.subsegmentDuration, mImpl->mConfig.segmentDuration)->cast<FrameTime>();
+                ISOBMFF::coalesce(mImpl->mConfig.subsegmentDuration, mImpl->mConfig.segmentDuration)->cast<FrameTime>();
             if (mSeenSubsegments >= mImpl->mConfig.skipSubsegments)
             {
                 Subsegmentful subsegmentful{std::move(frames)};
@@ -182,7 +181,7 @@ namespace StreamSegmenter
         hasSubsegmentful =
             hasSubsegmentful ||
             trackDurationForSubsegment >=
-                Utils::coalesce(mImpl->mConfig.subsegmentDuration, mImpl->mConfig.segmentDuration)->cast<FrameTime>();
+                ISOBMFF::coalesce(mImpl->mConfig.subsegmentDuration, mImpl->mConfig.segmentDuration)->cast<FrameTime>();
     }
 
     std::list<Frames> AutoSegmenter::Impl::TrackState::pullSegment()
@@ -220,7 +219,11 @@ namespace StreamSegmenter
     AutoSegmenter::AutoSegmenter(AutoSegmenterConfig aConfig)
         : mImpl(new Impl())
     {
+        assert(aConfig.segmentDuration > FrameDuration(0, 1));
         mImpl->mConfig = aConfig;
+        mImpl->mSequenceId =
+            mImpl->mConfig.nextFragmentSequenceNumber ? (*mImpl->mConfig.nextFragmentSequenceNumber)() : 0;
+
         // mImpl->mTargetDuration = Utils::coalesce(mImpl->mConfig.subsegmentDuration,
         // mImpl->mConfig.segmentDuration)->cast<FrameTime>();
     }
@@ -327,12 +330,12 @@ namespace StreamSegmenter
                             if (info.dts)
                             {
                                 // Ensure the dts-cts offset is never less than zero
-                                trackState.mTrackOffset = std::max(trackState.mTrackOffset, *info.dts - cts);
+                                //trackState.mTrackOffset = std::max(trackState.mTrackOffset, *info.dts - cts);
                             }
 
                             // Ensure CTS is never negative.
                             // This doesn't ensure the CTS of the first sample is always zero, though. Should it?
-                            trackState.mTrackOffset = std::max(trackState.mTrackOffset, -cts);
+                            //trackState.mTrackOffset = std::max(trackState.mTrackOffset, -cts);
                         }
                     }
                 }
@@ -367,7 +370,8 @@ namespace StreamSegmenter
 
                     ++subsegmentIt;
                     trackOfSegment.trackInfo.trackMeta = mImpl->mTrackState.at(trackId).trackMeta;
-                    auto dtsCtsOffset                  = greatestDtsCtsDelta(trackOfSegment.frames);
+                    //FrameTime dtsCtsOffset             = greatestDtsCtsDelta(trackOfSegment.frames);
+                    FrameTime dtsCtsOffset             = {0, 1};
                     if (auto dts = trackOfSegment.frames.front().getFrameInfo().dts)
                     {
                         trackOfSegment.trackInfo.t0 = *dts;
@@ -376,7 +380,9 @@ namespace StreamSegmenter
                     {
                         trackOfSegment.trackInfo.t0 = framesCtsTimeSpan(trackOfSegment.frames).first - dtsCtsOffset;
                     }
-                    trackOfSegment.trackInfo.dtsCtsOffset = dtsCtsOffset;
+                    //trackOfSegment.trackInfo.dtsCtsOffset = dtsCtsOffset;
+                    trackOfSegment.trackInfo.dtsCtsOffset = trackOfSegment.frames.front().getFrameInfo().cts.front() - trackOfSegment.trackInfo.t0;
+;
                 }
             }
 
@@ -403,7 +409,14 @@ namespace StreamSegmenter
                 segment.sequenceId = mImpl->mSequenceId;
                 segment.t0         = segmentTimeSpan.first;
                 segment.duration   = (segmentTimeSpan.second - segmentTimeSpan.first).cast<Segmenter::Duration>();
-                ++mImpl->mSequenceId;
+                if (auto& nextSeq = mImpl->mConfig.nextFragmentSequenceNumber)
+                {
+                    mImpl->mSequenceId = (*nextSeq)();
+                }
+                else
+                {
+                    ++mImpl->mSequenceId;
+                }
             }
 
             segments.push_back(subsegments);
@@ -423,4 +436,4 @@ namespace StreamSegmenter
         }
         return segments;
     }
-}
+}  // namespace StreamSegmenter

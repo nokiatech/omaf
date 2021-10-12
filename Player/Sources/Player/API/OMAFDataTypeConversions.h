@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,9 +16,9 @@
 
 #include "NVRNamespace.h"
 
+#include "Media/NVRMediaInformation.h"
 #include "NVRPlayer.h"
 #include "OMAFPlayerDataTypes.h"
-#include "Media/NVRMediaInformation.h"
 
 namespace OMAF
 {
@@ -31,4 +31,4 @@ namespace OMAF
     OMAF::MediaInformation convertMediaInformation(Private::MediaInformation information);
 
     Private::SeekAccuracy::Enum convertSeekAccuracy(OMAF::SeekAccuracy::Enum accuracy);
-}
+}  // namespace OMAF

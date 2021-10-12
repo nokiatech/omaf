@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,16 +14,17 @@
  */
 #pragma once
 
+#include "Math/OMAFMathFunctions.h"
 #include "Math/OMAFMathTypes.h"
 
 namespace OMAF
 {
-    static const Color3 Color3BlackColor = { 0.0f, 0.0f, 0.0f };
-    static const Color3 Color3WhiteColor = { 1.0f, 1.0f, 1.0f };
+    static const Color3 Color3BlackColor = {0.0f, 0.0f, 0.0f};
+    static const Color3 Color3WhiteColor = {1.0f, 1.0f, 1.0f};
 
-    static const Color3 Color3RedColor = { 1.0f, 0.0f, 0.0f };
-    static const Color3 Color3GreenColor = { 0.0f, 1.0f, 0.0f };
-    static const Color3 Color3BlueColor = { 0.0f, 0.0f, 1.0f };
+    static const Color3 Color3RedColor = {1.0f, 0.0f, 0.0f};
+    static const Color3 Color3GreenColor = {0.0f, 1.0f, 0.0f};
+    static const Color3 Color3BlueColor = {0.0f, 0.0f, 1.0f};
 
     OMAF_INLINE Color3 makeColor3(float32_t r, float32_t g, float32_t b);
     OMAF_INLINE Color3 makeColor3(const float32_t v[3]);
@@ -32,51 +33,49 @@ namespace OMAF
 
     OMAF_INLINE Color3 lerp(const Color3& a, const Color3& b, float32_t amount);
 
-    OMAF_INLINE Color3 operator + (const Color3& l, const Color3& r);
-    OMAF_INLINE Color3 operator - (const Color3& l, const Color3& r);
-    OMAF_INLINE Color3 operator * (const Color3& l, const Color3& r);
-    OMAF_INLINE Color3 operator / (const Color3& l, const Color3& r);
+    OMAF_INLINE Color3 operator+(const Color3& l, const Color3& r);
+    OMAF_INLINE Color3 operator-(const Color3& l, const Color3& r);
+    OMAF_INLINE Color3 operator*(const Color3& l, const Color3& r);
+    OMAF_INLINE Color3 operator/(const Color3& l, const Color3& r);
 
-    OMAF_INLINE void_t operator += (Color3& l, const Color3& r);
-    OMAF_INLINE void_t operator -= (Color3& l, const Color3& r);
-    OMAF_INLINE void_t operator *= (Color3& l, const Color3& r);
-    OMAF_INLINE void_t operator /= (Color3& l, const Color3& r);
+    OMAF_INLINE void_t operator+=(Color3& l, const Color3& r);
+    OMAF_INLINE void_t operator-=(Color3& l, const Color3& r);
+    OMAF_INLINE void_t operator*=(Color3& l, const Color3& r);
+    OMAF_INLINE void_t operator/=(Color3& l, const Color3& r);
 
-    OMAF_INLINE Color3 operator + (const Color3& c, float32_t s);
-    OMAF_INLINE Color3 operator - (const Color3& c, float32_t s);
-    OMAF_INLINE Color3 operator * (const Color3& c, float32_t s);
-    OMAF_INLINE Color3 operator / (const Color3& c, float32_t s);
+    OMAF_INLINE Color3 operator+(const Color3& c, float32_t s);
+    OMAF_INLINE Color3 operator-(const Color3& c, float32_t s);
+    OMAF_INLINE Color3 operator*(const Color3& c, float32_t s);
+    OMAF_INLINE Color3 operator/(const Color3& c, float32_t s);
 
-    OMAF_INLINE void_t operator += (Color3& c, float32_t s);
-    OMAF_INLINE void_t operator -= (Color3& c, float32_t s);
-    OMAF_INLINE void_t operator *= (Color3& c, float32_t s);
-    OMAF_INLINE void_t operator /= (Color3& c, float32_t s);
+    OMAF_INLINE void_t operator+=(Color3& c, float32_t s);
+    OMAF_INLINE void_t operator-=(Color3& c, float32_t s);
+    OMAF_INLINE void_t operator*=(Color3& c, float32_t s);
+    OMAF_INLINE void_t operator/=(Color3& c, float32_t s);
 
-    OMAF_INLINE bool_t operator == (const Color3& l, const Color3& r);
-    OMAF_INLINE bool_t operator != (const Color3& l, const Color3& r);
-}
+    OMAF_INLINE bool_t operator==(const Color3& l, const Color3& r);
+    OMAF_INLINE bool_t operator!=(const Color3& l, const Color3& r);
+}  // namespace OMAF
 
 namespace OMAF
 {
     Color3 makeColor3(float32_t r, float32_t g, float32_t b)
     {
-        Color3 result = { r, g, b };
+        Color3 result = {r, g, b};
 
         return result;
     }
 
     Color3 makeColor3(const float32_t v[3])
     {
-        Color3 result = { v[0], v[1], v[2] };
+        Color3 result = {v[0], v[1], v[2]};
 
         return result;
     }
 
     bool_t equals(const Color3& l, const Color3& r, float32_t epsilon)
     {
-        return (fabsf(l.r - r.r) <= epsilon &&
-                fabsf(l.g - r.g) <= epsilon &&
-                fabsf(l.b - r.b) <= epsilon);
+        return (fabsf(l.r - r.r) <= epsilon && fabsf(l.g - r.g) <= epsilon && fabsf(l.b - r.b) <= epsilon);
     }
 
     Color3 lerp(const Color3& a, const Color3& b, float32_t amount)
@@ -90,49 +89,49 @@ namespace OMAF
     }
 
 
-    Color3 operator + (const Color3& l, const Color3& r)
+    Color3 operator+(const Color3& l, const Color3& r)
     {
         return makeColor3(l.r + r.r, l.g + r.g, l.b + r.b);
     }
 
-    Color3 operator - (const Color3& l, const Color3& r)
+    Color3 operator-(const Color3& l, const Color3& r)
     {
         return makeColor3(l.r - r.r, l.g - r.g, l.b - r.b);
     }
 
-    Color3 operator * (const Color3& l, const Color3& r)
+    Color3 operator*(const Color3& l, const Color3& r)
     {
         return makeColor3(l.r * r.r, l.g * r.g, l.b * r.b);
     }
 
-    Color3 operator / (const Color3& l, const Color3& r)
+    Color3 operator/(const Color3& l, const Color3& r)
     {
         return makeColor3(l.r / r.r, l.g / r.g, l.b / r.b);
     }
 
 
-    void_t operator += (Color3& l, const Color3& r)
+    void_t operator+=(Color3& l, const Color3& r)
     {
         l.r += r.r;
         l.g += r.g;
         l.b += r.b;
     }
 
-    void_t operator -= (Color3& l, const Color3& r)
+    void_t operator-=(Color3& l, const Color3& r)
     {
         l.r -= r.r;
         l.g -= r.g;
         l.b -= r.b;
     }
 
-    void_t operator *= (Color3& l, const Color3& r)
+    void_t operator*=(Color3& l, const Color3& r)
     {
         l.r *= r.r;
         l.g *= r.g;
         l.b *= r.b;
     }
 
-    void_t operator /= (Color3& l, const Color3& r)
+    void_t operator/=(Color3& l, const Color3& r)
     {
         l.r /= r.r;
         l.g /= r.g;
@@ -140,49 +139,49 @@ namespace OMAF
     }
 
 
-    Color3 operator + (const Color3& c, float32_t s)
+    Color3 operator+(const Color3& c, float32_t s)
     {
         return makeColor3(c.r + s, c.g + s, c.b + s);
     }
 
-    Color3 operator - (const Color3& c, float32_t s)
+    Color3 operator-(const Color3& c, float32_t s)
     {
         return makeColor3(c.r - s, c.g - s, c.b - s);
     }
 
-    Color3 operator * (const Color3& c, float32_t s)
+    Color3 operator*(const Color3& c, float32_t s)
     {
         return makeColor3(c.r * s, c.g * s, c.b * s);
     }
 
-    Color3 operator / (const Color3& c, float32_t s)
+    Color3 operator/(const Color3& c, float32_t s)
     {
         return makeColor3(c.r / s, c.g / s, c.b / s);
     }
 
 
-    void_t operator += (Color3& c, float32_t s)
+    void_t operator+=(Color3& c, float32_t s)
     {
         c.r += s;
         c.g += s;
         c.b += s;
     }
 
-    void_t operator -= (Color3& c, float32_t s)
+    void_t operator-=(Color3& c, float32_t s)
     {
         c.r -= s;
         c.g -= s;
         c.b -= s;
     }
 
-    void_t operator *= (Color3& c, float32_t s)
+    void_t operator*=(Color3& c, float32_t s)
     {
         c.r *= s;
         c.g *= s;
         c.b *= s;
     }
 
-    void_t operator /= (Color3& c, float32_t s)
+    void_t operator/=(Color3& c, float32_t s)
     {
         c.r /= s;
         c.g /= s;
@@ -190,13 +189,13 @@ namespace OMAF
     }
 
 
-    bool_t operator == (const Color3& l, const Color3& r)
+    bool_t operator==(const Color3& l, const Color3& r)
     {
         return equals(l, r);
     }
 
-    bool_t operator != (const Color3& l, const Color3& r)
+    bool_t operator!=(const Color3& l, const Color3& r)
     {
         return !equals(l, r);
     }
-}
+}  // namespace OMAF

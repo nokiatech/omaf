@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -25,7 +25,7 @@ struct StreamBuffer
     MemoryBuffer* buffer;
 
     StreamBuffer()
-    : buffer(OMAF_NULL)
+        : buffer(OMAF_NULL)
     {
     }
 
@@ -38,7 +38,7 @@ struct StreamBuffer
     {
         OMAF_ASSERT(buffer == OMAF_NULL, "");
 
-        buffer = RenderBackend::allocate(OMAF_SIZE_OF(T) * (uint32_t)capacity);
+        buffer = RenderBackend::allocate(OMAF_SIZE_OF(T) * (uint32_t) capacity);
 
         if (buffer == OMAF_NULL)
         {
@@ -58,8 +58,8 @@ struct StreamBuffer
     {
         OMAF_ASSERT(buffer != OMAF_NULL, "");
         OMAF_ASSERT(buffer->size + (addCount * OMAF_SIZE_OF(T)) <= buffer->capacity, "");
-        
-        T* ptr = (T*)buffer->data;
+
+        T* ptr = (T*) buffer->data;
         size_t count = getCount();
 
         for (size_t i = 0; i < addCount; ++i)
@@ -79,12 +79,12 @@ struct StreamBuffer
     {
         return buffer->capacity / OMAF_SIZE_OF(T);
     }
-    
+
     size_t getCount() const
     {
         return buffer->size / OMAF_SIZE_OF(T);
     }
-    
+
     bool_t isFull() const
     {
         return getCapacity() == getCount();

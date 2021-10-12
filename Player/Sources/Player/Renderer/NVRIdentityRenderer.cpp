@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -29,24 +29,17 @@ IdentityRenderer::~IdentityRenderer()
 void_t IdentityRenderer::createImpl()
 {
     VertexDeclaration vertexDeclaration = VertexDeclaration()
-        .begin()
-        .addAttribute("aPosition", VertexAttributeFormat::FLOAT32, 2, false)
-        .addAttribute("aTextureCoord", VertexAttributeFormat::FLOAT32, 2, false)
-        .end();
+                                              .begin()
+                                              .addAttribute("aPosition", VertexAttributeFormat::FLOAT32, 2, false)
+                                              .addAttribute("aTextureCoord", VertexAttributeFormat::FLOAT32, 2, false)
+                                              .end();
 
     VertexBufferDesc vertexBufferDesc;
     vertexBufferDesc.declaration = vertexDeclaration;
     vertexBufferDesc.access = BufferAccess::STATIC;
 
-    Vertex verts[] =
-    {
-        { -1.f,-1.f, 0.f, 0.f },
-        {  1.f,-1.f, 1.f, 0.f },
-        {  1.f, 1.f, 1.f, 1.f },
-        { -1.f,-1.f, 0.f, 0.f },
-        {  1.f, 1.f, 1.f, 1.f },
-        { -1.f, 1.f, 0.f, 1.f }
-    };
+    Vertex verts[] = {{-1.f, -1.f, 0.f, 0.f}, {1.f, -1.f, 1.f, 0.f}, {1.f, 1.f, 1.f, 1.f},
+                      {-1.f, -1.f, 0.f, 0.f}, {1.f, 1.f, 1.f, 1.f},  {-1.f, 1.f, 0.f, 1.f}};
 
     vertexBufferDesc.data = verts;
     vertexBufferDesc.size = 6 * OMAF_SIZE_OF(Vertex);
@@ -64,23 +57,54 @@ void_t IdentityRenderer::destroyImpl()
     mOpaqueShader.destroy();
 }
 
-ProjectionType::Enum IdentityRenderer::getType() const
-{
-    return ProjectionType::IDENTITY;
-}
-
-void_t IdentityRenderer::render(const HeadTransform& headTransform, const RenderSurface& renderSurface, const CoreProviderSources& sources, const TextureID& renderMask, const RenderingParameters& renderingParameters)
+void_t IdentityRenderer::render(const HeadTransform& headTransform,
+                                const RenderSurface& renderSurface,
+                                const CoreProviderSources& sources,
+                                const TextureID& renderMask,
+                                const RenderingParameters& renderingParameters)
 {
     OMAF_ASSERT(sources.getSize() == 1, "Supports only one input source");
-    OMAF_ASSERT(sources.at(0)->type == SourceType::IDENTITY || sources.at(0)->type == SourceType::IDENTITY_AUXILIARY, "Source is not an identity source");
+    OMAF_ASSERT(sources.at(0)->type == SourceType::IDENTITY, "Source is not an identity source");
+    auto source = sources.at(0);
 
-    RenderBackend::pushDebugMarker("IdentityRenderer::render");
-    IdentitySource* source = (IdentitySource*)sources.at(0);
+
+    renderImpl(headTransform, renderSurface, source, renderMask, renderingParameters, 0, 0, 1, 1, 1, 1, 0, 0, 1);
+}
+
+void_t IdentityRenderer::renderImpl(const HeadTransform& headTransform,
+                                    const RenderSurface& renderSurface,
+                                    const CoreProviderSource* aSource,
+                                    const TextureID& renderMask,
+                                    const RenderingParameters& renderingParameters,
+                                    float32_t x,
+                                    float32_t y,
+                                    float32_t width,
+                                    float32_t height,
+                                    float32_t scaleX,
+                                    float32_t scaleY,
+                                    float32_t offsetX,
+                                    float32_t offsetY,
+                                    float32_t opacity)
+{
+    x = x * 2;  // scale range to -1,1
+    y = y * 2;  // scale range to -1,1
+
+    //scaleX*=20;
+    //scaleY*=20;
+
+    // scale full screen (is actually not full screen... maybe 1024x1024)
+    // should we make default scaling to be actaully the whole screen?
+    //scaleX=1;
+    //scaleY=1;
+    //y = 0;
+    //x = 0;
+
+    VideoFrameSource* source = (VideoFrameSource*) aSource;
 
     if (mDirtyShader)
     {
         mDirtyShader = false;
-        mOpaqueShader.create(source->videoFrame.format);
+        mOpaqueShader.create();
     }
 
     // Bind textures
@@ -93,9 +117,10 @@ void_t IdentityRenderer::render(const HeadTransform& headTransform, const Render
     Shader& selectedShader = mOpaqueShader;
 
     selectedShader.bind();
+    selectedShader.setPixelFormatConstant(source->videoFrame.format);
+    selectedShader.setOpacityConstant(opacity);
 
-    if (source->videoFrame.format == VideoPixelFormat::RGB ||
-        source->videoFrame.format == VideoPixelFormat::RGBA ||
+    if (source->videoFrame.format == VideoPixelFormat::RGB || source->videoFrame.format == VideoPixelFormat::RGBA ||
         source->videoFrame.format == VideoPixelFormat::RGB_422_APPLE)
     {
         selectedShader.setSourceConstant(0);
@@ -118,26 +143,49 @@ void_t IdentityRenderer::render(const HeadTransform& headTransform, const Render
 
     selectedShader.setTextureRectConstant(makeVector4(0, 0, 1, 1));
 
-    Matrix44 modelMatrix = makeMatrix44(source->extrinsicRotation);
+    auto scale = makeScale(scaleX, scaleY, 1);
 
-    float outputAspect = (float32_t)renderSurface.viewport.height / (float32_t)renderSurface.viewport.width ;
-    float videoAspect = (float32_t)source->videoFrame.height / (float32_t)source->videoFrame.width;
-    modelMatrix.m11 = videoAspect / outputAspect;
-    if (modelMatrix.m11 > 1.0f)
-    {
-        modelMatrix.m00 = 1.f / modelMatrix.m11;
-        modelMatrix.m11 = 1.0f;
-    }
+    auto translate = makeTranslation((x+offsetX)/scaleX, (y+offsetY)/scaleY, -1);
+    auto mvp = renderSurface.projection * scale * translate;
 
-    selectedShader.setMVPConstant(modelMatrix);
+    selectedShader.setMVPConstant(mvp);
     selectedShader.setSTConstant(source->videoFrame.matrix);
+
+    BlendState blendState;
+    blendState.blendEnabled = true;
+    blendState.blendFunctionSrcRgb = BlendFunction::SRC_ALPHA;
+    blendState.blendFunctionDstRgb = BlendFunction::ONE_MINUS_SRC_ALPHA;
+
 
     RasterizerState rasterizerState;
     rasterizerState.cullMode = CullMode::BACK;
     rasterizerState.frontFace = FrontFace::CCW;
     rasterizerState.scissorTestEnabled = true;
 
+    RenderBackend::setBlendState(blendState);
     RenderBackend::setRasterizerState(rasterizerState);
+
+    // scissors take screen pixels as a parameter 0,0 is bottom-left
+
+    // figure out where this virtual screen size is defined... might not work on rift...
+    // scale / offset and scissors calculations match on every (something about orthogonal camera fov maybe)
+    auto virtualScreenWidth = 945.f;
+    auto virtualScreenHeight = 1010.f;
+
+    auto overlayWidthInPixels = width * virtualScreenWidth;
+    auto overlayHeightInPixels = height * virtualScreenHeight;
+    auto overlayCenterXInPixels = (x + 1.f)/2 * virtualScreenWidth;
+    auto overlayCenterYInPixels = (y + 1.f)/2 * virtualScreenHeight;
+
+    auto clippingXStart = overlayCenterXInPixels - overlayWidthInPixels/2;
+    auto clippingYStart = overlayCenterYInPixels - overlayHeightInPixels/2;
+
+    auto areaStartX = (float32_t)(renderSurface.viewport.width - virtualScreenWidth) / 2;
+    auto areaStartY = (float32_t)(renderSurface.viewport.height - virtualScreenHeight) / 2;
+
+    RenderBackend::setScissors(clippingXStart+areaStartX, clippingYStart+areaStartY, overlayWidthInPixels, overlayHeightInPixels);
+    // NOTE: for debugging fulls screen scissors...
+    // RenderBackend::setScissors(0, 0, renderSurface.viewport.width, renderSurface.viewport.height);
 
     // Bind geometry
     RenderBackend::bindVertexBuffer(mVertexBuffer);
@@ -158,6 +206,8 @@ IdentityRenderer::Shader::Shader()
     , textureRectConstant(ShaderConstantID::Invalid)
     , mvpConstant(ShaderConstantID::Invalid)
     , stConstant(ShaderConstantID::Invalid)
+    , pixelFormatConstant(ShaderConstantID::Invalid)
+    , opacityConstant(ShaderConstantID::Invalid)
 {
 }
 
@@ -179,7 +229,7 @@ IdentityRenderer::Shader::~Shader()
     OMAF_ASSERT(stConstant == ShaderConstantID::Invalid, "");
 }
 
-void_t IdentityRenderer::Shader::create(VideoPixelFormat::Enum textureFormat)
+void_t IdentityRenderer::Shader::create()
 {
     OMAF_ASSERT(!isValid(), "Already initialized");
 
@@ -193,80 +243,51 @@ void_t IdentityRenderer::Shader::create(VideoPixelFormat::Enum textureFormat)
 #elif OMAF_GRAPHICS_API_OPENGL_ES
             "#version 100\n"
 #endif
-            "#if (__VERSION__ < 130)\n"
-            "   #define in attribute\n"
-            "   #define out varying\n"
-            "#endif\n"
-            "\n"
-            "#ifdef GL_ES\n"
-            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
-            "    precision highp float;\n"
-            "#else\n"
-            "    precision mediump float;\n"
-            "#endif\n"
-            "#else\n"
-            "   #define lowp\n"
-            "   #define mediump\n"
-            "   #define highp\n"
-            "#endif\n"
-            "\n"
-            "in vec2 aPosition;\n"
-            "in vec2 aTextureCoord;\n"
-            "\n"
-            "out vec2 vTextureCoord;\n"
-            "\n"
-            "uniform highp vec4 uTextureRect;\n"
-            "\n"
-            "uniform mat4 uMVP;\n"
-            "\n"
-            "void main()\n"
-            "{\n"
-            "	vTextureCoord = aTextureCoord * uTextureRect.zw + uTextureRect.xy;\n"
-            "\n"
-            "	gl_Position = vec4(aPosition.xy, 0.0, 1.0)*uMVP;\n"
-            "}\n";
+            R"(
+            #if (__VERSION__ < 130)
+                #define in attribute
+                #define out varying
+            #endif
+            
+            #ifdef GL_ES
+                #ifdef GL_FRAGMENT_PRECISION_HIGH
+                    precision highp float;
+                #else
+                    precision mediump float;
+                #endif
+            #else
+               #define lowp
+               #define mediump
+               #define highp
+            #endif
+            
+            in vec2 aPosition;
+            in vec2 aTextureCoord;           
+            out vec2 vTextureCoord;            
+            uniform highp vec4 uTextureRect;            
+            uniform mat4 uMVP;
+            
+            void main()
+            {
+            	vTextureCoord = aTextureCoord * uTextureRect.zw + uTextureRect.xy;            
+            	gl_Position = uMVP*vec4(aPosition.xy, 0.0, 1.0);
+            }
+        )";
 
         FixedString1024 version;
         FixedString1024 extensions;
         FixedString1024 defines;
 
-        // GLSL / GLSL ES versions
+// GLSL / GLSL ES versions
 #if OMAF_GRAPHICS_API_OPENGL
         version.append("#version 150\n");
 #elif OMAF_GRAPHICS_API_OPENGL_ES
         version.append("#version 100\n");
 #endif
-
-        // Texture type defines
-        if (textureFormat == VideoPixelFormat::RGB_422_APPLE)
-        {
-            defines.append("#define TEXTURE_RGB_422_APPLE\n");
-        }
-        else if (textureFormat == VideoPixelFormat::YUV_420)
-        {
-            defines.append("#define TEXTURE_YUV_420\n");
-        }
-        else if (textureFormat == VideoPixelFormat::NV12)
-        {
-            defines.append("#define TEXTURE_NV12\n");
-        }
-        else if (textureFormat == VideoPixelFormat::RGB)
-        {
-            defines.append("#define TEXTURE_RGB\n");
-        }
-        else if (textureFormat == VideoPixelFormat::RGBA)
-        {
-            defines.append("#define TEXTURE_RGBA\n");
-        }
-        else
-        {
-            OMAF_ASSERT_UNREACHABLE();
-        }
-
         // Enable st matrix
         defines.append("#define ENABLE_ST_MATRIX\n");
 
-        // Sampler type
+// Sampler type
 #if OMAF_PLATFORM_ANDROID
 
         extensions.append("#extension GL_OES_EGL_image_external : require\n");
@@ -278,161 +299,145 @@ void_t IdentityRenderer::Shader::create(VideoPixelFormat::Enum textureFormat)
 
 #endif
 
-        static const char_t* fs =
-            "#if (__VERSION__ < 130)\n"
-            "   #define in varying\n"
-            "#else\n"
-            "   out vec4 fragmentColor;\n"
-            "#endif\n"
-            "\n"
-            "#if defined(ENABLE_SAMPLER_2D_RECT)\n"
-            "   #if (__VERSION__ < 150)\n"
-            "       #define texture texture2DRect\n"
-            "   #endif\n"
-            "#else\n"
-            "   #if (__VERSION__ < 150)\n"
-            "       #define texture texture2D\n"
-            "   #endif\n"
-            "#endif\n"
-            "\n"
-            "#ifdef GL_ES\n"
-            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
-            "    precision highp float;\n"
-            "#else\n"
-            "    precision mediump float;\n"
-            "#endif\n"
-            "#else\n"
-            "   #define lowp\n"
-            "   #define mediump\n"
-            "   #define highp\n"
-            "#endif\n"
-            "\n"
-            "in vec2 vTextureCoord;\n"
-            "\n"
-            "#if defined(TEXTURE_YUV_420)\n"
-            "   uniform lowp SAMPLER_TYPE uSourceY;\n"
-            "   uniform lowp SAMPLER_TYPE uSourceU;\n"
-            "   uniform lowp SAMPLER_TYPE uSourceV;\n"
-            "#elif defined(TEXTURE_NV12)\n"
-            "   uniform lowp SAMPLER_TYPE uSourceY;\n"
-            "   uniform lowp SAMPLER_TYPE uSourceUV;\n"
-            "#elif defined(TEXTURE_RGB) || defined(TEXTURE_RGBA) || defined(TEXTURE_RGB_422_APPLE)\n"
-            "   uniform lowp SAMPLER_TYPE uSource;\n"
-            "#endif\n"
-            "\n"
-            "uniform mat4 uST;\n"
-            "\n"
-            "#if defined(TEXTURE_RGB) || defined(TEXTURE_RGBA) || defined(TEXTURE_RGB_422_APPLE)\n"
-            "\n"
-            "lowp vec4 SampleTextureRGBA(vec2 uv)\n"
-            "{\n"
-            "   #if defined(ENABLE_SAMPLER_2D_RECT)\n"
-            "       uv = vec2(uv.x * textureSize(uSource).x, uv.y * textureSize(uSource).y);\n"
-            "   #endif\n"
-            "\n"
-            "   return texture(uSource, uv);\n"
-            "}\n"
-            "\n"
-            "#endif\n"
-            "\n"
-            "#if defined(TEXTURE_YUV_420)\n"
-            "\n"
-            "lowp vec4 SampleTextureY(vec2 uv)\n"
-            "{\n"
-            "   #if defined(ENABLE_SAMPLER_2D_RECT)\n"
-            "       uv = vec2(uv.x * textureSize(uSourceY).x, uv.y * textureSize(uSourceY).y);\n"
-            "   #endif\n"
-            "\n"
-            "   return texture(uSourceY, uv);\n"
-            "}\n"
-            "\n"
-            "lowp vec4 SampleTextureU(vec2 uv)\n"
-            "{\n"
-            "   #if defined(ENABLE_SAMPLER_2D_RECT)\n"
-            "       uv = vec2(uv.x * textureSize(uSourceU).x, uv.y * textureSize(uSourceU).y);\n"
-            "   #endif\n"
-            "\n"
-            "   return texture(uSourceU, uv);\n"
-            "}\n"
-            "\n"
-            "lowp vec4 SampleTextureV(vec2 uv)\n"
-            "{\n"
-            "   #if defined(ENABLE_SAMPLER_2D_RECT)\n"
-            "       uv = vec2(uv.x * textureSize(uSourceV).x, uv.y * textureSize(uSourceV).y);\n"
-            "   #endif\n"
-            "\n"
-            "   return texture(uSourceV, uv);\n"
-            "}\n"
-            "\n"
-            "#endif\n"
-            "\n"
-            "#if defined(TEXTURE_NV12)\n"
-            "\n"
-            "lowp vec4 SampleTextureY(vec2 uv)\n"
-            "{\n"
-            "   #if defined(ENABLE_SAMPLER_2D_RECT)\n"
-            "       uv = vec2(uv.x * textureSize(uSourceY).x, uv.y * textureSize(uSourceY).y);\n"
-            "   #endif\n"
-            "\n"
-            "   return texture(uSourceY, uv);\n"
-            "}\n"
-            "\n"
-            "\n"
-            "lowp vec4 SampleTextureUV(vec2 uv)\n"
-            "{\n"
-            "   #if defined(ENABLE_SAMPLER_2D_RECT)\n"
-            "       uv = vec2(uv.x * textureSize(uSourceUV).x, uv.y * textureSize(uSourceUV).y);\n"
-            "   #endif\n"
-            "\n"
-            "   return texture(uSourceUV, uv);\n"
-            "}\n"
-            "\n"
-            "#endif\n"
-            "\n"
-            "void main()"
-            "{\n"
-            "#if defined(ENABLE_ST_MATRIX)\n"
-            "   vec2 textureCoord = (uST * vec4(vTextureCoord, 0.0, 1.0)).xy;\n"
-            "#else\n"
-            "   vec2 textureCoord = vTextureCoord;\n"
-            "#endif\n"
-            "\n"
-            "#if defined(TEXTURE_RGB) || defined(TEXTURE_RGBA)\n"
-            "   lowp vec4 c = vec4(SampleTextureRGBA(textureCoord).rgb, 1.0);\n"
-            "#else\n"
-            "   #if defined(TEXTURE_RGB_422_APPLE)\n"
-            "       lowp vec4 color = SampleTextureRGBA(textureCoord);\n"
-            "       lowp vec3 convertedColor = vec3(-0.87075, 0.52975, -1.08175);\n"
-            "       convertedColor += 1.164 * color.g; // Y\n"
-            "       convertedColor += vec3(0.0, -0.391, 2.018) * color.b; // U\n"
-            "       convertedColor += vec3(1.596, -0.813, 0.0) * color.r; // V\n"
-            "       lowp vec4 c = vec4(convertedColor, 1.0);\n"
-            "   #elif defined(TEXTURE_YUV_420)\n"
-            "       mediump float v = SampleTextureV(textureCoord).r - 128.0 / 255.0;\n"
-            "       mediump float u = SampleTextureU(textureCoord).r - 128.0 / 255.0;\n"
-            "       mediump float y = (SampleTextureY(textureCoord).r - 16.0 / 255.0) * (255.0 / (235.0 - 16.0));\n"
-            "       lowp vec4 c = vec4(y + 1.403 * v, y - 0.344 * u - 0.714 * v, y + 1.770 * u, 1.0);\n"
-            "   #elif defined(TEXTURE_NV12)\n"
-            "       mat3 kColorConversion601 = mat3(1.164,  1.164, 1.164,\n"
-            "                                         0.0, -0.392, 2.017,\n"
-            "                                       1.596, -0.813,  0.0);\n"
-            "       mediump vec3 yuv;\n"
-            "       lowp vec3 rgb;\n"
-            "\n"
-            "       // Subtract constants to map the video range start at 0\n"
-            "       yuv.x = (SampleTextureY(textureCoord).r - (16.0/255.0));\n"
-            "       yuv.yz = (SampleTextureUV(textureCoord).rg - vec2(0.5, 0.5));\n"
-            "       rgb = kColorConversion601 * yuv;\n"
-            "       lowp vec4 c = vec4(rgb, 1);\n"
-            "   #endif\n"
-            "#endif\n"
-            "\n"
-            "#if (__VERSION__ < 130)\n"
-            "	gl_FragColor = c;\n"
-            "#else\n"
-            "   fragmentColor = c;\n"
-            "#endif\n"
-            "}\n";
+        static const char_t* fs = R"(
+
+            #if (__VERSION__ < 130)
+               #define in varying
+            #else
+               out vec4 fragmentColor;
+            #endif
+            
+            #if defined(ENABLE_SAMPLER_2D_RECT)
+               #if (__VERSION__ < 150)
+                   #define texture texture2DRect
+               #endif
+            #else
+               #if (__VERSION__ < 150)
+                   #define texture texture2D
+               #endif
+            #endif
+            
+            #ifdef GL_ES
+                #ifdef GL_FRAGMENT_PRECISION_HIGH
+                    precision highp float;
+                #else
+                    precision mediump float;
+                #endif
+            #else
+               #define lowp
+               #define mediump
+               #define highp
+            #endif
+            
+            #define TEXTURE_RGB 0
+            #define TEXTURE_RGBA 1
+            #define TEXTURE_RGB_422_APPLE 2
+            #define TEXTURE_YUV_420 3
+            #define TEXTURE_NV12 4
+
+            uniform int uPixelFormat;
+            uniform float uSrcOpacity;
+
+            in vec2 vTextureCoord;
+
+            //       also refactor opengl / opengl version differences so that           
+            uniform lowp SAMPLER_TYPE uSourceY;
+            uniform lowp SAMPLER_TYPE uSourceU;
+            uniform lowp SAMPLER_TYPE uSourceV;
+            uniform lowp SAMPLER_TYPE uSourceUV;
+            uniform lowp SAMPLER_TYPE uSource;
+            
+            uniform mat4 uST;
+                        
+            lowp vec4 SampleTextureRGBA(vec2 uv)
+            {
+                #if defined(ENABLE_SAMPLER_2D_RECT)
+                    uv = vec2(uv.x * textureSize(uSource).x, uv.y * textureSize(uSource).y);
+                #endif            
+                return texture(uSource, uv);
+            }
+            
+            lowp vec4 SampleTextureY(vec2 uv)
+            {
+               #if defined(ENABLE_SAMPLER_2D_RECT)
+                   uv = vec2(uv.x * textureSize(uSourceY).x, uv.y * textureSize(uSourceY).y);
+               #endif
+            
+               return texture(uSourceY, uv);
+            }
+            
+            lowp vec4 SampleTextureU(vec2 uv)
+            {
+               #if defined(ENABLE_SAMPLER_2D_RECT)
+                   uv = vec2(uv.x * textureSize(uSourceU).x, uv.y * textureSize(uSourceU).y);
+               #endif
+            
+               return texture(uSourceU, uv);
+            }
+            
+            lowp vec4 SampleTextureV(vec2 uv)
+            {
+               #if defined(ENABLE_SAMPLER_2D_RECT)
+                   uv = vec2(uv.x * textureSize(uSourceV).x, uv.y * textureSize(uSourceV).y);
+               #endif
+            
+               return texture(uSourceV, uv);
+            }
+                                             
+            lowp vec4 SampleTextureUV(vec2 uv)
+            {
+               #if defined(ENABLE_SAMPLER_2D_RECT)
+                   uv = vec2(uv.x * textureSize(uSourceUV).x, uv.y * textureSize(uSourceUV).y);
+               #endif
+            
+               return texture(uSourceUV, uv);
+            }
+            
+            void main()
+            {
+            #if defined(ENABLE_ST_MATRIX)
+               vec2 textureCoord = (uST * vec4(vTextureCoord, 0.0, 1.0)).xy;
+            #else
+               vec2 textureCoord = vTextureCoord;
+            #endif
+            
+            lowp vec4 c = vec4(0.0, 0.0, 0.0, uSrcOpacity);
+
+            if (uPixelFormat == TEXTURE_RGB || uPixelFormat == TEXTURE_RGBA) {
+                c.rgb = SampleTextureRGBA(textureCoord).rgb;
+            } else if(uPixelFormat == TEXTURE_RGB_422_APPLE) {
+                lowp vec4 color = SampleTextureRGBA(textureCoord);
+                lowp vec3 convertedColor = vec3(-0.87075, 0.52975, -1.08175);
+                convertedColor += 1.164 * color.g; // Y
+                convertedColor += vec3(0.0, -0.391, 2.018) * color.b; // U
+                convertedColor += vec3(1.596, -0.813, 0.0) * color.r; // V
+                c.rgb = convertedColor;
+            } else if(uPixelFormat == TEXTURE_YUV_420) {
+                mediump float v = SampleTextureV(textureCoord).r - 128.0 / 255.0;
+                mediump float u = SampleTextureU(textureCoord).r - 128.0 / 255.0;
+                mediump float y = (SampleTextureY(textureCoord).r - 16.0 / 255.0) * (255.0 / (235.0 - 16.0));
+                c.rgb = vec3(y + 1.403 * v, y - 0.344 * u - 0.714 * v, y + 1.770 * u);
+            } else if(uPixelFormat == TEXTURE_NV12) {
+                mat3 kColorConversion601 = mat3(1.164,  1.164, 1.164,
+                                                0.0, -0.392, 2.017,
+                                                1.596, -0.813,  0.0);
+                mediump vec3 yuv;
+                lowp vec3 rgb;
+            
+                // Subtract constants to map the video range start at 0
+                yuv.x = (SampleTextureY(textureCoord).r - (16.0/255.0));
+                yuv.yz = (SampleTextureUV(textureCoord).rg - vec2(0.5, 0.5));
+                rgb = kColorConversion601 * yuv;
+                c.rgb = rgb;
+            }
+            
+            #if (__VERSION__ < 130)
+            	gl_FragColor = c;
+            #else
+               fragmentColor = c;
+            #endif
+            }
+        )";
 
         FixedString8192 preprocessedFS;
         preprocessedFS.append(version.getData());
@@ -446,51 +451,69 @@ void_t IdentityRenderer::Shader::create(VideoPixelFormat::Enum textureFormat)
     else if (backendType == RendererType::D3D11 || backendType == RendererType::D3D12)
     {
         const char_t* shader =
-            "float4 uTextureRect;\n"
-            "matrix uMVP;\n"
-            "matrix uST;\n"
-            "\n"
-            "Texture2D Texture0;\n"
-            "Texture2D Texture1;\n"
-            "SamplerState Sampler0;\n"
-            "\n"
-            "struct VS_INPUT\n"
-            "{\n"
-            "	float2 Position : POSITION;\n"
-            "	float2 TexCoord0 : TEXCOORD0;\n"
-            "};\n"
-            "\n"
-            "struct PS_INPUT\n"
-            "{\n"
-            "	float4 Position : SV_POSITION;\n"
-            "	float2 TexCoord0 : TEXCOORD0;\n"
-            "};\n"
-            "\n"
-            "PS_INPUT mainVS(VS_INPUT input)\n"
-            "{\n"
-            "	float4 position = float4(input.Position, 0.f, 1.0f);\n"
-            "\n"
-            "	PS_INPUT output = (PS_INPUT)0;\n"
-            "	output.Position = mul(uMVP, position);\n"
-            "	output.TexCoord0 = input.TexCoord0 * uTextureRect.zw + uTextureRect.xy;\n"
-            "	output.TexCoord0 = float2(output.TexCoord0.x, 1.0f - output.TexCoord0.y);\n"
-            "\n"
-            "	return output;\n"
-            "}"
-            "\n"
-            "float4 mainPS(PS_INPUT input) : SV_TARGET\n"
-            "{\n"
-            "	float4 yuv;\n"
-            "	yuv.r = Texture0.Sample(Sampler0, input.TexCoord0).r;\n"
-            "	yuv.gb = Texture1.Sample(Sampler0, input.TexCoord0).rg;\n"
-            "\n"
-            "	float4 rgb = float4(0.0f, 0.0f, 0.0f, 1.0f);\n"
-            "	rgb.r = yuv.r + 1.140f * (yuv.b - (128.0f / 255.0f));\n"
-            "	rgb.g = yuv.r - 0.395f * (yuv.g - (128.0f / 255.0f)) - 0.581f * (yuv.b - (128.0f / 255.0f));\n"
-            "	rgb.b = yuv.r + 2.028f * (yuv.g - (128.0f / 255.0f));\n"
-            "\n"
-            "	return rgb;\n"
-            "}\n";
+            R"(
+                #define TEXTURE_RGB 0
+                #define TEXTURE_RGBA 1
+                #define TEXTURE_RGB_422_APPLE 2
+                #define TEXTURE_YUV_420 3
+                #define TEXTURE_NV12 4
+
+                float4 uTextureRect;
+                matrix uMVP;
+                matrix uST;
+            
+                Texture2D Texture0;
+                Texture2D Texture1;
+                SamplerState Sampler0;
+
+                uniform float uSrcOpacity;
+                uniform int uPixelFormat;
+
+            
+                struct VS_INPUT
+                {
+            	    float2 Position : POSITION;
+            	    float2 TexCoord0 : TEXCOORD0;
+                };
+            
+                struct PS_INPUT
+                {
+            	    float4 Position : SV_POSITION;
+            	    float2 TexCoord0 : TEXCOORD0;
+                };
+            
+                PS_INPUT mainVS(VS_INPUT input)
+                {
+            	    float4 position = float4(input.Position, 0.f, 1.0f);
+            
+            	    PS_INPUT output = (PS_INPUT)0;
+            	    output.Position = mul(uMVP, position);
+            	    output.TexCoord0 = input.TexCoord0 * uTextureRect.zw + uTextureRect.xy;
+            	    output.TexCoord0 = float2(output.TexCoord0.x, 1.0f - output.TexCoord0.y);
+            
+            	    return output;
+                }
+            
+                float4 mainPS(PS_INPUT input) : SV_TARGET
+                {
+                    float4 output = float4(0.0f, 0.0f, 0.0f, uSrcOpacity);
+
+                    if (uPixelFormat == TEXTURE_NV12) {
+            	        float4 yuv;
+            	        yuv.r = Texture0.Sample(Sampler0, input.TexCoord0).r;
+            	        yuv.gb = Texture1.Sample(Sampler0, input.TexCoord0).rg;
+            
+            	        output.r = yuv.r + 1.140f * (yuv.b - (128.0f / 255.0f));
+            	        output.g = yuv.r - 0.395f * (yuv.g - (128.0f / 255.0f)) - 0.581f * (yuv.b - (128.0f / 255.0f));
+            	        output.b = yuv.r + 2.028f * (yuv.g - (128.0f / 255.0f));
+                    } else {
+                        // expect RGB or RGBA input
+                        output.rgb = Texture0.Sample(Sampler0, input.TexCoord0).rgb;
+                    }
+
+                    return output;
+                 }
+            )";
 
         handle = RenderBackend::createShader(shader, shader);
         OMAF_ASSERT(handle != ShaderID::Invalid, "");
@@ -523,6 +546,12 @@ void_t IdentityRenderer::Shader::create(VideoPixelFormat::Enum textureFormat)
 
     stConstant = RenderBackend::createShaderConstant(handle, "uST", ShaderConstantType::MATRIX44);
     OMAF_ASSERT(stConstant != ShaderConstantID::Invalid, "");
+
+    opacityConstant = RenderBackend::createShaderConstant(handle, "uSrcOpacity", ShaderConstantType::FLOAT);
+    OMAF_ASSERT(opacityConstant != ShaderConstantID::Invalid, "");
+
+    pixelFormatConstant = RenderBackend::createShaderConstant(handle, "uPixelFormat", ShaderConstantType::INTEGER);
+    OMAF_ASSERT(pixelFormatConstant != ShaderConstantID::Invalid, "");
 }
 
 void_t IdentityRenderer::Shader::bind()
@@ -558,6 +587,12 @@ void_t IdentityRenderer::Shader::destroy()
         RenderBackend::destroyShaderConstant(sourceConstant);
         sourceConstant = ShaderConstantID::Invalid;
 
+        RenderBackend::destroyShaderConstant(pixelFormatConstant);
+        pixelFormatConstant = ShaderConstantID::Invalid;
+
+        RenderBackend::destroyShaderConstant(opacityConstant);
+        opacityConstant = ShaderConstantID::Invalid;
+
         RenderBackend::destroyShader(handle);
         handle = ShaderID::Invalid;
     }
@@ -566,6 +601,16 @@ void_t IdentityRenderer::Shader::destroy()
 bool_t IdentityRenderer::Shader::isValid()
 {
     return (handle != ShaderID::Invalid);
+}
+
+void_t IdentityRenderer::Shader::setPixelFormatConstant(VideoPixelFormat::Enum pixelFormat)
+{
+    RenderBackend::setShaderConstant(handle, pixelFormatConstant, &pixelFormat);
+}
+
+void_t IdentityRenderer::Shader::setOpacityConstant(float32_t opacity)
+{
+    RenderBackend::setShaderConstant(handle, opacityConstant, &opacity);
 }
 
 void_t IdentityRenderer::Shader::setSourceYConstant(uint32_t textureSampler)

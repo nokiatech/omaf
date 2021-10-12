@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -226,10 +226,6 @@ void DecodePts::applyEditList()
 bool DecodePts::unravel()
 {
     bool success = true;
-
-    /** @todo Currently it has been assumed that only version 0 entries are used
-     * in the time to sample box. To be more generic the getSampleTimes method
-     * in TimeToSample box has to be templated. */
 
     // First fetch the decode time stamps
     Vector<std::uint32_t> mediaDtsTS;

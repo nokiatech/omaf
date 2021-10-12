@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,47 +14,46 @@
  */
 #pragma once
 
-#include "NVRNamespace.h"
 #include "Graphics/NVRHandles.h"
 #include "Graphics/NVRStreamBuffer.h"
 #include "Math/OMAFVector2.h"
+#include "NVRNamespace.h"
 #include "Renderer/NVRVideoShader.h"
 
 OMAF_NS_BEGIN
-    class EquirectangularMask
+class EquirectangularMask
+{
+public:
+    EquirectangularMask();
+    ~EquirectangularMask();
+
+    void_t create();
+    void_t destroy();
+    void_t updateClippingAreas(const ClipArea* clippingAreas, const int16_t clipAreaCount);
+
+    TextureID getMaskTexture();
+
+private:
+    void_t createRenderTarget();
+    void_t createShader();
+
+    TextureID colorAttachment;
+    RenderTargetID mRenderTarget;
+
+    VideoShader mShader;
+
+    TextureID mTextureHandle;
+    bool_t mValidMask;
+
+    struct Vertex
     {
-        public:
-
-            EquirectangularMask();
-            ~EquirectangularMask();
-
-            void_t create();
-            void_t destroy();
-            void_t updateClippingAreas(const ClipArea* clippingAreas, const int16_t clipAreaCount);
-
-            TextureID getMaskTexture();
-
-        private:
-            void_t createRenderTarget();
-            void_t createShader();
-
-            TextureID colorAttachment;
-            RenderTargetID mRenderTarget;
-
-            VideoShader mShader;
-
-            TextureID mTextureHandle;
-            bool_t mValidMask;
-
-            struct Vertex
-            {
-                float32_t x;
-                float32_t y;
-                float32_t opacity;
-            };
-
-            StreamBuffer<Vertex> mVertexStream;
-
-            VertexBufferID mVertexBuffer;
+        float32_t x;
+        float32_t y;
+        float32_t opacity;
     };
+
+    StreamBuffer<Vertex> mVertexStream;
+
+    VertexBufferID mVertexBuffer;
+};
 OMAF_NS_END

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,33 +16,30 @@
 
 #include "NVREssentials.h"
 
+#include "Foundation/NVRHashFunctions.h"
 #include "Graphics/NVRDependencies.h"
 #include "Graphics/NVRShaderConstantType.h"
-#include "Foundation/NVRHashFunctions.h"
 
 OMAF_NS_BEGIN
-    class ShaderConstantD3D11
-    {
-        public:
+class ShaderConstantD3D11
+{
+public:
+    ShaderConstantD3D11();
+    ~ShaderConstantD3D11();
 
-            ShaderConstantD3D11();
-            ~ShaderConstantD3D11();
+    HashValue getHandle() const;
 
-            HashValue getHandle() const;
+    bool_t create(const char_t* name, ShaderConstantType::Enum type);
+    void_t destroy();
 
-            bool_t create(const char_t* name, ShaderConstantType::Enum type);
-            void_t destroy();
+    ShaderConstantType::Enum getType() const;
 
-            ShaderConstantType::Enum getType() const;
+private:
+    OMAF_NO_ASSIGN(ShaderConstantD3D11);
+    OMAF_NO_COPY(ShaderConstantD3D11);
 
-        private:
-
-            OMAF_NO_ASSIGN(ShaderConstantD3D11);
-            OMAF_NO_COPY(ShaderConstantD3D11);
-
-        private:
-
-            HashValue mHandle;
-            ShaderConstantType::Enum mType;
-    };
+private:
+    HashValue mHandle;
+    ShaderConstantType::Enum mType;
+};
 OMAF_NS_END

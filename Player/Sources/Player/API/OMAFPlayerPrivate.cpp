@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,9 +16,12 @@
 
 #include "buildinfo.hpp"
 
-#include "Graphics/NVRRenderBackend.h"
-#include "Foundation/NVRLogger.h"
+#include "Foundation/NVRArray.h"
 #include "Foundation/NVRDeviceInfo.h"
+#include "Foundation/NVRLogger.h"
+
+#include "Graphics/NVRRenderBackend.h"
+
 
 namespace OMAF
 {
@@ -55,20 +58,31 @@ namespace OMAF
             OMAF_LOG_E("Unsupported device or OS");
             return NULL;
         }
-        // TODO: We should organize data types so that we can remove all convertions
         Private::RendererType::Enum rendererType = Private::RendererType::INVALID;
 
         switch (graphicsAPI)
         {
-            case OMAF::GraphicsAPI::OPENGL:      rendererType = Private::RendererType::OPENGL; break;
-            case OMAF::GraphicsAPI::OPENGL_ES:   rendererType = Private::RendererType::OPENGL_ES; break;
-            case OMAF::GraphicsAPI::VULKAN:      rendererType = Private::RendererType::VULKAN; break;
-            case OMAF::GraphicsAPI::METAL:       rendererType = Private::RendererType::METAL; break;
-            case OMAF::GraphicsAPI::D3D11:       rendererType = Private::RendererType::D3D11; break;
-            case OMAF::GraphicsAPI::D3D12:       rendererType = Private::RendererType::D3D12; break;
-            default:
-                OMAF_ASSERT_UNREACHABLE();
-                break;
+        case OMAF::GraphicsAPI::OPENGL:
+            rendererType = Private::RendererType::OPENGL;
+            break;
+        case OMAF::GraphicsAPI::OPENGL_ES:
+            rendererType = Private::RendererType::OPENGL_ES;
+            break;
+        case OMAF::GraphicsAPI::VULKAN:
+            rendererType = Private::RendererType::VULKAN;
+            break;
+        case OMAF::GraphicsAPI::METAL:
+            rendererType = Private::RendererType::METAL;
+            break;
+        case OMAF::GraphicsAPI::D3D11:
+            rendererType = Private::RendererType::D3D11;
+            break;
+        case OMAF::GraphicsAPI::D3D12:
+            rendererType = Private::RendererType::D3D12;
+            break;
+        default:
+            OMAF_ASSERT_UNREACHABLE();
+            break;
         }
 
         // Initialize SDK
@@ -91,22 +105,22 @@ namespace OMAF
     }
 
     OmafPlayerPrivate::OmafPlayerPrivate()
-    : mAllocator(*Private::MemorySystem::DefaultHeapAllocator())
-    , mVideoProvider(OMAF_NULL)
-    , mRenderingManager(OMAF_NULL)
-    , mAudioRenderer(OMAF_NULL)
-    , mAudioBackend(OMAF_NULL)
-    , mSuspended(false)
-    , mElapsedTimeAtSuspend(OMAF_UINT64_MAX)
+        : mAllocator(*Private::MemorySystem::DefaultHeapAllocator())
+        , mVideoProvider(OMAF_NULL)
+        , mRenderingManager(OMAF_NULL)
+        , mAudioRenderer(OMAF_NULL)
+        , mAudioBackend(OMAF_NULL)
+        , mSuspended(false)
+        , mElapsedTimeAtSuspend(OMAF_UINT64_MAX)
+        , mUserActions(mAllocator)
     {
-
         uint16_t major = BuildInfo::VersionMajor;
         uint16_t minor = BuildInfo::VersionMinor;
         uint16_t revision = BuildInfo::VersionRevision;
         static char_t version[20];
         sprintf(version, "%d.%d.%d", major, minor, revision);
 
-        Private::MemoryZero(&mAudioState,OMAF_SIZE_OF(mAudioState));
+        Private::MemoryZero(&mAudioState, OMAF_SIZE_OF(mAudioState));
         initialize();
     }
 
@@ -150,7 +164,6 @@ namespace OMAF
 
         destroyRenderingManager(mRenderingManager);
         mRenderingManager = OMAF_NULL;
-
     }
 
     void_t OmafPlayerPrivate::resume()
@@ -186,7 +199,7 @@ namespace OMAF
             {
                 pause();
             }
-            
+
             if (state != VideoPlaybackState::IDLE)
             {
                 mElapsedTimeAtSuspend = elapsedTime();
@@ -234,22 +247,26 @@ namespace OMAF
         return this;
     }
 
+    const Quaternion OmafPlayerPrivate::viewingOrientationOffset() const
+    {
+        return mVideoProvider->viewingOrientationOffset();
+    }
+
     Version OmafPlayerPrivate::getVersionNumber()
     {
-        //TODO: These should come somehow from build automation
         Version version;
         version.major = BuildInfo::VersionMajor;
         version.minor = BuildInfo::VersionMinor;
         version.revision = BuildInfo::VersionRevision;
 
-        //Build a magic hash from the version string so it's not optimized out.
+        // Build a magic hash from the version string so it's not optimized out.
         uint8_t crc = 0;
         size_t i;
         for (i = 0; i < sizeof(BuildInfo::Version); ++i)
         {
             crc ^= BuildInfo::Version[i];
         }
-        //Also add the timestamp
+        // Also add the timestamp
         for (i = 0; i < sizeof(BuildInfo::Time); ++i)
         {
             crc ^= BuildInfo::Time[i];
@@ -312,7 +329,8 @@ namespace OMAF
         return initializeAudioWithDirectRouting(allowExclusiveMode, NULL);
     }
 
-    Result::Enum OmafPlayerPrivate::initializeAudioWithDirectRouting(bool_t allowExclusiveMode, const wchar_t* audioDevice)
+    Result::Enum OmafPlayerPrivate::initializeAudioWithDirectRouting(bool_t allowExclusiveMode,
+                                                                     const wchar_t* audioDevice)
     {
         if (mSuspended)
         {
@@ -321,7 +339,7 @@ namespace OMAF
 
         if (mAudioBackend)
         {
-            //already initialized... (resume initializes the audiodevice already.. )
+            // already initialized... (resume initializes the audiodevice already.. )
             return OMAF::Result::INVALID_STATE;
         }
 
@@ -338,7 +356,7 @@ namespace OMAF
             mAudioState.useDirectRouting = true;
             mAudioState.initialized = true;
         }
-        
+
         return convertResult(result);
     }
 
@@ -377,7 +395,9 @@ namespace OMAF
         return AudioReturnValue::INVALID;
     }
 
-    AudioReturnValue::Enum OmafPlayerPrivate::renderSamples(size_t bufferSize, int16_t* samples, size_t& samplesRendered)
+    AudioReturnValue::Enum OmafPlayerPrivate::renderSamples(size_t bufferSize,
+                                                            int16_t* samples,
+                                                            size_t& samplesRendered)
     {
         return AudioReturnValue::INVALID;
     }
@@ -387,12 +407,13 @@ namespace OMAF
         return;
     }
 
-    void_t OmafPlayerPrivate::setHeadTransform(const HeadTransform &headTransform)
+    void_t OmafPlayerPrivate::setHeadTransform(const HeadTransform& headTransform)
     {
         return;
     }
 
-    uint32_t OmafPlayerPrivate::createRenderTarget(const RenderTextureDesc* colorAttachment, const RenderTextureDesc* depthStencilAttachment)
+    uint32_t OmafPlayerPrivate::createRenderTarget(const RenderTextureDesc* colorAttachment,
+                                                   const RenderTextureDesc* depthStencilAttachment)
     {
         if (mSuspended)
         {
@@ -410,14 +431,20 @@ namespace OMAF
         mRenderingManager->destroyRenderTarget(handle);
     }
 
-    void OmafPlayerPrivate::renderSurfaces(const HeadTransform& aHeadTransform, const RenderSurface** aRenderSurfaces, uint8_t aNumRenderSurfaces, const bool aDisplayWaterMark)
+    void OmafPlayerPrivate::renderSurfaces(const HeadTransform& aHeadTransform,
+                                           const RenderSurface** aRenderSurfaces,
+                                           uint8_t aNumRenderSurfaces,
+                                           const bool aDisplayWaterMark)
     {
         RenderingParameters params;
         params.displayWaterMark = aDisplayWaterMark;
         renderSurfaces(aHeadTransform, aRenderSurfaces, aNumRenderSurfaces, params);
     }
 
-    void OmafPlayerPrivate::renderSurfaces(const HeadTransform& aHeadTransform, const RenderSurface** aRenderSurfaces, uint8_t aNumRenderSurfaces, const RenderingParameters& aRenderingParameters)
+    void OmafPlayerPrivate::renderSurfaces(const HeadTransform& aHeadTransform,
+                                           const RenderSurface** aRenderSurfaces,
+                                           uint8_t aNumRenderSurfaces,
+                                           const RenderingParameters& aRenderingParameters)
     {
         if (mSuspended)
         {
@@ -425,18 +452,18 @@ namespace OMAF
         }
 
         Private::RenderBackend::activate();
-        
+
         mRenderingManager->prepareRender(aHeadTransform, aRenderingParameters);
-        
+
         for (uint8_t s = 0; s < aNumRenderSurfaces; ++s)
         {
             const RenderSurface& surface = *aRenderSurfaces[s];
-            
+
             mRenderingManager->render(aHeadTransform, surface, aRenderingParameters);
         }
-        
+
         mRenderingManager->finishRender();
-        
+
         Private::RenderBackend::deactivate();
     }
 
@@ -453,7 +480,12 @@ namespace OMAF
         return convertVideoPlaybackState(mVideoProvider->getState());
     }
 
-    Result::Enum OmafPlayerPrivate::loadVideo(const char *uri, uint64_t initialPositionMS)
+    OMAF::OverlayState OmafPlayerPrivate::getOverlayState(uint32_t ovlyId) const
+    {
+        return mVideoProvider->overlayState(ovlyId);
+    }
+
+    Result::Enum OmafPlayerPrivate::loadVideo(const char* uri, uint64_t initialPositionMS)
     {
         if (!mAudioState.initialized || mVideoProvider == OMAF_NULL)
         {
@@ -469,7 +501,7 @@ namespace OMAF
                 mLastLoadedVideo = uriPath;
                 mRenderingManager->initialize(mVideoProvider);
             }
-
+            mUserActions.clear();
             return convertResult(result);
         }
     }
@@ -508,7 +540,6 @@ namespace OMAF
         return convertResult(mVideoProvider->stop());
     }
 
-
     Result::Enum OmafPlayerPrivate::next()
     {
         if (mSuspended)
@@ -518,85 +549,28 @@ namespace OMAF
         return convertResult(mVideoProvider->next());
     }
 
-    Result::Enum OmafPlayerPrivate::loadAuxiliaryVideo(const char *uri)
-    {
-        if (!mAudioState.initialized || mVideoProvider == OMAF_NULL)
-        {
-            return OMAF::Result::INVALID_STATE;
-        }
-        else
-        {
-            Private::PathName uriPath = Private::PathName(uri);
-            Private::Error::Enum result = mVideoProvider->loadAuxiliaryStream(uriPath);
-            return convertResult(result);
-        }
-    }
-
-    Result::Enum OmafPlayerPrivate::playAuxiliary()
+    Result::Enum OmafPlayerPrivate::nextOverlayGroup()
     {
         if (mSuspended)
         {
             return Result::INVALID_STATE;
         }
 
-        Private::Error::Enum result = mVideoProvider->playAuxiliary();
-        return convertResult(result);
+        mVideoProvider->nextSourceGroup();
+
+        return Result::OK;
     }
 
-    Result::Enum OmafPlayerPrivate::pauseAuxiliary()
+    Result::Enum OmafPlayerPrivate::prevOverlayGroup()
     {
         if (mSuspended)
         {
             return Result::INVALID_STATE;
         }
 
-        Private::Error::Enum result = mVideoProvider->pauseAuxiliary();
-        return convertResult(result);
-    }
+        mVideoProvider->prevSourceGroup();
 
-    Result::Enum OmafPlayerPrivate::stopAuxiliary()
-    {
-        if (mSuspended)
-        {
-            return Result::INVALID_STATE;
-        }
-        return convertResult(mVideoProvider->stopAuxiliary());
-    }
-
-    Result::Enum  OmafPlayerPrivate::seekToAuxiliary(uint64_t aMilliSeconds)
-    {
-        if (mSuspended)
-        {
-            return Result::INVALID_STATE;
-        }
-        return convertResult(mVideoProvider->seekToMsAuxiliary(aMilliSeconds));
-    }
-
-    VideoPlaybackState::Enum OmafPlayerPrivate::getAuxiliaryVideoPlaybackState()
-    {
-        if (mSuspended)
-        {
-            return VideoPlaybackState::INVALID;
-        }
-        return convertVideoPlaybackState(mVideoProvider->getAuxiliaryState());
-    }
-
-    uint64_t OmafPlayerPrivate::elapsedTimeAuxiliary()
-    {
-        if (mSuspended)
-        {
-            return 0;
-        }
-        return mVideoProvider->elapsedTimeMsAuxiliary();
-    }
-
-    uint64_t OmafPlayerPrivate::durationAuxiliary()
-    {
-        if (mSuspended)
-        {
-            return 0;
-        }
-        return mVideoProvider->durationMsAuxiliary();
+        return Result::OK;
     }
 
     bool_t OmafPlayerPrivate::isSeekable()
@@ -607,6 +581,145 @@ namespace OMAF
         }
 
         return mVideoProvider->isSeekable();
+    }
+
+    static void fillActionRegion(UserAction& act, uint32_t aOverlayId, Private::OverlaySource* regionOvly)
+    {
+        act.overlayId = aOverlayId;
+
+        if (regionOvly->overlayParameters.sphereRelative2DOverlay.doesExist)
+        {
+            act.actionRegion.type = ActionRegionType::SPHERE_RELATIVE_2D;
+            auto& ovlyReg = regionOvly->overlayParameters.sphereRelative2DOverlay;
+            act.actionRegion.centerLatitude = (float) ovlyReg.sphereRegion.centreElevation / 65536.0;
+            act.actionRegion.centerLongitude = (float) ovlyReg.sphereRegion.centreAzimuth / 65536.0;
+            act.actionRegion.spanLatitude = (float) ovlyReg.sphereRegion.elevationRange / 65536.0;
+            act.actionRegion.spanLongitude = (float) ovlyReg.sphereRegion.azimuthRange / 65536.0;
+
+            act.actionRegion.yaw = ovlyReg.overlayRotation.yaw;
+            act.actionRegion.pitch = ovlyReg.overlayRotation.pitch;
+            act.actionRegion.roll = ovlyReg.overlayRotation.roll;
+        }
+
+        if (regionOvly->overlayParameters.sphereRelativeOmniOverlay.doesExist)
+        {
+            act.actionRegion.type = ActionRegionType::SPHERE_RELATIVE_OMNI;
+            auto& ovlyReg = regionOvly->overlayParameters.sphereRelativeOmniOverlay;
+            act.actionRegion.centerLatitude = (float) ovlyReg.sphereRegion.centreElevation / 65536.0;
+            act.actionRegion.centerLongitude = (float) ovlyReg.sphereRegion.centreAzimuth / 65536.0;
+            act.actionRegion.spanLatitude = (float) ovlyReg.sphereRegion.elevationRange / 65536.0;
+            act.actionRegion.spanLongitude = (float) ovlyReg.sphereRegion.azimuthRange / 65536.0;
+
+            act.actionRegion.yaw = 0;
+            act.actionRegion.pitch = 0;
+            act.actionRegion.roll = ovlyReg.sphereRegion.elevationRange / 65536.0;
+        }
+    }
+
+    IArray<UserAction>& OmafPlayerPrivate::getUserActions()
+    {
+        mVideoProvider->enter();
+        const Private::CoreProviderSources& sources = mVideoProvider->getAllSources();
+        if (sources.isEmpty())
+        {
+            // not ready yet
+            // OMAF_LOG_D("Not able to get any sources yet");
+        }
+
+        // always complete recreate
+        mUserActions.clear();
+
+        for (Private::CoreProviderSource* source : sources)
+        {
+            if (source->type == Private::SourceType::OVERLAY)
+            {
+                Private::OverlaySource* ovlySource = (Private::OverlaySource*) (source);
+
+                // depth modify action area for sphere relative overlays
+                if (ovlySource->overlayParameters.sphereRelative2DOverlay.doesExist ||
+                    ovlySource->overlayParameters.sphereRelativeOmniOverlay.doesExist)
+                {
+                    UserAction act{};
+                    fillActionRegion(act, ovlySource->overlayParameters.overlayId, ovlySource);
+                    act.canUpdateDistance = true;
+                    mUserActions.add(act);
+                }
+
+				if (ovlySource->overlayParameters.associatedSphereRegion.doesExist)
+                {
+                    // create action region for associasted sphere region
+                    UserAction act{};
+
+                    act.overlayId = ovlySource->overlayParameters.overlayId;
+
+                    act.actionRegion.type = ActionRegionType::SPHERE_RELATIVE_2D;
+
+                    auto& ovlyReg = ovlySource->overlayParameters.associatedSphereRegion;
+                    act.actionRegion.centerLatitude = (float) ovlyReg.sphereRegion.centreElevation / 65536.0;
+                    act.actionRegion.centerLongitude = (float) ovlyReg.sphereRegion.centreAzimuth / 65536.0;
+                    act.actionRegion.spanLatitude = (float) ovlyReg.sphereRegion.elevationRange / 65536.0;
+                    act.actionRegion.spanLongitude = (float) ovlyReg.sphereRegion.azimuthRange / 65536.0;
+
+                    act.actionRegion.yaw = 0;
+                    act.actionRegion.pitch = 0;
+                    act.actionRegion.roll = 0;
+
+                    act.canActivate = true;
+                    mUserActions.add(act);
+                }
+            }
+        }
+        // then check the viewpoints
+        Private::ViewpointSwitchControls vpControls;
+        mVideoProvider->getViewpointUserControls(vpControls);
+        for (Private::ViewpointSwitchControl& control : vpControls)
+        {
+            // create action region
+            UserAction act{};
+            // switch takes place
+
+            act.destinationViewpointId = control.destinationViewpointId;
+            // find overlay based on the overlay ID
+            bool_t found = false;
+            for (Private::CoreProviderSource* source : sources)
+            {
+                if (source->type == Private::SourceType::OVERLAY)
+                {
+                    Private::OverlaySource* ovlySource = (Private::OverlaySource*) (source);
+
+                    if (control.viewpointSwitchRegion.refOverlayId == ovlySource->overlayParameters.overlayId)
+                    {
+                        fillActionRegion(act, ovlySource->overlayParameters.overlayId, ovlySource);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (found)
+            {
+                act.canSwitchViewpoint = true;
+                mUserActions.add(act);
+            }
+            else
+            {
+                OMAF_LOG_V("Overlay for viewpoint switching not found!");
+            }
+        }
+
+        mVideoProvider->leave();
+
+        return mUserActions;
+    }
+
+    /**
+     * Maybe this thing could be extended to support other type of actions too at some point,
+     * but right now the whole UserAction description stuff is designed only for controlling overlays,
+     * including switching viewpoints via overlay.
+     */
+    Result::Enum OmafPlayerPrivate::runUserAction(const OverlayControl& cmd)
+    {
+        return convertResult(mVideoProvider->controlOverlay(cmd));
     }
 
     Result::Enum OmafPlayerPrivate::seekTo(uint64_t milliSeconds, OMAF::SeekAccuracy::Enum accuracy)
@@ -655,11 +768,4 @@ namespace OMAF
         }
     }
 
-    void_t OmafPlayerPrivate::setAudioVolumeAuxiliary(float aVolume)
-    {
-        if (mAudioRenderer != OMAF_NULL)
-        {
-            mAudioRenderer->setAudioVolumeAuxiliary(aVolume);
-        }
-    }
-}
+}  // namespace OMAF

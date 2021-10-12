@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -32,18 +32,16 @@ RestrictedSchemeInfoBox::RestrictedSchemeInfoBox()
 
 RestrictedSchemeInfoBox::RestrictedSchemeInfoBox(const RestrictedSchemeInfoBox& box)
     : Box(box)
-    , mOriginalFormatBox(box.mOriginalFormatBox ? std::move(makeCustomUnique<OriginalFormatBox, OriginalFormatBox>(
-                                                      *box.mOriginalFormatBox))
-                                                : nullptr)
-    , mSchemeTypeBox(box.mSchemeTypeBox ? std::move(makeCustomUnique<SchemeTypeBox, SchemeTypeBox>(*box.mSchemeTypeBox))
-                                        : nullptr)
+    , mOriginalFormatBox(box.mOriginalFormatBox
+                             ? makeCustomUnique<OriginalFormatBox, OriginalFormatBox>(*box.mOriginalFormatBox)
+                             : nullptr)
+    , mSchemeTypeBox(box.mSchemeTypeBox ? makeCustomUnique<SchemeTypeBox, SchemeTypeBox>(*box.mSchemeTypeBox) : nullptr)
     , mProjectedOmniVideoBox(
           box.mProjectedOmniVideoBox
-              ? std::move(makeCustomUnique<ProjectedOmniVideoBox, ProjectedOmniVideoBox>(*box.mProjectedOmniVideoBox))
+              ? makeCustomUnique<ProjectedOmniVideoBox, ProjectedOmniVideoBox>(*box.mProjectedOmniVideoBox)
               : nullptr)
-    , mStereoVideoBox(box.mStereoVideoBox
-                          ? std::move(makeCustomUnique<StereoVideoBox, StereoVideoBox>(*box.mStereoVideoBox))
-                          : nullptr)
+    , mStereoVideoBox(box.mStereoVideoBox ? makeCustomUnique<StereoVideoBox, StereoVideoBox>(*box.mStereoVideoBox)
+                                          : nullptr)
 {
     for (auto& schemeTypeBox : box.mCompatibleSchemeTypes)
     {
@@ -111,12 +109,12 @@ void RestrictedSchemeInfoBox::parseBox(BitStream& bitstr)
 
         if (boxType == "frma")
         {
-            mOriginalFormatBox = std::move(makeCustomUnique<OriginalFormatBox, OriginalFormatBox>());
+            mOriginalFormatBox = makeCustomUnique<OriginalFormatBox, OriginalFormatBox>();
             mOriginalFormatBox->parseBox(subBitstr);
         }
         else if (boxType == "schm")
         {
-            mSchemeTypeBox = std::move(makeCustomUnique<SchemeTypeBox, SchemeTypeBox>());
+            mSchemeTypeBox = makeCustomUnique<SchemeTypeBox, SchemeTypeBox>();
             mSchemeTypeBox->parseBox(subBitstr);
         }
         else if (boxType == "csch")
@@ -150,13 +148,13 @@ void RestrictedSchemeInfoBox::parseBox(BitStream& bitstr)
                     if (subSchiBoxType == "povd")
                     {
                         mProjectedOmniVideoBox =
-                            std::move(makeCustomUnique<ProjectedOmniVideoBox, ProjectedOmniVideoBox>());
+                            makeCustomUnique<ProjectedOmniVideoBox, ProjectedOmniVideoBox>();
                         mProjectedOmniVideoBox->parseBox(subSchiBitstr);
                     }
 
                     if (subSchiBoxType == "stvi")
                     {
-                        mStereoVideoBox = std::move(makeCustomUnique<StereoVideoBox, StereoVideoBox>());
+                        mStereoVideoBox = makeCustomUnique<StereoVideoBox, StereoVideoBox>();
                         mStereoVideoBox->parseBox(subSchiBitstr);
                     }
                 }

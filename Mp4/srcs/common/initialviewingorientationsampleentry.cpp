@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -42,6 +42,4 @@ void InitialViewingOrientation::parseBox(BitStream& bitstr)
 InitialViewingOrientation::InitialViewingOrientationSample::InitialViewingOrientationSample()
     : SphereRegionSample()
 {
-    // add automatically the only region there ever should be
-    regions.push_back(SphereRegion());
 }

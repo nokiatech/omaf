@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,15 +16,15 @@
 
 #include <list>
 #include <vector>
+#include <initializer_list>
 
 #include "processornodebase.h"
 
 #include "processor/data.h"
+#include "processor/streams.h"
 
 namespace VDD
 {
-    typedef std::vector<Data> Views;
-
     /** @brief A processor that runs in its own thread, maybe receives
         input data and produces output data.
 
@@ -56,7 +56,7 @@ namespace VDD
             each output stream an empty Data() (default-constructed Data)
             is returned.
         */
-        virtual std::vector<Views> process(const Views& data) = 0;
+        virtual std::vector<Streams> process(const Streams& data) = 0;
     };
 
 #ifdef FUTURE

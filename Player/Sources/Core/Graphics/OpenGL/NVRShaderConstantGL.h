@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,35 +16,32 @@
 
 #include "NVREssentials.h"
 
+#include "Foundation/NVRHashFunctions.h"
 #include "Graphics/NVRDependencies.h"
 #include "Graphics/NVRShaderConstantType.h"
-#include "Foundation/NVRHashFunctions.h"
 
 OMAF_NS_BEGIN
 
 class ShaderConstantGL
 {
-    public:
-        
-        ShaderConstantGL();
-        ~ShaderConstantGL();
-    
-        HashValue getHandle() const;
-    
-        bool_t create(const char_t* name, ShaderConstantType::Enum type);
-        void_t destroy();
-    
-        ShaderConstantType::Enum getType() const;
-    
-    private:
-    
-        OMAF_NO_ASSIGN(ShaderConstantGL);
-        OMAF_NO_COPY(ShaderConstantGL);
-    
-    private:
-  
-        HashValue mHandle;
-        ShaderConstantType::Enum mType;
+public:
+    ShaderConstantGL();
+    ~ShaderConstantGL();
+
+    HashValue getHandle() const;
+
+    bool_t create(const char_t* name, ShaderConstantType::Enum type);
+    void_t destroy();
+
+    ShaderConstantType::Enum getType() const;
+
+private:
+    OMAF_NO_ASSIGN(ShaderConstantGL);
+    OMAF_NO_COPY(ShaderConstantGL);
+
+private:
+    HashValue mHandle;
+    ShaderConstantType::Enum mType;
 };
 
 OMAF_NS_END

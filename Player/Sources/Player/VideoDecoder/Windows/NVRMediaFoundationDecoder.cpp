@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,14 +13,15 @@
  * written consent of Nokia.
  */
 #include "VideoDecoder/Windows/NVRMediaFoundationDecoder.h"
-#include "VideoDecoder/Windows/NVRMediaFoundationDecoderHW.h"
-#include "Foundation/NVRTime.h"
 #include "Foundation/NVRLogger.h"
+#include "Foundation/NVRTime.h"
+#include "VideoDecoder/Windows/NVRMediaFoundationDecoderHW.h"
 OMAF_NS_BEGIN
 OMAF_LOG_ZONE(MediaFoundationDecoder)
 MediaFoundationDecoder::MediaFoundationDecoder()
 {
-    mInitialBufferingThreshold = 2;// 8;	// changed to 2 when doing latency optimizations and when enabling decoder buffering check again
+    // changed to 2 when doing latency optimizations and when enabling decoder buffering check again
+    mInitialBufferingThreshold = 2;	
 }
 
 MediaFoundationDecoder::~MediaFoundationDecoder()
@@ -42,7 +43,8 @@ VideoDecoderHW* MediaFoundationDecoder::reserveVideoDecoder(const DecoderConfig&
     for (FreeDecoders::Iterator it = mFreeDecoders.begin(); it != mFreeDecoders.end(); ++it)
     {
         const DecoderConfig& existingConfig = (*it)->getConfig();
-        if (config.mimeType == existingConfig.mimeType && config.width == existingConfig.width && config.height == existingConfig.height)
+        if (config.mimeType == existingConfig.mimeType && config.width == existingConfig.width &&
+            config.height == existingConfig.height)
         {
             decoder = *it;
             mFreeDecoders.remove(it);
@@ -66,7 +68,7 @@ VideoDecoderHW* MediaFoundationDecoder::reserveVideoDecoder(const DecoderConfig&
 
 void_t MediaFoundationDecoder::releaseVideoDecoder(VideoDecoderHW* decoder)
 {
-    mFreeDecoders.add((MediaFoundationDecoderHW*)decoder);
+    mFreeDecoders.add((MediaFoundationDecoderHW*) decoder);
 }
 
 OMAF_NS_END

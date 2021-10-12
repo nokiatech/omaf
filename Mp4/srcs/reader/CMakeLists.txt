@@ -2,7 +2,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -66,7 +66,6 @@ set(API_HDRS
     ../api/reader/mp4vrfilestreaminterface.h
     ../api/reader/mp4vrfilereaderinterface.h
     ../api/reader/mp4vrfiledatatypes.h
-    ../api/reader/mp4vrfileexport.h
     )
 
 set(READER_HDRS
@@ -156,7 +155,7 @@ endif(IOS)
 
 if(NOT IOS)
     set(MP4VR_LIB_NAME mp4vr_shared)
-    add_library(${MP4VR_LIB_NAME} SHARED ${READER_SRCS} ${API_HDRS} ${READER_HDRS} $<TARGET_OBJECTS:common_for_dll> )
+    add_library(${MP4VR_LIB_NAME} SHARED ${READER_SRCS} ${API_HDRS} ${READER_HDRS} $<TARGET_OBJECTS:common_for_dll> $<TARGET_OBJECTS:api_for_dll> )
     if (CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
       split_debug_info(${MP4VR_LIB_NAME})
     endif()

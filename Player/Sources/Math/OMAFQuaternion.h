@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,15 +14,15 @@
  */
 #pragma once
 
-#include "Math/OMAFMathTypes.h"
 #include "Math/OMAFMathConstants.h"
+#include "Math/OMAFMathTypes.h"
 
-#include "Math/OMAFVector3.h"
 #include <cassert>
+#include "Math/OMAFVector3.h"
 
 namespace OMAF
 {
-    static const Quaternion QuaternionIdentity = { 0.0f, 0.0f, 0.0f, 1.0f };
+    static const Quaternion QuaternionIdentity = {0.0f, 0.0f, 0.0f, 1.0f};
 
     OMAF_INLINE Quaternion makeQuaternion(float32_t x, float32_t y, float32_t z, float32_t w);
     OMAF_INLINE Quaternion makeQuaternion(float32_t x, float32_t y, float32_t z, EulerAxisOrder::Enum order);
@@ -45,26 +45,27 @@ namespace OMAF
     OMAF_INLINE float32_t length(const Quaternion& quaternion);
 
     OMAF_INLINE Vector3 rotate(const Quaternion& q, const Vector3& v);
-    
-    OMAF_INLINE void_t eulerAngles(const Quaternion& q, float32_t& yaw, float32_t& pitch, float32_t& roll, EulerAxisOrder::Enum order);
+
+    OMAF_INLINE void_t
+    eulerAngles(const Quaternion& q, float32_t& yaw, float32_t& pitch, float32_t& roll, EulerAxisOrder::Enum order);
     OMAF_INLINE float32_t yaw(const OMAF::Quaternion& q);
 
-    OMAF_INLINE Quaternion operator + (const Quaternion& l, const Quaternion& r);
-    OMAF_INLINE Quaternion operator - (const Quaternion& l, const Quaternion& r);
-    OMAF_INLINE Quaternion operator * (const Quaternion& l, const Quaternion& r);
-    OMAF_INLINE Quaternion operator / (const Quaternion& l, const Quaternion& r);
+    OMAF_INLINE Quaternion operator+(const Quaternion& l, const Quaternion& r);
+    OMAF_INLINE Quaternion operator-(const Quaternion& l, const Quaternion& r);
+    OMAF_INLINE Quaternion operator*(const Quaternion& l, const Quaternion& r);
+    OMAF_INLINE Quaternion operator/(const Quaternion& l, const Quaternion& r);
 
-    OMAF_INLINE Quaternion& operator += (Quaternion& l, const Quaternion& r);
-    OMAF_INLINE Quaternion& operator -= (Quaternion& l, const Quaternion& r);
-    OMAF_INLINE Quaternion& operator *= (Quaternion& l, const Quaternion& r);
-    OMAF_INLINE Quaternion& operator /= (Quaternion& l, const Quaternion& r);
-}
+    OMAF_INLINE Quaternion& operator+=(Quaternion& l, const Quaternion& r);
+    OMAF_INLINE Quaternion& operator-=(Quaternion& l, const Quaternion& r);
+    OMAF_INLINE Quaternion& operator*=(Quaternion& l, const Quaternion& r);
+    OMAF_INLINE Quaternion& operator/=(Quaternion& l, const Quaternion& r);
+}  // namespace OMAF
 
 namespace OMAF
 {
     Quaternion makeQuaternion(float32_t x, float32_t y, float32_t z, float32_t w)
     {
-        Quaternion result = { x, y, z, w };
+        Quaternion result = {x, y, z, w};
 
         return result;
     }
@@ -73,65 +74,65 @@ namespace OMAF
     {
         float32_t s = sinf(angle * 0.5f);
         float32_t c = cosf(angle * 0.5f);
-        
+
         return makeQuaternion(axis.x * s, axis.y * s, axis.z * s, c);
     }
 
     Quaternion makeQuaternion(float32_t x, float32_t y, float32_t z, EulerAxisOrder::Enum order)
     {
-        float xc = cosf(x * 0.5f);
-        float yc = cosf(y * 0.5f);
-        float zc = cosf(z * 0.5f);
-        
-        float xs = sinf(x * 0.5f);
-        float ys = sinf(y * 0.5f);
-        float zs = sinf(z * 0.5f);
-        
+        float c1 = cosf(x * 0.5f);
+        float c2 = cosf(y * 0.5f);
+        float c3 = cosf(z * 0.5f);
+
+        float s1 = sinf(x * 0.5f);
+        float s2 = sinf(y * 0.5f);
+        float s3 = sinf(z * 0.5f);
+
         Quaternion result;
-        
+
         if (order == EulerAxisOrder::XYZ)
         {
-            result.x = xs * yc * zc + xc * ys * zs;
-            result.y = xc * ys * zc - xs * yc * zs;
-            result.z = xc * yc * zs + xs * ys * zc;
-            result.w = xc * yc * zc - xs * ys * zs;
+            result.x = s1 * c2 * c3 + c1 * s2 * s3;
+            result.y = c1 * s2 * c3 - s1 * c2 * s3;
+            result.z = c1 * c2 * s3 + s1 * s2 * c3;
+            result.w = c1 * c2 * c3 - s1 * s2 * s3;
         }
         else if (order == EulerAxisOrder::YXZ)
         {
-            result.x = xs * yc * zc + xc * ys * zs;
-            result.y = xc * ys * zc - xs * yc * zs;
-            result.z = xc * yc * zs - xs * ys * zc;
-            result.w = xc * yc * zc + xs * ys * zs;
+            result.x = s1 * c2 * c3 + c1 * s2 * s3;
+            result.y = c1 * s2 * c3 - s1 * c2 * s3;
+            result.z = c1 * c2 * s3 - s1 * s2 * c3;
+            result.w = c1 * c2 * c3 + s1 * s2 * s3;
         }
         else if (order == EulerAxisOrder::ZXY)
         {
-            result.x = xs * yc * zc - xc * ys * zs;
-            result.y = xc * ys * zc + xs * yc * zs;
-            result.z = xc * yc * zs + xs * ys * zc;
-            result.w = xc * yc * zc - xs * ys * zs;
+            result.x = s1 * c2 * c3 - c1 * s2 * s3;
+            result.y = c1 * s2 * c3 + s1 * c2 * s3;
+            result.z = c1 * c2 * s3 + s1 * s2 * c3;
+            result.w = c1 * c2 * c3 - s1 * s2 * s3;
         }
         else if (order == EulerAxisOrder::ZYX)
         {
-            result.x = xs * yc * zc - xc * ys * zs;
-            result.y = xc * ys * zc + xs * yc * zs;
-            result.z = xc * yc * zs - xs * ys * zc;
-            result.w = xc * yc * zc + xs * ys * zs;
+            result.x = s1 * c2 * c3 - c1 * s2 * s3;
+            result.y = c1 * s2 * c3 + s1 * c2 * s3;
+            result.z = c1 * c2 * s3 - s1 * s2 * c3;
+            result.w = c1 * c2 * c3 + s1 * s2 * s3;
         }
         else if (order == EulerAxisOrder::YZX)
         {
-            result.x = xs * yc * zc + xc * ys * zs;
-            result.y = xc * ys * zc + xs * yc * zs;
-            result.z = xc * yc * zs - xs * ys * zc;
-            result.w = xc * yc * zc - xs * ys * zs;
+            result.x = s1 * c2 * c3 + c1 * s2 * s3;
+            result.y = c1 * s2 * c3 + s1 * c2 * s3;
+            result.z = c1 * c2 * s3 - s1 * s2 * c3;
+            result.w = c1 * c2 * c3 - s1 * s2 * s3;
         }
         else if (order == EulerAxisOrder::XZY)
         {
-            result.x = xs * yc * zc - xc * ys * zs;
-            result.y = xc * ys * zc - xs * yc * zs;
-            result.z = xc * yc * zs + xs * ys * zc;
-            result.w = xc * yc * zc + xs * ys * zs;
+            result.x = s1 * c2 * c3 - c1 * s2 * s3;
+            result.y = c1 * s2 * c3 - s1 * c2 * s3;
+            result.z = c1 * c2 * s3 + s1 * s2 * c3;
+            result.w = c1 * c2 * c3 + s1 * s2 * s3;
         }
-        
+
         return result;
     }
 
@@ -250,12 +251,12 @@ namespace OMAF
         result.x = -q.x * scale;
         result.y = -q.y * scale;
         result.z = -q.z * scale;
-        result.w =  q.w * scale;
+        result.w = q.w * scale;
     }
 
     void_t normalize(Quaternion& result, const Quaternion& q)
     {
-        float32_t invlength = 1.0f / sqrtf(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
+        float32_t invlength = 1.0f / sqrtf(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
 
         result.x *= invlength;
         result.y *= invlength;
@@ -278,7 +279,7 @@ namespace OMAF
         q.x = -q.x * scale;
         q.y = -q.y * scale;
         q.z = -q.z * scale;
-        q.w =  q.w * scale;
+        q.w = q.w * scale;
     }
 
     void_t normalize(Quaternion& q)
@@ -326,16 +327,19 @@ namespace OMAF
                            (2.0f * (xy + wz)) * v.x + (1.0f - 2.0f * (xx + zz)) * v.y + (2.0f * (yz - wx)) * v.z,
                            (2.0f * (xz - wy)) * v.x + (2.0f * (yz + wx)) * v.y + (1.0f - 2.0f * (xx + yy)) * v.z);
     }
-    
+
     float32_t yaw(const Quaternion& q)
     {
         float32_t y = 2.0f * (q.w * q.x - q.y * q.z);
-        float32_t yaw = (fabsf(y) < (1.0f - OMAF_FLOAT32_EPSILON)) ? atan2f(2.0f * (q.x * q.z + q.w * q.y), 1.0f - 2.0f * (q.x * q.x + q.y * q.y)) : 0.0f;
-        
+        float32_t yaw = (fabsf(y) < (1.0f - OMAF_FLOAT32_EPSILON))
+            ? atan2f(2.0f * (q.x * q.z + q.w * q.y), 1.0f - 2.0f * (q.x * q.x + q.y * q.y))
+            : 0.0f;
+
         return yaw;
     }
-    
-    void_t eulerAngles(const Quaternion& q, float32_t& yaw, float32_t& pitch, float32_t& roll, EulerAxisOrder::Enum order)
+
+    void_t
+    eulerAngles(const Quaternion& q, float32_t& yaw, float32_t& pitch, float32_t& roll, EulerAxisOrder::Enum order)
     {
         if (order == EulerAxisOrder::XYZ)
         {
@@ -365,17 +369,17 @@ namespace OMAF
         }
     }
 
-    Quaternion operator + (const Quaternion& l, const Quaternion& r)
+    Quaternion operator+(const Quaternion& l, const Quaternion& r)
     {
         return makeQuaternion(l.x + r.x, l.y + r.y, l.z + r.z, l.w + r.w);
     }
 
-    Quaternion operator - (const Quaternion& l, const Quaternion& r)
+    Quaternion operator-(const Quaternion& l, const Quaternion& r)
     {
         return makeQuaternion(l.x - r.x, l.y - r.y, l.z - r.z, l.w - r.w);
     }
 
-    Quaternion operator * (const Quaternion& l, const Quaternion& r)
+    Quaternion operator*(const Quaternion& l, const Quaternion& r)
     {
         float32_t ww = (l.z + l.x) * (r.x + r.y);
         float32_t yy = (l.w - l.y) * (r.w + r.z);
@@ -391,7 +395,7 @@ namespace OMAF
         return makeQuaternion(x, y, z, w);
     }
 
-    Quaternion& operator += (Quaternion& l, const Quaternion& r)
+    Quaternion& operator+=(Quaternion& l, const Quaternion& r)
     {
         l.x += r.x;
         l.y += r.y;
@@ -401,7 +405,7 @@ namespace OMAF
         return l;
     }
 
-    Quaternion& operator -= (Quaternion& l, const Quaternion& r)
+    Quaternion& operator-=(Quaternion& l, const Quaternion& r)
     {
         l.x -= r.x;
         l.y -= r.y;
@@ -411,7 +415,7 @@ namespace OMAF
         return l;
     }
 
-    Quaternion& operator *= (Quaternion& l, const Quaternion& r)
+    Quaternion& operator*=(Quaternion& l, const Quaternion& r)
     {
         float32_t ww = (l.z + l.x) * (r.x + r.y);
         float32_t yy = (l.w - l.y) * (r.w + r.z);
@@ -431,4 +435,4 @@ namespace OMAF
 
         return l;
     }
-}
+}  // namespace OMAF

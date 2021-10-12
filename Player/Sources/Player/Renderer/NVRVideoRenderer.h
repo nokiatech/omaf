@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -33,10 +33,10 @@ namespace ProjectionType
         SOURCE_PICKING,
         CUBEMAP,
 
-        IDENTITY,   //No projection
+        IDENTITY,  // No projection
 
-		RAW, //Projects multiple content types to a planar view
-		
+        RAW,  // Projects multiple content types to a planar view
+
         COUNT
     };
 }
@@ -44,7 +44,6 @@ namespace ProjectionType
 class VideoRenderer
 {
 public:
-
     VideoRenderer();
     virtual ~VideoRenderer();
 
@@ -54,18 +53,17 @@ public:
     bool_t isValid();
 
 public:
-
-    virtual ProjectionType::Enum getType() const = 0;
-
-    virtual void_t render(const HeadTransform& headTransform, const RenderSurface& renderSurface, const CoreProviderSources& sources, const TextureID& renderMask = TextureID::Invalid, const RenderingParameters& renderingParameters = RenderingParameters()) = 0;
+    virtual void_t render(const HeadTransform& headTransform,
+                          const RenderSurface& renderSurface,
+                          const CoreProviderSources& sources,
+                          const TextureID& renderMask = TextureID::Invalid,
+                          const RenderingParameters& renderingParameters = RenderingParameters()) = 0;
 
 private:
-
     virtual void_t createImpl() = 0;
     virtual void_t destroyImpl() = 0;
 
 private:
-
     bool_t mValid;
 };
 

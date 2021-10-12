@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,21 +14,21 @@
  */
 #pragma once
 
-#include "Math/OMAFMathTypes.h"
-#include "Math/OMAFMathConstants.h"
-#include "Math/OMAFMathFunctions.h"
+#include "Math/OMAFAxisAngle.h"
 #include "Math/OMAFColor3.h"
 #include "Math/OMAFColor4.h"
+#include "Math/OMAFMathConstants.h"
+#include "Math/OMAFMathFunctions.h"
+#include "Math/OMAFMathTypes.h"
+#include "Math/OMAFMatrix33.h"
+#include "Math/OMAFMatrix44.h"
 #include "Math/OMAFPoint.h"
-#include "Math/OMAFSize.h"
+#include "Math/OMAFQuaternion.h"
 #include "Math/OMAFRect.h"
+#include "Math/OMAFSize.h"
 #include "Math/OMAFVector2.h"
 #include "Math/OMAFVector3.h"
 #include "Math/OMAFVector4.h"
-#include "Math/OMAFQuaternion.h"
-#include "Math/OMAFMatrix44.h"
-#include "Math/OMAFMatrix33.h"
-#include "Math/OMAFAxisAngle.h"
 
 /*
  *

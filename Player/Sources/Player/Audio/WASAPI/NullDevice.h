@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,11 +17,11 @@
 #include "Foundation/NVRThread.h"
 OMAF_NS_BEGIN
 namespace WASAPIImpl
-{        
-    class NullDevice :public Endpoint
+{
+    class NullDevice : public Endpoint
     {
-    public:        
-        NullDevice(Context*aContext);
+    public:
+        NullDevice(Context* aContext);
         ~NullDevice();
         bool_t init(int32_t aSamplerate, int32_t aChannels);
         int64_t latencyUs();
@@ -31,25 +31,23 @@ namespace WASAPIImpl
         bool_t newsamples(AudioRendererAPI* audio, bool_t push);
 
     protected:
-
         Context* mContext;
         uint32_t mSampleRate;
         int32_t mChannels;
         bool_t mStarted;
         bool_t mPaused;
 
-        //no device,silent
+        // no device,silent
         int64_t mPosition;
         int64_t mStartTime;
         int64_t mLastTime;
         int64_t mPauseTime;
-        int64_t mLastPlayed;//amount of samples "played" on last onNewSamplesArrived.
-        int16_t mDummy[2048];//dummy write to buffer where we ask audiorenderer to render data..
+        int64_t mLastPlayed;   // amount of samples "played" on last onNewSamplesArrived.
+        int16_t mDummy[2048];  // dummy write to buffer where we ask audiorenderer to render data..
 
         Thread::ReturnValue threadEntry(const Thread& thread, void_t* userData);
         Thread mThread;
         HANDLE PauseEvent;
-
     };
-}
+}  // namespace WASAPIImpl
 OMAF_NS_END

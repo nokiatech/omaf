@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,9 +18,10 @@
 OMAF_NS_BEGIN
 OMAF_LOG_ZONE(HeifProvider)
 
-HeifProvider::HeifProvider() : mRequestImageChange(false)
+HeifProvider::HeifProvider()
+    : mRequestImageChange(false)
 {
-    mMediaStreamManager = OMAF_NEW_HEAP(HeifMediaStreamManager);
+    mMediaStreamManager = mImageStreamManager = OMAF_NEW_HEAP(HeifMediaStreamManager);
 }
 
 HeifProvider::~HeifProvider()
@@ -30,7 +31,7 @@ HeifProvider::~HeifProvider()
 #if OMAF_PLATFORM_ANDROID
     mParserThreadControlEvent.signal();
 #endif
-    
+
     if (mParserThread.isValid())
     {
         mParserThread.stop();
@@ -39,16 +40,15 @@ HeifProvider::~HeifProvider()
 
     destroyInstance();
 
-    mMediaStreamManager->resetStreams();
-    OMAF_DELETE_HEAP(mMediaStreamManager);
-
+    mImageStreamManager->resetStreams();
+    OMAF_DELETE_HEAP(mImageStreamManager);
 }
 
-Error::Enum HeifProvider::openFile(PathName &uri)
+Error::Enum HeifProvider::openFile(PathName& uri)
 {
     OMAF_LOG_D("Loading from uri: %s", uri.getData());
-    
-    Error::Enum result = mMediaStreamManager->openInput(uri);
+
+    Error::Enum result = mImageStreamManager->openInput(uri);
     const MP4VideoStreams& vstreams = mMediaStreamManager->getVideoStreams();
 
     if (vstreams.getSize() == 0)
@@ -63,9 +63,9 @@ Error::Enum HeifProvider::openFile(PathName &uri)
         return result;
     }
 
-    mMediaInformation = mMediaStreamManager->getMediaInformation();
+    mMediaInformation = mImageStreamManager->getMediaInformation();
     mMediaInformation.streamType = StreamType::LOCAL_FILE;
-    const CoreProviderSources& sources = mMediaStreamManager->getVideoSources();
+    const CoreProviderSources& sources = mImageStreamManager->getVideoSources();
     if (sources.getSize() == 1)
     {
         // Only a single source so must be monoscopic
@@ -77,20 +77,24 @@ Error::Enum HeifProvider::openFile(PathName &uri)
         mMediaInformation.isStereoscopic = true;
     }
     MP4VideoStream* videoStream = *vstreams.begin();
-    MP4VRMediaPacket* firstPacket = mMediaStreamManager->getNextVideoFrame(*videoStream, 0);
+    MP4VRMediaPacket* firstPacket = mImageStreamManager->getNextVideoFrame(*videoStream, 0);
     if (firstPacket != OMAF_NULL)
     {
         mFirstFramePTSUs = firstPacket->presentationTimeUs();
     }
-    
+
     return result;
 }
 
-uint64_t HeifProvider::selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources &required, CoreProviderSources &optional)
+uint64_t HeifProvider::selectSources(HeadTransform headTransform,
+                                     float32_t fovHorizontal,
+                                     float32_t fovVertical,
+                                     CoreProviderSources& required,
+                                     CoreProviderSources& optional)
 {
     // No source picking so all sources are required
     required.clear();
-    required.add(mMediaStreamManager->getVideoSources());
+    required.add(mImageStreamManager->getVideoSources());
     return 0;
 }
 
@@ -102,7 +106,7 @@ const CoreProviderSourceTypes& HeifProvider::getSourceTypes()
 void_t HeifProvider::parserThreadCallback()
 {
     OMAF_ASSERT(getState() == VideoProviderState::LOADING, "Wrong state");
-    
+
     Error::Enum result = openFile(mSourceURI);
 
     if (result != Error::OK)
@@ -120,8 +124,9 @@ void_t HeifProvider::parserThreadCallback()
         {
             // HEIF internal state for changing image inside multi image archive
             // done is waited, to be sure that loading earlier image was ready
-            if (done && mRequestImageChange) {
-                enter(); // signal that we are now going to change contents of provider
+            if (done && mRequestImageChange)
+            {
+                enter();  // signal that we are now going to change contents of provider
                 auto oldState = getState();
                 setState(VideoProviderState::LOADING);
 
@@ -131,13 +136,13 @@ void_t HeifProvider::parserThreadCallback()
                 OMAF_LOG_V("----> Clearing prepared sources");
                 mPreparedSources.clear();
                 OMAF_LOG_V("----> Previous streams clear, selecting next image");
-                mMediaStreamManager->selectNextImage();
+                mImageStreamManager->selectNextImage();
                 OMAF_LOG_V("----> Next image changed from media stream manager");
 
-                leave(); // free provider again for reading
+                leave();  // free provider again for reading
                 setState(oldState);
                 mRequestImageChange = false;
-                done = false; // start showing frames again
+                done = false;  // start showing frames again
             }
 
             VideoProviderState::Enum stateBeforeUserAction = getState();
@@ -147,9 +152,8 @@ void_t HeifProvider::parserThreadCallback()
                 handlePendingUserRequest();
             }
 
-            if (getState() == VideoProviderState::STOPPED
-                || getState() == VideoProviderState::CLOSING
-                || getState() == VideoProviderState::STREAM_ERROR)
+            if (getState() == VideoProviderState::STOPPED || getState() == VideoProviderState::CLOSING ||
+                getState() == VideoProviderState::STREAM_ERROR)
             {
                 break;
             }
@@ -158,7 +162,7 @@ void_t HeifProvider::parserThreadCallback()
 #if OMAF_PLATFORM_ANDROID || OMAF_PLATFORM_IOS
                 if (!mParserThreadControlEvent.wait(20))
                 {
-                    //OMAF_LOG_D("Event timeout");
+                    // OMAF_LOG_D("Event timeout");
                 }
 #else
                 Thread::sleep(20);
@@ -170,7 +174,7 @@ void_t HeifProvider::parserThreadCallback()
                 continue;
             }
 
-            PacketProcessingResult::Enum processResult = processMP4Video(*mMediaStreamManager);
+            PacketProcessingResult::Enum processResult = processMP4Video();
 
             if (processResult == PacketProcessingResult::END_OF_FILE)
             {
@@ -183,7 +187,6 @@ void_t HeifProvider::parserThreadCallback()
                 setState(VideoProviderState::STREAM_ERROR);
                 break;
             }
-
         }
     }
 
@@ -211,10 +214,11 @@ MP4AudioStream* HeifProvider::getAudioStream()
 // called in client thread
 uint64_t HeifProvider::durationMs() const
 {
-    return mMediaInformation.duration / 1000;
+    return mMediaInformation.durationUs / 1000;
 }
 
-Error::Enum HeifProvider::next() {
+Error::Enum HeifProvider::next()
+{
     mRequestImageChange = true;
     return Error::OK;
 }

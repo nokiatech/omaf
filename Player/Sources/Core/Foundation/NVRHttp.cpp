@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -12,13 +12,13 @@
  * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
  * written consent of Nokia.
  */
-#include "Platform/OMAFPlatformDetection.h"
+#include "Foundation/NVRFixedString.h"
+#include "Foundation/NVRHttpConnection.h"
+#include "Foundation/NVRLogger.h"
+#include "Foundation/NVRStringUtilities.h"
 #include "Platform/OMAFCompiler.h"
 #include "Platform/OMAFDataTypes.h"
-#include "Foundation/NVRFixedString.h"
-#include "Foundation/NVRStringUtilities.h"
-#include "Foundation/NVRLogger.h"
-#include "Foundation/NVRHttpConnection.h"
+#include "Platform/OMAFPlatformDetection.h"
 
 #if OMAF_PLATFORM_UWP
 
@@ -61,7 +61,7 @@ namespace Http
         else
         {
             OMAF_LOG_E("Failed to set Default HTTP User-Agent. Maximum length is %d and tried to set string: %s",
-                (gDefaultAgent.getCapacity() - 1), aUserAgent);
+                       (gDefaultAgent.getCapacity() - 1), aUserAgent);
         }
     }
 
@@ -76,7 +76,7 @@ namespace Http
 #if OMAF_PLATFORM_UWP
             createHttpConnectionUWP(allocator);
 #elif OMAF_PLATFORM_WINDOWS
-        createHttpConnectionWIN(allocator);
+            createHttpConnectionWIN(allocator);
 #elif OMAF_PLATFORM_ANDROID
             OMAF_NEW(allocator, AndroidHttpConnection)(allocator);
 #else
@@ -87,5 +87,5 @@ namespace Http
         connection->setUserAgent(getDefaultUserAgent());
         return connection;
     }
-}
+}  // namespace Http
 OMAF_NS_END

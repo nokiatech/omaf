@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -38,8 +38,8 @@ namespace VDD
         /** @brief Consumes data;
 
             Each element in the input data is one view. Typically there
-            are one or two views. (Monoscopic or stereoscopic.)
+            are one or two streams. (Monoscopic or stereoscopic.)
         */
-        virtual void consume(const Views& input) = 0;
+        virtual void consume(const Streams& input) = 0;
     };
 }

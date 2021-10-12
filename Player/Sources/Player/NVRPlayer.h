@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,13 +19,13 @@
 #include "Graphics/NVRRendererType.h"
 #include "Renderer/NVRRenderingManager.h"
 
-#include "Provider/NVRVideoProvider.h"
 #include "Provider/NVRCoreProvider.h"
+#include "Provider/NVRVideoProvider.h"
 
+#include "Audio/NVRAudioBackend.h"
 #include "Audio/NVRAudioInputBuffer.h"
 #include "Audio/NVRAudioRendererAPI.h"
 #include "Audio/NVRAudioTypes.h"
-#include "Audio/NVRAudioBackend.h"
 
 namespace OMAF
 {
@@ -33,18 +33,20 @@ namespace OMAF
 }
 
 OMAF_NS_BEGIN
-    Error::Enum initialize(RendererType::Enum rendererType, OMAF::PlatformParameters* platformParameters = OMAF_NULL, MemoryAllocator* clientHeapAllocator = OMAF_NULL);
-    void_t deinitialize();
-        
-    RenderingManager* createRenderingManager();
-    void_t destroyRenderingManager(RenderingManager* presenceRenderer);
-    
-    AudioRendererAPI* createAudioRenderer(AudioRendererObserver* observer);
-    void_t destroyAudioRenderer(AudioRendererAPI* audioRenderer);
-    
-    VideoProvider* createVideoProvider();
-    void_t destroyVideoProvider(VideoProvider* localVideoProvider);
+Error::Enum initialize(RendererType::Enum rendererType,
+                       OMAF::PlatformParameters* platformParameters = OMAF_NULL,
+                       MemoryAllocator* clientHeapAllocator = OMAF_NULL);
+void_t deinitialize();
 
-    AudioBackend* createAudioBackend();
-    void_t destroyAudioBackend(AudioBackend* audioBackend);
+RenderingManager* createRenderingManager();
+void_t destroyRenderingManager(RenderingManager* presenceRenderer);
+
+AudioRendererAPI* createAudioRenderer(AudioRendererObserver* observer);
+void_t destroyAudioRenderer(AudioRendererAPI* audioRenderer);
+
+VideoProvider* createVideoProvider();
+void_t destroyVideoProvider(VideoProvider* localVideoProvider);
+
+AudioBackend* createAudioBackend();
+void_t destroyAudioBackend(AudioBackend* audioBackend);
 OMAF_NS_END

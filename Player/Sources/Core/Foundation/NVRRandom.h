@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -32,44 +32,41 @@ OMAF_NS_BEGIN
 //  - Extremely fast (using only shift and xor bit-operations)
 //  - Period length 2 ^ 128 - 1
 //
-// Note: Xorshift is NOT a cryptographically-secure random number generator, it will fail in some statical tests e.g. MatrixRank and LinearComp.
+// Note: Xorshift is NOT a cryptographically-secure random number generator, it will fail in some statical tests e.g.
+// MatrixRank and LinearComp.
 //
 
 class Random
 {
-    public:
+public:
+    static const uint32_t Max = 0xffffffff;
 
-        static const uint32_t Max = 0xffffffff;
+public:
+    OMAF_EXPLICIT Random(uint64_t seed);
+    ~Random();
 
-    public:
+    void_t setSeed(uint64_t seed);
 
-        OMAF_EXPLICIT Random(uint64_t seed);
-        ~Random();
+    uint32_t getUInt32();
+    uint32_t getUInt32(uint32_t min, uint32_t max = Max);
 
-        void_t setSeed(uint64_t seed);
+private:
+    OMAF_NO_DEFAULT(Random);
+    OMAF_NO_COPY(Random);
+    OMAF_NO_ASSIGN(Random);
 
-        uint32_t getUInt32();
-        uint32_t getUInt32(uint32_t min, uint32_t max = Max);
+private:
+    struct InitVector
+    {
+        uint32_t x;
+        uint32_t y;
+        uint32_t z;
+        uint32_t w;
+    };
 
-    private:
-    
-        OMAF_NO_DEFAULT(Random);
-        OMAF_NO_COPY(Random);
-        OMAF_NO_ASSIGN(Random);
+    uint64_t mSeed;
 
-    private:
-
-        struct InitVector
-        {
-            uint32_t x;
-            uint32_t y;
-            uint32_t z;
-            uint32_t w;
-        };
-
-        uint64_t mSeed;
-
-        InitVector mInitVector;
+    InitVector mInitVector;
 };
 
 OMAF_NS_END

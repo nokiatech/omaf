@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,7 +16,8 @@
 #define MP4VRFILEALLOCATOR_H
 
 #include <cstdlib>
-#include "mp4vrfileexport.h"
+
+#include "../isobmff/mp4vrfileexport.h"
 
 namespace MP4VR
 {
@@ -32,6 +33,6 @@ namespace MP4VR
         /* Release a pointer returned from allocate */
         virtual void deallocate(void* ptr) = 0;
     };
-}
+}  // namespace MP4VR
 
 #endif  // MP4VRFILEALLOCATOR_H

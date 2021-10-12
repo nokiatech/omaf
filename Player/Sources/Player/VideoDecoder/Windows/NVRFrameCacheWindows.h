@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -24,7 +24,6 @@ OMAF_NS_BEGIN
 class FrameCacheWindows : public FrameCache
 {
 public:
-
     FrameCacheWindows();
     virtual ~FrameCacheWindows();
 
@@ -35,7 +34,6 @@ protected:
     virtual void_t uploadTexture(DecoderFrame* frame);
 
 private:
-
     virtual DecoderFrame* createFrame(uint32_t width, uint32_t height);
     virtual void_t destroyFrame(DecoderFrame* frame);
 
@@ -43,7 +41,11 @@ private:
 #if OMAF_GRAPHICS_API_OPENGL
     struct TextureHandles
     {
-        TextureHandles() { Y = 0; UV = 0; }
+        TextureHandles()
+        {
+            Y = 0;
+            UV = 0;
+        }
         uint32_t Y;
         uint32_t UV;
     };

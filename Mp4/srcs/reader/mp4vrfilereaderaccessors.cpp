@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -12,17 +12,20 @@
  * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
  * written consent of Nokia.
  */
+#include <cassert>
+#include <cstring>
+
+#include "alternateitemsgroupbox.hpp"
 #include "customallocator.hpp"
 #include "hevcsampleentry.hpp"
+#include "log.hpp"
 #include "mp4vrfiledatatypesinternal.hpp"
 #include "mp4vrfilereaderimpl.hpp"
 #include "mp4vrfilereaderutil.hpp"
 #include "mp4vrhvc2extractor.hpp"
-
-#include "log.hpp"
-
-#include <cassert>
-#include <cstring>
+#include "overlayandbackgroundgroupingbox.hpp"
+#include "overlayswitchalternativesbox.hpp"
+#include "viewpointentitygroupbox.hpp"
 
 namespace MP4VR
 {
@@ -192,6 +195,119 @@ namespace MP4VR
         return ErrorCode::OK;
     }
 
+    int32_t MP4VRFileReaderImpl::getFileGroupsList(GroupsListProperty& groupsList,
+                                                   uint32_t initializationSegmentId) const
+    {
+        if (isInitializedError())
+        {
+            return ErrorCode::UNINITIALIZED;
+        }
+
+        bool isInitSegment = mInitSegmentPropertiesMap.count(initializationSegmentId) > 0;
+        if (!isInitSegment)
+        {
+            return ErrorCode::INVALID_SEGMENT;
+        }
+
+        auto& meta = mInitSegmentPropertiesMap.at(initializationSegmentId).meta;
+
+        // if meta not found, empty groups are returned
+        if (meta)
+        {
+            auto& grpl = meta->getGrplBox();
+            if (grpl)
+            {
+                Vector<AltrEntityGroupProperty> altrGroups;
+                Vector<OvalEntityGroupProperty> ovalGroups;
+                Vector<OvbgEntityGroupProperty> ovbgGroups;
+                Vector<VipoEntityGroupProperty> vipoGroups;
+
+                // populates groupid and entityids
+                auto populateBaseFields = [](EntityToGroupProperty& prop, EntityToGroupBox& box) {
+                    prop.groupId   = box.getGroupId();
+                    prop.entityIds = DynArray<uint32_t>(box.getEntityCount());
+                    for (uint32_t i = 0; i < prop.entityIds.numElements; i++)
+                    {
+                        prop.entityIds[i] = box.getEntityId(i);
+                    }
+                };
+
+                for (uint32_t i = 0; i < grpl->getGroupCount(); i++)
+                {
+                    auto& group = grpl->getGroup(i);
+
+                    if (auto altr = dynamic_cast<AlternateItemsGroupBox*>(&group))
+                    {
+                        AltrEntityGroupProperty groupProp;
+                        populateBaseFields(groupProp, *altr);
+                        altrGroups.push_back(groupProp);
+                    }
+                    else if (auto oval = dynamic_cast<OverlaySwitchAlternativesBox*>(&group))
+                    {
+                        OvalEntityGroupProperty groupProp;
+                        populateBaseFields(groupProp, *oval);
+
+                        groupProp.refOverlayIds = DynArray<uint16_t>(oval->getEntityCount());
+                        for (uint32_t j = 0; j < groupProp.refOverlayIds.numElements; j++)
+                        {
+                            groupProp.refOverlayIds[j] = oval->getRefOverlayId(j);
+                        }
+
+                        ovalGroups.push_back(groupProp);
+                    }
+                    else if (auto ovbg = dynamic_cast<OverlayAndBackgroundGroupingBox*>(&group))
+                    {
+                        OvbgEntityGroupProperty groupProp;
+                        populateBaseFields(groupProp, *ovbg);
+
+                        groupProp.sphereDistanceInMm = ovbg->getSphereDistanceInMm();
+
+                        groupProp.entityFlags = DynArray<OvbgGroupFlags>(ovbg->getEntityCount());
+                        for (uint32_t j = 0; j < groupProp.entityFlags.numElements; j++)
+                        {
+                            auto boxFlags                           = ovbg->getGroupingFlags(j);
+                            groupProp.entityFlags[j].backgroundFlag = boxFlags.backgroundFlag;
+                            groupProp.entityFlags[j].overlayFlag    = boxFlags.overlayFlag;
+                        }
+
+                        ovbgGroups.push_back(groupProp);
+                    }
+                    else if (auto vipo = dynamic_cast<ViewpointEntityGroupBox*>(&group))
+                    {
+                        VipoEntityGroupProperty groupProp;
+                        populateBaseFields(groupProp, *vipo);
+
+						groupProp.viewpointId = vipo->getViewpointId();
+                        groupProp.viewpointLabel       = makeDynArray<char>(vipo->getLabel());
+
+                        groupProp.viewpointPos   = vipo->getViewpointPos();
+                        groupProp.viewpointGroup = vipo->getViewpointGroup();
+                        groupProp.viewpointGlobalCoordinateSysRotation =
+                            vipo->getViewpointGlobalCoordinateSysRotation();
+
+                        groupProp.viewpointGpsPosition     = vipo->getViewpointGpsPosition();
+                        groupProp.viewpointGeomagneticInfo = vipo->getViewpointGeomagneticInfo();
+                        groupProp.viewpointSwitchingList   = vipo->getViewpointSwitchingList();
+                        groupProp.viewpointLooping         = vipo->getViewpointLooping();
+
+                        vipoGroups.push_back(groupProp);
+                    }
+                    else
+                    {
+                        logWarning() << "Unknown entity group type found in file level grpl box" << std::endl;
+                    }
+                }
+
+                groupsList.altrGroups = makeDynArray<AltrEntityGroupProperty>(altrGroups);
+                groupsList.ovalGroups = makeDynArray<OvalEntityGroupProperty>(ovalGroups);
+                groupsList.ovbgGroups = makeDynArray<OvbgEntityGroupProperty>(ovbgGroups);
+                groupsList.vipoGroups = makeDynArray<VipoEntityGroupProperty>(vipoGroups);
+            }
+        }
+
+        return ErrorCode::OK;
+    }
+
 
     int32_t MP4VRFileReaderImpl::getTrackInformations(DynArray<TrackInformation>& trackInfos) const
     {
@@ -247,13 +363,13 @@ namespace MP4VR
                 }
 
                 trackInfos.elements[outTrackIdx].trackGroupIds =
-                    DynArray<TypeToTrackIDs>(trackProperties.trackGroupIds.size());
+                    DynArray<TypeToTrackIDs>(trackProperties.trackGroupInfoMap.size());
                 i = 0;
-                for (auto const& group : trackProperties.trackGroupIds)
+                for (auto const& group : trackProperties.trackGroupInfoMap)
                 {
                     trackInfos.elements[outTrackIdx].trackGroupIds[i].type = FourCC(group.first.getUInt32());
                     trackInfos.elements[outTrackIdx].trackGroupIds[i].trackIds =
-                        makeDynArray<unsigned int>(group.second);
+                        makeDynArray<unsigned int>(group.second.ids);
                     i++;
                 }
                 outTrackIdx++;
@@ -336,18 +452,15 @@ namespace MP4VR
 
                         if (trackInfo.samples.size() > 0)
                         {
-                            std::uint32_t delta;
-                            if (trackInfo.samples.size() >= 3)
+                            std::uint64_t sum{};
+                            for (auto& sample : trackInfo.samples)
                             {
-                                delta = trackInfo.samples.at(1).sampleDuration;
-                            }
-                            else
-                            {
-                                delta = trackInfo.samples.at(0).sampleDuration;
+                                sum += static_cast<std::uint64_t>(sample.sampleDuration);
                             }
                             auto timeScale =
                                 mInitSegmentPropertiesMap.at(initSegmentId).initTrackInfos.at(trackId).timeScale;
-                            trackInfos.elements[outTrackIdx].frameRate = Rational{timeScale, delta};
+                            trackInfos.elements[outTrackIdx].frameRate =
+                                Rational{timeScale, sum / trackInfo.samples.size()};
                         }
 
                         for (auto const& sample : trackInfo.samples)
@@ -867,14 +980,15 @@ namespace MP4VR
                                                       uint64_t& refSampleLength,
                                                       uint64_t& refDataOffset)
     {
-        auto trackContextId = ofTrackId(trackId).second;
-        if (mInitSegmentPropertiesMap[initSegmentId].trackProperties[trackContextId].referenceTrackIds["scal"].empty())
+        auto trackContextId                = ofTrackId(trackId).second;
+        InitSegmentProperties& initSegment = mInitSegmentPropertiesMap[initSegmentId];
+        TrackProperties& trackProperties   = initSegment.trackProperties[trackContextId];
+        ContextIdVector& scal              = trackProperties.referenceTrackIds["scal"];
+        if (scal.empty())
         {
             return ErrorCode::INVALID_PROPERTY_INDEX;
         }
-        auto refTrackContextId =
-            mInitSegmentPropertiesMap[initSegmentId].trackProperties[trackContextId].referenceTrackIds["scal"].at(
-                trackReference);
+        auto refTrackContextId = scal.at(trackReference);
 
         // Create a new pair: init segment from the extractor but track context id from the referred media track where
         // data is extracted from.
@@ -884,13 +998,65 @@ namespace MP4VR
         int32_t result = segmentIdOf(refInitSegTrackId, itemIdApi, refSegmentId);
         if (result != ErrorCode::OK)
         {
-            return result;
+            TrackGroupId refTrackGroupId = TrackGroupId(refTrackContextId.get());
+            /*
+              1) determine the track group of interest (refTrackContextId)
+              2) iterate through all tracks below the init segment
+              3) if a track in the same track group is found, keep the segmentIdOf for it around
+              4) iterate further to find another possible track
+              5) if found, return error. if not found, use found track
+              6) if no track found at all, return error
+             */
+            bool found = false;
+
+            FourCCTrackReferenceInfoMap::const_iterator fourCCTrgrIt = initSegment.trackReferences.find("alte");
+            if (fourCCTrgrIt != initSegment.trackReferences.end())
+            {
+                TrackReferenceInfoMap::const_iterator trgrIt = fourCCTrgrIt->second.find(refTrackGroupId);
+                if (trgrIt != fourCCTrgrIt->second.end())
+                {
+                    for (ContextId refTrackId : trgrIt->second.trackIds)
+                    {
+                        InitSegmentTrackId curInitSegTrackId{initSegmentId, refTrackId};
+                        SegmentId gotRefSegmentId;
+                        result = segmentIdOf(curInitSegTrackId, itemIdApi, gotRefSegmentId);
+                        if (result == ErrorCode::OK)
+                        {
+                            const SampleInfoVector& samples =
+                                getTrackInfo(initSegmentId, std::make_pair(gotRefSegmentId, refTrackId)).samples;
+                            if (samples.size() && samples[0].dataOffset)
+                            {
+                                refSegmentId      = gotRefSegmentId;
+                                refInitSegTrackId = std::make_pair(initSegmentId, refTrackId);
+                                found             = true;
+                            }
+                            else
+                            {
+                                result = ErrorCode::MISSING_DATA_FOR_SAMPLE;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!found)
+            {
+                return result;
+            }
         }
         SegmentTrackId refSegTrackId = std::make_pair(refSegmentId, refInitSegTrackId.second);
         ItemId refItemId             = ItemId(itemIdApi) - getTrackInfo(initSegmentId, refSegTrackId).itemIdBase;
 
-        refDataOffset   = getTrackInfo(initSegmentId, refSegTrackId).samples.at(refItemId.get()).dataOffset;
-        refSampleLength = getTrackInfo(initSegmentId, refSegTrackId).samples.at(refItemId.get()).dataLength;
+        auto& sample = getTrackInfo(initSegmentId, refSegTrackId).samples.at(refItemId.get());
+        if (auto offset = sample.dataOffset)
+        {
+            refDataOffset = *offset;
+        }
+        else
+        {
+            return ErrorCode::MISSING_DATA_FOR_SAMPLE;
+        }
+        refSampleLength = sample.dataLength;
 
         return ErrorCode::OK;
     }
@@ -915,8 +1081,9 @@ namespace MP4VR
         {
             return result;
         }
-        SegmentTrackId segTrackId = std::make_pair(segmentId, initSegTrackId.second);
-        ItemId itemId             = ItemId(itemIdApi) - getTrackInfo(initSegmentId, segTrackId).itemIdBase;
+        SegmentTrackId segTrackId  = std::make_pair(segmentId, initSegTrackId.second);
+        const TrackInfo& trackInfo = getTrackInfo(initSegmentId, segTrackId);
+        ItemId itemId              = ItemId(itemIdApi) - trackInfo.itemIdBase;
 
         SegmentIO& io = mInitSegmentPropertiesMap.at(initSegmentId).segmentPropertiesMap.at(segmentId).io;
         // read NAL data to bitstream object
@@ -931,19 +1098,26 @@ namespace MP4VR
         case ContextType::TRACK:
         {
             // The requested frame should be one that is available
-            if (itemId.get() >= getTrackInfo(initSegmentId, segTrackId).samples.size())
+            if (itemId.get() >= trackInfo.samples.size())
             {
                 return ErrorCode::INVALID_ITEM_ID;
             }
 
-            const uint32_t sampleLength = getTrackInfo(initSegmentId, segTrackId).samples.at(itemId.get()).dataLength;
+            const SampleInfo& sampleInfo = trackInfo.samples.at(itemId.get());
+            const uint32_t sampleLength  = sampleInfo.dataLength;
+
             if (memoryBufferSize < sampleLength)
             {
                 memoryBufferSize = sampleLength;
                 return ErrorCode::MEMORY_TOO_SMALL_BUFFER;
             }
 
-            seekInput(io, (std::int64_t) getTrackInfo(initSegmentId, segTrackId).samples.at(itemId.get()).dataOffset);
+            if (!sampleInfo.dataOffset)
+            {
+                return ErrorCode::MISSING_DATA_FOR_SAMPLE;
+            }
+
+            seekInput(io, (std::int64_t) *sampleInfo.dataOffset);
             io.stream->read(memoryBuffer, sampleLength);
             memoryBufferSize = sampleLength;
 
@@ -1003,7 +1177,8 @@ namespace MP4VR
             if (getInitTrackInfo(initSegTrackId).nalLengthSizeMinus1.count(index.get()) != 0)
             {
                 nalLengthSizeMinus1 = getInitTrackInfo(initSegTrackId).nalLengthSizeMinus1.at(index);
-                assert(nalLengthSizeMinus1 == 3);   // NAL length can be 1, 2 or 4 bytes, but the whole parsing process assumes it is 4 bytes
+                assert(nalLengthSizeMinus1 ==
+                       3);  // NAL length can be 1, 2 or 4 bytes, but the whole parsing process assumes it is 4 bytes
             }
 
             Hvc2Extractor::ExtractorSample extractorSample;
@@ -1012,7 +1187,8 @@ namespace MP4VR
 
             // If the current NAL is affirmed to be an extractor NAL, parse it to extNalDat
 
-            if (Hvc2Extractor::parseExtractorNal(extractorSampleBuffer, extractorSample, nalLengthSizeMinus1, extractionSize))
+            if (Hvc2Extractor::parseExtractorNal(extractorSampleBuffer, extractorSample, nalLengthSizeMinus1,
+                                                 extractionSize))
             {
                 if (extractionSize == 0)
                 {
@@ -1022,14 +1198,14 @@ namespace MP4VR
                     for (auto& extractor : extractorSample.extractors)
                     {
                         for (std::vector<Hvc2Extractor::ExtractorSample::SampleConstruct>::iterator sampleConstruct =
-                            extractor.sampleConstruct.begin();
-                            sampleConstruct != extractor.sampleConstruct.end(); ++sampleConstruct)
+                                 extractor.sampleConstruct.begin();
+                             sampleConstruct != extractor.sampleConstruct.end(); ++sampleConstruct)
                         {
                             uint64_t refSampleLength = 0;
-                            uint64_t refDataOffset = 0;
-                            result =
-                                getRefSampleDataInfo(trackId, itemIdApi, initSegmentId, (*sampleConstruct).track_ref_index,
-                                    refSampleLength, refDataOffset);
+                            uint64_t refDataOffset   = 0;
+                            result                   = getRefSampleDataInfo(trackId, itemIdApi, initSegmentId,
+                                                          (*sampleConstruct).track_ref_index, refSampleLength,
+                                                          refDataOffset);
                             if (result != ErrorCode::OK)
                             {
                                 return result;
@@ -1051,36 +1227,39 @@ namespace MP4VR
                 }
 
                 // Extract bytes from the inline and sample constructs
-                uint32_t extractedBytes            = 0;
-                char* buffer                       = memoryBuffer;
+                uint32_t extractedBytes          = 0;
+                char* buffer                     = memoryBuffer;
                 char* inlineNalLengthPlaceHolder = nullptr;
-                size_t inlineLength                = 0;
+                size_t inlineLength              = 0;
                 std::vector<Hvc2Extractor::ExtractorSample::SampleConstruct>::iterator sampleConstruct;
                 std::vector<Hvc2Extractor::ExtractorSample::InlineConstruct>::iterator inlineConstruct;
                 uint64_t refSampleLength = 0;
                 uint64_t refSampleOffset = 0;
-                uint8_t trackRefIndex = UINT8_MAX;
+                uint8_t trackRefIndex    = UINT8_MAX;
 
                 for (auto& extractor : extractorSample.extractors)
                 {
-                    // We loop through both constructors, until both of them are empty. They are often interleaved, but not
-                    // always through the whole sequence.
+                    // We loop through both constructors, until both of them are empty. They are often interleaved, but
+                    // not always through the whole sequence.
                     for (sampleConstruct = extractor.sampleConstruct.begin(),
-                        inlineConstruct = extractor.inlineConstruct.begin();
-                        sampleConstruct != extractor.sampleConstruct.end() ||
-                        inlineConstruct != extractor.inlineConstruct.end();)
+                        inlineConstruct  = extractor.inlineConstruct.begin();
+                         sampleConstruct != extractor.sampleConstruct.end() ||
+                         inlineConstruct != extractor.inlineConstruct.end();)
                     {
                         if (inlineConstruct != extractor.inlineConstruct.end() &&
                             (sampleConstruct == extractor.sampleConstruct.end() ||
-                            (*inlineConstruct).order_idx < (*sampleConstruct).order_idx))
+                             (*inlineConstruct).order_idx < (*sampleConstruct).order_idx))
                         {
                             inlineNalLengthPlaceHolder = buffer;
-                            // the inline constructor is expected to contain a placeholder for the NAL unit length field too
+                            // the inline constructor is expected to contain a placeholder for the NAL unit length field
+                            // too
 
-                            // copy the inline part - note: std::copy with iterators give warning in Visual Studio, so the
-                            // good old memcpy is used instead
-                            memcpy(buffer, (*inlineConstruct).inline_data.data(), (*inlineConstruct).inline_data.size());
-                            inlineLength = (*inlineConstruct).inline_data.size() - (nalLengthSizeMinus1 + 1);   // exclude the length 
+                            // copy the inline part - note: std::copy with iterators give warning in Visual Studio, so
+                            // the good old memcpy is used instead
+                            memcpy(buffer, (*inlineConstruct).inline_data.data(),
+                                   (*inlineConstruct).inline_data.size());
+                            inlineLength = (*inlineConstruct).inline_data.size() -
+                                           (nalLengthSizeMinus1 + 1);  // exclude the length
                             buffer += (*inlineConstruct).data_length;
                             extractedBytes += (*inlineConstruct).data_length;
                             ++inlineConstruct;
@@ -1090,19 +1269,19 @@ namespace MP4VR
                             // read the sample from the referenced track
                             if ((*sampleConstruct).track_ref_index != trackRefIndex || trackRefIndex == UINT8_MAX)
                             {
-                                result =
-                                    getRefSampleDataInfo(trackId, itemIdApi, initSegmentId, (*sampleConstruct).track_ref_index,
-                                        refSampleLength, refSampleOffset);
+                                result = getRefSampleDataInfo(trackId, itemIdApi, initSegmentId,
+                                                              (*sampleConstruct).track_ref_index, refSampleLength,
+                                                              refSampleOffset);
                                 if (result != ErrorCode::OK)
                                 {
                                     return result;
                                 }
                                 trackRefIndex = (*sampleConstruct).track_ref_index;
-                                seekInput(io, refSampleOffset);
+                                seekInput(io, static_cast<int32_t>(refSampleOffset));
                             }
                             // let's read the length to the buffer (use it as a temp storage, don't update the ptr)
                             io.stream->read(buffer, (nalLengthSizeMinus1 + 1));
-                            // todo nalLengthSizeMinus1-based reading
+
                             uint64_t refNalLength = readNalLength(buffer);
 
                             // sc.data_offset is from the beginning of sample
@@ -1114,14 +1293,17 @@ namespace MP4VR
                             {
                                 // bytes to copy is taken from the bitstream (length field referenced by data_offset)
                                 // there should be no inline constructor / replacement header (see 14496-15 A.7.4.1.2)
-                                bytesToCopy = refNalLength;
+                                bytesToCopy     = refNalLength;
                                 refSampleLength = 0;
                             }
                             else
                             {
-                                if ((uint64_t)((*sampleConstruct).data_offset) + (uint64_t)((*sampleConstruct).data_length) > refSampleLength)
+                                if ((uint64_t)((*sampleConstruct).data_offset) +
+                                        (uint64_t)((*sampleConstruct).data_length) >
+                                    refSampleLength)
                                 {
-                                    // the sampleConstruct gives too large data_length, clip the length of copied data block to the length of the actual sample
+                                    // the sampleConstruct gives too large data_length, clip the length of copied data
+                                    // block to the length of the actual sample
                                     if ((*sampleConstruct).data_offset > refSampleLength)
                                     {
                                         // something is wrong, the offset and sample lengths do not match at all
@@ -1145,9 +1327,9 @@ namespace MP4VR
                                 }
                                 else
                                 {
-                                    // there was no inline constructor. (*sampleConstruct).data_offset should now point to
-                                    // the length field of the NAL to be copied, and we already have the length in the buffer. 
-                                    // Just update the ptr & counter
+                                    // there was no inline constructor. (*sampleConstruct).data_offset should now point
+                                    // to the length field of the NAL to be copied, and we already have the length in
+                                    // the buffer. Just update the ptr & counter
                                     inputReadOffset += (nalLengthSizeMinus1 + 1);
                                     if (bytesToCopy == refSampleLength - (*sampleConstruct).data_offset)
                                     {
@@ -1158,9 +1340,9 @@ namespace MP4VR
                                 }
                             }
 
-                            if (extractedBytes + (uint32_t)bytesToCopy > spaceAvailable)
+                            if (extractedBytes + (uint32_t) bytesToCopy > spaceAvailable)
                             {
-                                memoryBufferSize = extractedBytes + (uint32_t)bytesToCopy;
+                                memoryBufferSize = extractedBytes + (uint32_t) bytesToCopy;
                                 return ErrorCode::MEMORY_TOO_SMALL_BUFFER;
                             }
                             // Add NAL payload
@@ -1168,12 +1350,12 @@ namespace MP4VR
                             {
                                 seekInput(io, (std::int64_t) inputReadOffset);
                             }
-                            io.stream->read(buffer, bytesToCopy);
+                            io.stream->read(buffer, static_cast<int64_t>(bytesToCopy));
                             buffer += bytesToCopy;
-                            extractedBytes += (uint32_t)bytesToCopy;
+                            extractedBytes += (uint32_t) bytesToCopy;
                             ++sampleConstruct;
                             inlineNalLengthPlaceHolder = nullptr;
-                            inlineLength = 0;
+                            inlineLength               = 0;
 
                             refSampleLength -= (refNalLength + (nalLengthSizeMinus1 + 1));
                         }
@@ -1190,7 +1372,8 @@ namespace MP4VR
             }
             return ErrorCode::UNSUPPORTED_CODE_TYPE;  // hvc2 but unknown extractor?
         }
-        else if ((codeType == "mp4a") || (codeType == "invo") || (codeType == "urim") || (codeType == "mp4v"))
+        else if ((codeType == "mp4a") || (codeType == "invo") || (codeType == "dyol") || (codeType == "urim") ||
+                 (codeType == "mp4v") || (codeType == "dyvp") || (codeType == "rcvp"))
         {
             // already valid data - do nothing.
             return ErrorCode::OK;
@@ -1237,8 +1420,16 @@ namespace MP4VR
             {
                 return ErrorCode::INVALID_ITEM_ID;
             }
-            sampleLength = getTrackInfo(initSegmentId, segTrackId).samples.at(itemId.get()).dataLength;
-            sampleOffset = getTrackInfo(initSegmentId, segTrackId).samples.at(itemId.get()).dataOffset;
+            auto& sample = getTrackInfo(initSegmentId, segTrackId).samples.at(itemId.get());
+            if (auto offset = sample.dataOffset)
+            {
+                sampleOffset = *offset;
+            }
+            else
+            {
+                return ErrorCode::MISSING_DATA_FOR_SAMPLE;
+            }
+            sampleLength = sample.dataLength;
         }
         else
         {
@@ -1769,7 +1960,7 @@ namespace MP4VR
             aProp.channelLayouts     = makeDynArray<ChannelLayout>(propIn.channelLayouts);
         }
 
-        return result;
+        return static_cast<int32_t>(result);
     }
 
     int32_t MP4VRFileReaderImpl::getPropertySpatialAudio(uint32_t trackId,
@@ -1791,7 +1982,7 @@ namespace MP4VR
             aProp.channelMap               = makeDynArray<uint32_t>(propIn.channelMap);
         }
 
-        return result;
+        return static_cast<int32_t>(result);
     }
 
     int32_t MP4VRFileReaderImpl::getPropertyStereoScopic3D(uint32_t trackId,
@@ -1808,7 +1999,7 @@ namespace MP4VR
             aProp = propIn;
         }
 
-        return result;
+        return static_cast<int32_t>(result);
     }
 
     int32_t MP4VRFileReaderImpl::getPropertySphericalVideoV1(uint32_t trackId,
@@ -1825,7 +2016,7 @@ namespace MP4VR
             sphericalproperty = propIn;
         }
 
-        return result;
+        return static_cast<int32_t>(result);
     }
 
     int32_t MP4VRFileReaderImpl::getPropertySphericalVideoV2(uint32_t trackId,
@@ -1842,7 +2033,7 @@ namespace MP4VR
             sphericalproperty = propIn;
         }
 
-        return result;
+        return static_cast<int32_t>(result);
     }
 
     int32_t MP4VRFileReaderImpl::getPropertyRegionWisePacking(uint32_t trackId,
@@ -1864,7 +2055,7 @@ namespace MP4VR
             aProp.regions                        = makeDynArray<RegionWisePackingRegion>(propIn.regions);
         }
 
-        return result;
+        return static_cast<int32_t>(result);
     }
 
     int32_t MP4VRFileReaderImpl::getPropertyCoverageInformation(uint32_t trackId,
@@ -1884,58 +2075,79 @@ namespace MP4VR
             aProp.sphereRegions       = makeDynArray<CoverageSphereRegion>(propIn.sphereRegions);
         }
 
-        return result;
+        return static_cast<int32_t>(result);
+    }
+
+    template <typename Property>
+    int32_t MP4VRFileReaderImpl::getPropertyGeneric(
+        uint32_t trackId,
+        uint32_t sampleId,
+        Property& aProp,
+        std::function<PropertyMap<typename std::remove_reference<Property>::type>(const InitTrackInfo&)>
+            getPropertyMap) const
+    {
+        InitTrackInfo initTrackInfo;
+        SampleDescriptionIndex index;
+        uint32_t result = lookupTrackInfo(trackId, sampleId, initTrackInfo, index);
+        auto propIn     = fetchSampleProp(getPropertyMap(initTrackInfo), index, result);
+
+        if (result == ErrorCode::OK)
+        {
+            aProp = propIn;
+        }
+
+        return static_cast<int32_t>(result);
     }
 
     int32_t MP4VRFileReaderImpl::getPropertyProjectionFormat(uint32_t trackId,
                                                              uint32_t sampleId,
                                                              ProjectionFormatProperty& aProp) const
     {
-        InitTrackInfo initTrackInfo;
-        SampleDescriptionIndex index;
-        uint32_t result = lookupTrackInfo(trackId, sampleId, initTrackInfo, index);
-        auto propIn     = fetchSampleProp(initTrackInfo.pfrmProperties, index, result);
+        return getPropertyGeneric(trackId, sampleId, aProp, [](const InitTrackInfo& i) { return i.pfrmProperties; });
+    }
 
-        if (result == ErrorCode::OK)
-        {
-            aProp = propIn;
-        }
+    int32_t MP4VRFileReaderImpl::getPropertyOverlayConfig(uint32_t trackId,
+                                                          uint32_t sampleId,
+                                                          OverlayConfigProperty& aProp) const
+    {
+        return getPropertyGeneric(trackId, sampleId, aProp, [](const InitTrackInfo& i) { return i.ovlyProperties; });
+    }
 
-        return result;
+    int32_t MP4VRFileReaderImpl::getPropertyDynamicViewpointConfig(uint32_t trackId,
+                                                                   uint32_t sampleId,
+                                                                   DynamicViewpointConfigProperty& aProp) const
+    {
+        return getPropertyGeneric(trackId, sampleId, aProp, [](const InitTrackInfo& i) { return i.dyvpProperties; });
+    }
+
+    int32_t MP4VRFileReaderImpl::getPropertyInitialViewpointConfig(uint32_t trackId,
+                                                                   uint32_t sampleId,
+                                                                   InitialViewpointConfigProperty& aProp) const
+    {
+        return getPropertyGeneric(trackId, sampleId, aProp, [](const InitTrackInfo& i) { return i.invpProperties; });
     }
 
     int32_t MP4VRFileReaderImpl::getPropertyStereoVideoConfiguration(uint32_t trackId,
                                                                      uint32_t sampleId,
                                                                      PodvStereoVideoConfiguration& aProp) const
     {
-        InitTrackInfo initTrackInfo;
-        SampleDescriptionIndex index;
-        uint32_t result = lookupTrackInfo(trackId, sampleId, initTrackInfo, index);
-        auto propIn     = fetchSampleProp(initTrackInfo.stviProperties, index, result);
-
-        if (result == ErrorCode::OK)
-        {
-            aProp = propIn;
-        }
-
-        return result;
+        return getPropertyGeneric(trackId, sampleId, aProp, [](const InitTrackInfo& i) { return i.stviProperties; });
     }
 
-    int32_t MP4VRFileReaderImpl::getPropertyRotation(uint32_t trackId, uint32_t sampleId, Rotation& aProp) const
+    int32_t MP4VRFileReaderImpl::getPropertyRotation(uint32_t trackId, uint32_t sampleId, RotationProperty& aProp) const
     {
-        InitTrackInfo initTrackInfo;
-        SampleDescriptionIndex index;
-        uint32_t result = lookupTrackInfo(trackId, sampleId, initTrackInfo, index);
-        auto propIn     = fetchSampleProp(initTrackInfo.rotnProperties, index, result);
-
-        if (result == ErrorCode::OK)
-        {
-            aProp = propIn;
-        }
-
-        return result;
+        return getPropertyGeneric(trackId, sampleId, aProp, [](const InitTrackInfo& i) { return i.rotnProperties; });
     }
 
+    int32_t MP4VRFileReaderImpl::getPropertyRecommendedViewport(uint32_t trackId,
+                                                                uint32_t sampleId,
+                                                                RecommendedViewportProperty& aProp) const
+    {
+        return getPropertyGeneric(trackId, sampleId, aProp,
+                                  [](const InitTrackInfo& i) {
+                                      return i.rcvpProperties;
+                                  });
+    }
 
     int32_t MP4VRFileReaderImpl::getPropertySchemeTypes(uint32_t trackId,
                                                         uint32_t sampleId,
@@ -1964,7 +2176,7 @@ namespace MP4VR
             aProp.compatibleSchemeTypes = makeDynArray<SchemeType>(compatibleTypes);
         }
 
-        return result;
+        return static_cast<int32_t>(result);
     }
 
     uint32_t MP4VRFileReaderImpl::lookupTrackInfo(uint32_t trackId,
@@ -1980,18 +2192,19 @@ namespace MP4VR
         InitSegmentTrackId initSegTrackId = ofTrackId(trackId);
         InitSegmentId initSegmentId       = initSegTrackId.first;
         SegmentId segmentId;
-        int32_t result = segmentIdOf(initSegTrackId, sampleId, segmentId);
+
+        auto result = segmentIdOf(initSegTrackId, sampleId, segmentId);
         if (result != ErrorCode::OK)
         {
-            return result;
+            return static_cast<uint32_t>(result);
         }
-        SegmentTrackId segTrackId = std::make_pair(segmentId, initSegTrackId.second);
 
+        SegmentTrackId segTrackId = std::make_pair(segmentId, initSegTrackId.second);
         ContextType contextType;
-        int error = getContextTypeError(initSegTrackId, contextType);
+        auto error = getContextTypeError(initSegTrackId, contextType);
         if (error)
         {
-            return error;
+            return static_cast<uint32_t>(error);
         }
 
         if (contextType == ContextType::TRACK)

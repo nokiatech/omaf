@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,15 +18,15 @@
 #include <vector>
 
 #include "async/future.h"
-#include "processor/source.h"
 #include "processor/data.h"
+#include "processor/processor.h"
 #include "tilefilter.h"
 #include "tileconfig.h"
 #include "controller/controllerconfigure.h"
 
 namespace VDD {
 
-    class TileProducer : public Source
+    class TileProducer : public Processor
     {
     public:
         struct Config
@@ -34,33 +34,28 @@ namespace VDD {
             /*
             * Input filename
             */
-            std::string inputFileName;
             std::uint8_t quality;
-            TileFilter::OmafTileSets tileConfig;
+            OmafTileSets tileConfig;
             ExtractorMode extractorMode;
             Projection projection;
+            VideoInputMode videoMode;
             size_t tileCount;
-            size_t frameCount;
             bool resetExtractorLevelIDCTo51;
         };
         TileProducer(Config& config);
 
-        std::vector<Views> produce();
+        std::vector<Streams> process(const Streams& aStreams) override;
 
-        /** @brief Abort the Source. Next call to produce returns the
-        * remaining frames and finally an EndOfStream.
-        */
-        void abort();
+        StorageType getPreferredStorageType() const override { return StorageType::CPU; }
+
 
     private:
         TileFilter mTileFilter;
-        TileFilter::OmafTileSets mTileConfig;
+        OmafTileSets mTileConfig;
         ExtractorMode mExtractorMode;
-        std::unique_ptr<MP4LoaderSource> mMp4Source;
 
         size_t mAUIndex;
         int mTileCount;
-        uint32_t mFrameCountLimit;
     };
 
     class WrongTileFilterConfigurationException : public Exception

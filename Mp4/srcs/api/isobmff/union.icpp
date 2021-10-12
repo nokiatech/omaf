@@ -1,0 +1,195 @@
+
+/**
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+namespace ISOBMFF {
+    template <typename Key, typename... Types>
+    struct UnionCompare
+    {
+        using Base = Union<Key, Types...>;
+
+        /** @brief Compare two objects using binary comaprison operators */
+        static int compare(const Base& a, const Base& b);
+    };
+
+    namespace {
+        template <typename Key, typename... Types>
+        int unionCompare(const Union<Key, Types...>& a, const Union<Key, Types...>& b)
+        {
+            return UnionCompare<Key, Types...>::compare(a, b);
+        }
+    };
+
+    template <typename Key, typename... Types>
+    Union<Key, Types...>::Union()
+        : mCurrentKey(Key(0))
+        , mValid(true)
+    {
+        new (&mStorage) typename Storage::type();
+    }
+
+    template <typename Key, typename... Types>
+    Union<Key, Types...>::Union(const Union<Key, Types...>& aOther)
+        : mCurrentKey(aOther.mCurrentKey)
+        , mValid(true)
+    {
+        FieldDynamic::copyConstruct(aOther.mStorage, mStorage, size_t(mCurrentKey));
+    }
+
+    template <typename Key, typename... Types>
+    Union<Key, Types...>::Union(Union<Key, Types...>&& aOther)
+        : mCurrentKey(aOther.mCurrentKey)
+        , mValid(true)
+    {
+        FieldDynamic::moveConstruct(aOther.mStorage, mStorage, size_t(mCurrentKey));
+    }
+
+    template <typename Key, typename... Types>
+    Union<Key, Types...>& Union<Key, Types...>::operator=(const Union<Key, Types...>& aOther)
+    {
+        if (mCurrentKey != aOther.mCurrentKey)
+        {
+            mValid = false;
+            destructKey(mCurrentKey);
+            mCurrentKey = aOther.mCurrentKey;
+            FieldDynamic::copyConstruct(aOther.mStorage, mStorage, size_t(mCurrentKey));
+            mValid = true;
+        }
+        else
+        {
+            FieldDynamic::assign(aOther.mStorage, mStorage, size_t(mCurrentKey));
+        }
+        return *this;
+    }
+
+    template <typename Key, typename... Types>
+    Union<Key, Types...>& Union<Key, Types...>::operator=(Union<Key, Types...>&& aOther)
+    {
+        if (mCurrentKey != aOther.mCurrentKey)
+        {
+            mValid = false;
+            destructKey(mCurrentKey);
+            mCurrentKey = aOther.mCurrentKey;
+            FieldDynamic::moveConstruct(aOther.mStorage, mStorage, size_t(mCurrentKey));
+            mValid = true;
+        }
+        else
+        {
+            FieldDynamic::move(aOther.mStorage, mStorage, size_t(mCurrentKey));
+        }
+        return *this;
+    }
+
+    template <typename Key, typename... Types>
+    Key Union<Key, Types...>::getKey() const
+    {
+        return mCurrentKey;
+    }
+
+    template <typename Key, typename... Types>
+    void Union<Key, Types...>::destructKey(Key aKey)
+    {
+        FieldDynamic::destruct(mStorage, size_t(aKey));
+    }
+
+    template <typename Key, typename... Types>
+    template <typename Base>
+    Base& Union<Key, Types...>::cast()
+    {
+        return GetBase<Base>::base(mStorage, size_t(mCurrentKey));
+    }
+
+    template <typename Key, typename... Types>
+    template <typename Base>
+    const Base& Union<Key, Types...>::cast() const
+    {
+        return GetBase<Base>::base(mStorage, size_t(mCurrentKey));
+    }
+
+    template <typename Key, typename... Types>
+    Union<Key, Types...>::~Union()
+    {
+        // avoid destruction if an exception interrupted some copy operation, because we always start such operations
+        // with destructing the object and should that or the assignment following it fail, we don't want to destruct it
+        // (again)
+        if (mValid)
+        {
+            destructKey(mCurrentKey);
+        }
+    }
+
+    template <typename Key, typename Base, typename... Types>
+    Base& UnionCommonBase<Key, Base, Types...>::base()
+    {
+        return Union<Key, Types...>::template cast<Base>();
+    }
+
+    template <typename Key, typename Base, typename... Types>
+    const Base& UnionCommonBase<Key, Base, Types...>::base() const
+    {
+        return Union<Key, Types...>::template cast<Base>();
+    }
+
+    template <typename Key, typename... Types>
+    int UnionCompare<Key, Types...>::compare(const Base& a, const Base& b)
+    {
+        if (a.getKey() == b.getKey())
+        {
+            return Base::FieldDynamic::compare(a.mStorage, b.mStorage, size_t(a.getKey()));
+        }
+        else if (a.getKey() < b.getKey())
+        {
+            return -1;
+        }
+        else
+        {
+            return 1;
+        }
+    }
+
+    template <typename Key, typename... Types>
+    bool operator==(const Union<Key, Types...>& self, const Union<Key, Types...>& other)
+    {
+        return unionCompare(self, other) == 0;
+    }
+
+    template <typename Key, typename... Types>
+    bool operator!=(const Union<Key, Types...>& self, const Union<Key, Types...>& other)
+    {
+        return unionCompare(self, other) != 0;
+    }
+
+    template <typename Key, typename... Types>
+    bool operator<(const Union<Key, Types...>& self, const Union<Key, Types...>& other)
+    {
+        return unionCompare(self, other) < 0;
+    }
+
+    template <typename Key, typename... Types>
+    bool operator>(const Union<Key, Types...>& self, const Union<Key, Types...>& other)
+    {
+        return unionCompare(self, other) > 0;
+    }
+
+    template <typename Key, typename... Types>
+    bool operator<=(const Union<Key, Types...>& self, const Union<Key, Types...>& other)
+    {
+        return unionCompare(self, other) <= 0;
+    }
+
+    template <typename Key, typename... Types>
+    bool operator>=(const Union<Key, Types...>& self, const Union<Key, Types...>& other)
+    {
+        return unionCompare(self, other) >= 0;
+    }
+}

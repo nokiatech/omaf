@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -100,6 +100,8 @@ namespace VDD
             OptionallyReference(T& aResult);
             OptionallyReference(T& aResult, const T& aDefaultValue);
 
+            OptionallyReference<T> allowDuplicates();
+
             void set(const T& value) const;
             T& get() const;
             Parse::IsRequiredType isRequired() const;
@@ -109,6 +111,8 @@ namespace VDD
             Optional<T>* mResultOptional = nullptr;
             T* mResult = nullptr;
             Parse::IsRequiredType mIsRequired;
+            bool mAllowDuplicates = false;
+            mutable bool mIsSet = false; // used to disallow setting a value twice
         };
 
         class String : public Parse
@@ -123,6 +127,34 @@ namespace VDD
 
         private:
             OptionallyReference<std::string> mResult;
+        };
+
+        class AppendString : public Parse
+        {
+        public:
+            typedef std::string ResultType;
+
+            AppendString(std::string aArgumentName,
+                         OptionallyReference<std::list<std::string>> aResult);
+
+            ParseResult parse(Arguments aArguments) const override;
+
+        private:
+            OptionallyReference<std::list<std::string>> mResult;
+        };
+
+        class Integer : public Parse
+        {
+        public:
+            typedef std::string ResultType;
+
+            Integer(std::string aArgumentName,
+                   OptionallyReference<int> aResult);
+
+            ParseResult parse(Arguments aArguments) const override;
+
+        private:
+            OptionallyReference<int> mResult;
         };
 
         template <typename SubParse, typename Container>

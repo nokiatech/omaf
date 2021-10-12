@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,62 +16,88 @@
 
 SphereRegionConfigBox::SphereRegionConfigBox()
     : FullBox("rosc", 0, 0)
-    , mNumRegions(1)
+    , mSphereRegionConfig()
 {
+    mSphereRegionConfig.shapeType = ISOBMFF::SphereRegionShapeType::FourGreatCircles;
+}
+
+void SphereRegionConfigBox::setFrom(const ISOBMFF::SphereRegionConfigStruct& rosc)
+{
+    mSphereRegionConfig = rosc;
+    setShapeType(static_cast<SphereRegionConfigBox::ShapeType>(rosc.shapeType));
+
+    if (rosc.staticRange)
+    {
+        setDynamicRangeFlag(false);
+        setStaticAzimuthRange(rosc.staticRange->azimuthRange);
+        setStaticElevationRange(rosc.staticRange->elevationRange);
+    }
+}
+
+ISOBMFF::SphereRegionConfigStruct SphereRegionConfigBox::get() const
+{
+    return mSphereRegionConfig;
 }
 
 void SphereRegionConfigBox::setShapeType(ShapeType shapeType)
 {
-    mShapeType = shapeType;
+    mSphereRegionConfig.shapeType = static_cast<ISOBMFF::SphereRegionShapeType>(shapeType);
 }
 
 SphereRegionConfigBox::ShapeType SphereRegionConfigBox::getShapeType()
 {
-    return mShapeType;
+    return static_cast<ShapeType>(mSphereRegionConfig.shapeType);
 }
 
 void SphereRegionConfigBox::setDynamicRangeFlag(bool rangeFlag)
 {
-    mDynamicRangeFlag = rangeFlag;
+    if (rangeFlag && mSphereRegionConfig.staticRange)
+    {
+        mSphereRegionConfig.staticRange.clear();
+    }
+    else if (!rangeFlag && !mSphereRegionConfig.staticRange)
+    {
+        mSphereRegionConfig.staticRange = ISOBMFF::SphereRegionRange();
+    }
 }
 
 bool SphereRegionConfigBox::getDynamicRangeFlag()
 {
-    return mDynamicRangeFlag;
+    return !mSphereRegionConfig.staticRange;
 }
 
 void SphereRegionConfigBox::setStaticAzimuthRange(std::uint32_t range)
 {
-    mStaticAzimuthRange = range;
+    mSphereRegionConfig.staticRange->azimuthRange = range;
 }
 
 std::uint32_t SphereRegionConfigBox::getStaticAzimuthRange()
 {
-    return mStaticAzimuthRange;
+    return mSphereRegionConfig.staticRange->azimuthRange;
 }
 
 void SphereRegionConfigBox::setStaticElevationRange(std::uint32_t range)
 {
-    mStaticElevationRange = range;
+    mSphereRegionConfig.staticRange->elevationRange = range;
 }
 
 std::uint32_t SphereRegionConfigBox::getStaticElevationRange()
 {
-    return mStaticElevationRange;
+    return mSphereRegionConfig.staticRange->elevationRange;
 }
 
 void SphereRegionConfigBox::writeBox(BitStream& bitstr)
 {
     writeFullBoxHeader(bitstr);
 
-    bitstr.write8Bits((uint8_t) mShapeType);
-    bitstr.write8Bits(mDynamicRangeFlag ? 0x1 : 0x0);
-    if (!mDynamicRangeFlag)
+    bitstr.write8Bits((uint8_t) getShapeType());
+    bitstr.write8Bits(getDynamicRangeFlag() ? 0x1 : 0x0);
+    if (!getDynamicRangeFlag())
     {
-        bitstr.write32Bits(mStaticAzimuthRange);
-        bitstr.write32Bits(mStaticElevationRange);
+        bitstr.write32Bits(getStaticAzimuthRange());
+        bitstr.write32Bits(getStaticElevationRange());
     }
-    bitstr.write8Bits(mNumRegions);
+    bitstr.write8Bits(1);  // numRegions
 
     updateSize(bitstr);
 }
@@ -79,12 +105,12 @@ void SphereRegionConfigBox::writeBox(BitStream& bitstr)
 void SphereRegionConfigBox::parseBox(BitStream& bitstr)
 {
     parseFullBoxHeader(bitstr);
-    mShapeType        = (ShapeType) bitstr.read8Bits();
-    mDynamicRangeFlag = bitstr.read8Bits() & 0x1;
-    if (!mDynamicRangeFlag)
+    setShapeType((ShapeType) bitstr.read8Bits());
+    setDynamicRangeFlag(bitstr.read8Bits() & 0x1);
+    if (!getDynamicRangeFlag())
     {
-        mStaticAzimuthRange   = bitstr.read32Bits();
-        mStaticElevationRange = bitstr.read32Bits();
+        setStaticAzimuthRange(bitstr.read32Bits());
+        setStaticElevationRange(bitstr.read32Bits());
     }
-    mNumRegions = bitstr.read8Bits();
+    bitstr.read8Bits();  // numRegions
 }

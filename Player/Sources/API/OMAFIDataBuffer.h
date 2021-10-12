@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -22,32 +22,32 @@ namespace OMAF
     class IDataBuffer
     {
     public:
-        virtual ~IDataBuffer() {};
+        virtual ~IDataBuffer(){};
 
         /*
-        * Returns the pointer to access the data
-        */
+         * Returns the pointer to access the data
+         */
         virtual T* getDataPtr() = 0;
 
         virtual const T* getDataPtr() const = 0;
 
         /*
-        * Return the amount of data written in this data buffer
-        */
+         * Return the amount of data written in this data buffer
+         */
         virtual size_t getSize() const = 0;
         /*
-        * Resize the underlying buffer and keep existing data.
-        */
+         * Resize the underlying buffer and keep existing data.
+         */
         virtual void_t reserve(size_t capacity) = 0;
         /*
-        * Return the size reserved for this data buffer.
-        */
+         * Return the size reserved for this data buffer.
+         */
         virtual size_t getCapacity() const = 0;
         /*
-        * Set the amount of data written in this data buffer
-        */
+         * Set the amount of data written in this data buffer
+         */
         virtual void_t setSize(size_t capacity) = 0;
     };
 
     typedef IDataBuffer<uint8_t> IUint8DataBuffer;
-}
+}  // namespace OMAF

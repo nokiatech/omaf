@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -61,7 +61,9 @@ namespace StreamSegmenter
         TrackId trackId;
         RatU64 timescale;
         MediaType type;
-        Utils::Optional<BrandSpec> trackType;
+        ISOBMFF::Optional<BrandSpec> trackType;
+        FrameTime dtsCtsOffset; /* if non-zero, a positive number that will reproduced as an edit
+                                   list skip in the beginning of the track */
     };
 
     class Track

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,9 +14,9 @@
  */
 #pragma once
 
+#include "Foundation/NVRSpinlock.h"
 #include "NVRNamespace.h"
 #include "Platform/OMAFDataTypes.h"
-#include "Foundation/NVRSpinlock.h"
 #include "VideoDecoder/NVRVideoDecoderTypes.h"
 
 OMAF_NS_BEGIN
@@ -26,7 +26,6 @@ class FrameCache;
 class FreeFrameGroup
 {
 public:
-    
     FreeFrameGroup(streamid_t stream, uint32_t width, uint32_t height);
     ~FreeFrameGroup();
 
@@ -42,7 +41,6 @@ public:
     size_t currentFreeFrames() const;
 
 private:
-    
     streamid_t mStream;
     uint32_t mWidth;
     uint32_t mHeight;

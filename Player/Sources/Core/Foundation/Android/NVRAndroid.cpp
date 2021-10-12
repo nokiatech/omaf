@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -33,8 +33,6 @@ OMAF_NS_BEGIN
 
         void_t initialize(OMAF::PlatformParameters* platformParameters)
         {
-            mJavaVM = platformParameters->javaVM;
-
             mActivity = platformParameters->activity;
             mNativeActivity = platformParameters->nativeActivity;
 
@@ -51,6 +49,13 @@ OMAF_NS_BEGIN
 
             mCachePath = platformParameters->cachePath;
             mCachePath.append("/");
+
+            mJavaVM = platformParameters->javaVM;
+        }
+
+        bool isInitialized()
+        {
+            return mJavaVM != OMAF_NULL;
         }
 
         jobject getActivity()

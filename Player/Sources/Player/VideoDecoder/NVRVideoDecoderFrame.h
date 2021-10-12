@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -25,19 +25,18 @@ class VideoDecoderHW;
 struct DecoderFrame
 {
     DecoderFrame()
-    : width(0)
-    , height(0)
-    , pts(0)
-    , dts(0)
-    , duration(0)
-    , uploadTime(0)
-    , flushed(false)
-    , consumed(false)
-    , staged(false)
-    , streamId(OMAF_UINT8_MAX)
-    , decoder(OMAF_NULL)
+        : width(0)
+        , height(0)
+        , pts(0)
+        , dts(0)
+        , duration(0)
+        , uploadTime(0)
+        , flushed(false)
+        , consumed(false)
+        , staged(false)
+        , streamId(OMAF_UINT8_MAX)
+        , decoder(OMAF_NULL)
     {
-
     }
 
     uint32_t width;

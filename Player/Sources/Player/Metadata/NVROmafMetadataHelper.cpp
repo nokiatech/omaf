@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,37 +13,56 @@
  * written consent of Nokia.
  */
 #include "Metadata/NVROmafMetadataHelper.h"
-#include "Provider/NVRCoreProviderSources.h"
 #include "Metadata/NVRCubemapDefinitions.h"
+#include "Provider/NVRCoreProviderSources.h"
 
 #include "Foundation/NVRLogger.h"
 
 OMAF_NS_BEGIN
-    OMAF_LOG_ZONE(OmafMetadataHelper)
+OMAF_LOG_ZONE(OmafMetadataHelper)
 
 namespace OmafMetadata
 {
-
-    static Region parseRegion(MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it, uint32_t aProjWidth, uint32_t aProjHeight, uint16_t aPackedWidth, uint16_t aPackedHeight, float64_t aOffsetX, float64_t aOffsetY, 
-        float64_t aProjWidthLon, float64_t aProjHeightLat, float64_t aProjOriginLon, float64_t aProjOriginLat)
+    static Region parseRegion(MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it,
+                              uint32_t aProjWidth,
+                              uint32_t aProjHeight,
+                              uint16_t aPackedWidth,
+                              uint16_t aPackedHeight,
+                              float64_t aOffsetX,
+                              float64_t aOffsetY,
+                              float64_t aProjWidthLon,
+                              float64_t aProjHeightLat,
+                              float64_t aProjOriginLon,
+                              float64_t aProjOriginLat)
     {
         Region region;
-        // packed coordinates - note that the player has origin in bottom-left corner of the input rectangle; that is handled when setting the source, here we just map the structs
+        // packed coordinates - note that the player has origin in bottom-left corner of the input rectangle; that is
+        // handled when setting the source, here we just map the structs
         region.inputRect.x = (float32_t)(*it).region.rectangular.packedRegLeft / aPackedWidth + aOffsetX;
         region.inputRect.y = (float32_t)(*it).region.rectangular.packedRegTop / aPackedHeight + aOffsetY;
         region.inputRect.w = (float32_t)(*it).region.rectangular.packedRegWidth / aPackedWidth;
         region.inputRect.h = (float32_t)(*it).region.rectangular.packedRegHeight / aPackedHeight;
         // projected coordinates
-        region.centerLongitude = ((float64_t)((*it).region.rectangular.projRegLeft + (*it).region.rectangular.projRegWidth / 2) / aProjWidth) * aProjWidthLon - aProjOriginLon;
-        region.centerLatitude = aProjOriginLat - ((float64_t)((*it).region.rectangular.projRegTop + (*it).region.rectangular.projRegHeight / 2) / aProjHeight) * aProjHeightLat;
+        region.centerLongitude =
+            ((float64_t)((*it).region.rectangular.projRegLeft + (*it).region.rectangular.projRegWidth / 2) /
+             aProjWidth) *
+                aProjWidthLon -
+            aProjOriginLon;
+        region.centerLatitude = aProjOriginLat -
+            ((float64_t)((*it).region.rectangular.projRegTop + (*it).region.rectangular.projRegHeight / 2) /
+             aProjHeight) *
+                aProjHeightLat;
         region.spanLongitude = (float64_t)((*it).region.rectangular.projRegWidth) / aProjWidth * aProjWidthLon;
         region.spanLatitude = (float64_t)((*it).region.rectangular.projRegHeight) / aProjHeight * aProjHeightLat;
         return region;
     }
 
-    Error::Enum parseOmafEquirectRegions(const MP4VR::RegionWisePackingProperty& aRwpk, RegionPacking& aRegionPacking, SourceDirection::Enum aSourceDirection)
+    Error::Enum parseOmafEquirectRegions(const MP4VR::RegionWisePackingProperty& aRwpk,
+                                         RegionPacking& aRegionPacking,
+                                         SourceDirection::Enum aSourceDirection)
     {
-        // note! for rectangular, we currently ignore transformation, as there is no support in renderer for transforming sources
+        // note! for rectangular, we currently ignore transformation, as there is no support in renderer for
+        // transforming sources
         if (aRwpk.constituentPictureMatchingFlag)
         {
             float64_t offsetX = 0.f;
@@ -65,14 +84,17 @@ namespace OmafMetadata
                 projAreaWidthLon = 180.f;
                 projOriginLon = 0.f;
             }
-            for (MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it = aRwpk.regions.begin(); it != aRwpk.regions.end(); ++it)
+            for (MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it = aRwpk.regions.begin();
+                 it != aRwpk.regions.end(); ++it)
             {
                 if ((*it).region.rectangular.transformType != 0)
                 {
                     // transformations for equirect not support atm
-                    //return Error::FILE_NOT_SUPPORTED;
+                    // return Error::FILE_NOT_SUPPORTED;
                 }
-                aRegionPacking.add(parseRegion(it, width, height, aRwpk.packedPictureWidth, aRwpk.packedPictureHeight, offsetX, offsetY, projAreaWidthLon, projAreaHeightLat, projOriginLon, projOriginLat));
+                aRegionPacking.add(parseRegion(it, width, height, aRwpk.packedPictureWidth, aRwpk.packedPictureHeight,
+                                               offsetX, offsetY, projAreaWidthLon, projAreaHeightLat, projOriginLon,
+                                               projOriginLat));
             }
             if (aSourceDirection == SourceDirection::TOP_BOTTOM)
             {
@@ -84,26 +106,32 @@ namespace OmafMetadata
                 offsetX = 0.5;
                 projOriginLon = 180.f;
             }
-            for (MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it = aRwpk.regions.begin(); it != aRwpk.regions.end(); ++it)
+            for (MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it = aRwpk.regions.begin();
+                 it != aRwpk.regions.end(); ++it)
             {
                 if ((*it).region.rectangular.transformType != 0)
                 {
                     // transformations for equirect not support atm
                     return Error::FILE_NOT_SUPPORTED;
                 }
-                aRegionPacking.add(parseRegion(it, width, height, aRwpk.packedPictureWidth, aRwpk.packedPictureHeight, offsetX, offsetY, projAreaWidthLon, projAreaHeightLat, projOriginLon, projOriginLat));
+                aRegionPacking.add(parseRegion(it, width, height, aRwpk.packedPictureWidth, aRwpk.packedPictureHeight,
+                                               offsetX, offsetY, projAreaWidthLon, projAreaHeightLat, projOriginLon,
+                                               projOriginLat));
             }
         }
         else
         {
-            for (MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it = aRwpk.regions.begin(); it != aRwpk.regions.end(); ++it)
+            for (MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it = aRwpk.regions.begin();
+                 it != aRwpk.regions.end(); ++it)
             {
                 if ((*it).region.rectangular.transformType != 0)
                 {
                     // transformations for equirect not support atm
-                    //return Error::FILE_NOT_SUPPORTED;
+                    // return Error::FILE_NOT_SUPPORTED;
                 }
-                aRegionPacking.add(parseRegion(it, aRwpk.projPictureWidth, aRwpk.projPictureHeight, aRwpk.packedPictureWidth, aRwpk.packedPictureHeight, 0.f, 0.f, 360.f, 180.f, 180.f, 90.f));
+                aRegionPacking.add(parseRegion(it, aRwpk.projPictureWidth, aRwpk.projPictureHeight,
+                                               aRwpk.packedPictureWidth, aRwpk.packedPictureHeight, 0.f, 0.f, 360.f,
+                                               180.f, 180.f, 90.f));
             }
         }
         return Error::OK;
@@ -142,7 +170,7 @@ namespace OmafMetadata
             return CubeFaceSectionOrientationIndex::CUBE_FACE_ORIENTATION_MIRROR_ROTATED_90_RIGHT;
         case OmafCubeFaceOrientation::CUBE_FACE_ORIENTATION_ROTATED_90_RIGHT:
             return CubeFaceSectionOrientationIndex::CUBE_FACE_ORIENTATION_ROTATED_90_RIGHT;
-        default: //CUBE_FACE_ORIENTATION_NO_TRANSFORM
+        default:  // CUBE_FACE_ORIENTATION_NO_TRANSFORM
             return CubeFaceSectionOrientationIndex::CUBE_FACE_ORIENTATION_NO_ROTATION;
         }
     }
@@ -152,33 +180,40 @@ namespace OmafMetadata
         int transform = mapOmafTransformToInternalIndex(aOmafTransform);
         switch (aFace)
         {
-            case 'B':
-            {
-                // OMAF default orientation for back face is rotate 90 degree right, no mirror
-                // Our internal orientation for back face is no rotate, no mirror
-                // So to get OMAF orientation (custom or default) to internal, need to rotate it to left by 90
-                // As the enum CubeFaceSectionOrientation runs clockwise with 90 degree steps, we can apply rotate left by subtracting 1 step 
-                // Further, mirroring must not change, and the enum has values 0...3 for non-mirror, 4...7 for mirror
-                int base = (transform > 3 ? 4 : 0);
-                transform = base + (transform + 3) % 4; // +3 == -1 in the used domain; sounds better than modulo(-1) which is generally not defined
-                break;
-            }
-            case 'D':
-            case 'U':
-            {
-                // OMAF default orientation for top and bottom faces is rotate 90 degree right, no mirror, but aligned with back face
-                // Our internal is no rotate, no mirror, but top and bottom faces are aligned with front face => they get additional 180 when aligned with back face
-                // So to get OMAF orientation (custom or default) to internal, need to rotate it to left by 270 == right by 90
-                // As the enum CubeFaceSectionOrientation runs clockwise with 90 degree steps, we can apply rotate right by adding 1 step 
-                // Further, mirroring must not change, and the enum has values 0...3 for non-mirror, 4...7 for mirror
-                int base = (transform > 3 ? 4 : 0);
-                transform = base + (transform + 1) % 4;
-                break;
-            }
-            default:    // 'L', 'F', 'R'
-            {
-                // no rotation or mirror in OMAF or internal => any custom transform need to be applied as such
-            }
+        case 'B':
+        {
+            // OMAF default orientation for back face is rotate 90 degree right, no mirror
+            // Our internal orientation for back face is no rotate, no mirror
+            // So to get OMAF orientation (custom or default) to internal, need to rotate it to left by 90
+            // As the enum CubeFaceSectionOrientation runs clockwise with 90 degree steps, we can apply rotate left by
+            // subtracting 1 step
+            // Further, mirroring must not change, and the enum has values 0...3 for non-mirror, 4...7 for mirror
+            int base = (transform > 3 ? 4 : 0);
+            transform = base +
+                (transform + 3) %
+                    4;  // +3 == -1 in the used domain; sounds better than modulo(-1) which is generally not defined
+            break;
+        }
+        case 'D':
+        case 'U':
+        {
+            // OMAF default orientation for top and bottom faces is rotate 90 degree right, no mirror, but aligned with
+            // back face
+            // Our internal is no rotate, no mirror, but top and bottom faces are aligned with front face => they get
+            // additional 180 when aligned with back face
+            // So to get OMAF orientation (custom or default) to internal, need to rotate it to left by 270 == right by
+            // 90
+            // As the enum CubeFaceSectionOrientation runs clockwise with 90 degree steps, we can apply rotate right by
+            // adding 1 step
+            // Further, mirroring must not change, and the enum has values 0...3 for non-mirror, 4...7 for mirror
+            int base = (transform > 3 ? 4 : 0);
+            transform = base + (transform + 1) % 4;
+            break;
+        }
+        default:  // 'L', 'F', 'R'
+        {
+            // no rotation or mirror in OMAF or internal => any custom transform need to be applied as such
+        }
         }
         return transform;
     }
@@ -195,19 +230,23 @@ namespace OmafMetadata
     }
 
     /*
-    *  Map cubemap regions from packed to projected domain.
-    *  The projected domain should match with OMAF default cubemap layout.
-    *  Packed domain is the actual video content from decoder's output.
-    *  The output from this function is then our internal cubemap layout.
-    *  Note: Framepacked stereo must have the same packing for both channels, with or without constituent picture matching flag set
-    */
-    Error::Enum parseOmafCubemapRegions(const MP4VR::RegionWisePackingProperty& aRwpk, SourceDirection::Enum aSourceDirection, VRCubeMap& aTiledCubeMap)
+     *  Map cubemap regions from packed to projected domain.
+     *  The projected domain should match with OMAF default cubemap layout.
+     *  Packed domain is the actual video content from decoder's output.
+     *  The output from this function is then our internal cubemap layout.
+     *  Note: Framepacked stereo must have the same packing for both channels, with or without constituent picture
+     * matching flag set
+     */
+    Error::Enum parseOmafCubemapRegions(const MP4VR::RegionWisePackingProperty& aRwpk,
+                                        SourceDirection::Enum aSourceDirection,
+                                        VRCubeMap& aTiledCubeMap)
     {
         uint32_t projectedPictureWidth = aRwpk.projPictureWidth;
         uint32_t projectedPictureHeight = aRwpk.projPictureHeight;
         if (aSourceDirection == SourceDirection::TOP_BOTTOM)
         {
-            // we support only region packings, where both channels have the same packing. So limit the projected area based on the indicated framepacking, and ignore regions outside of it
+            // we support only region packings, where both channels have the same packing. So limit the projected area
+            // based on the indicated framepacking, and ignore regions outside of it
             if (aRwpk.constituentPictureMatchingFlag)
             {
                 // ok
@@ -215,13 +254,15 @@ namespace OmafMetadata
             }
             else
             {
-                // read still only regions for the other channel, as we currently don't support any more advanced packings
+                // read still only regions for the other channel, as we currently don't support any more advanced
+                // packings
                 projectedPictureHeight /= 2;
             }
         }
         else if (aSourceDirection == SourceDirection::LEFT_RIGHT)
         {
-            // we support only region packings, where both channels have the same packing. So limit the projected area based on the indicated framepacking, and ignore regions outside of it
+            // we support only region packings, where both channels have the same packing. So limit the projected area
+            // based on the indicated framepacking, and ignore regions outside of it
             if (aRwpk.constituentPictureMatchingFlag)
             {
                 // ok
@@ -229,7 +270,8 @@ namespace OmafMetadata
             }
             else
             {
-                // read still only regions for the other channel, as we currently don't support any more advanced packings
+                // read still only regions for the other channel, as we currently don't support any more advanced
+                // packings
                 projectedPictureWidth /= 2;
             }
         }
@@ -240,14 +282,17 @@ namespace OmafMetadata
         // L F R
         // D B U (all rotated)
 
-        // First collect tiles for each face. One tile per face could be enough, but here all the regions are processed and the last one per face remains effective. 
+        // First collect tiles for each face. One tile per face could be enough, but here all the regions are processed
+        // and the last one per face remains effective.
         // Assumption is that if they are rotated, the rotation is in the same direction in all of them
-        for (MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it = aRwpk.regions.begin(); it != aRwpk.regions.end(); ++it)
+        for (MP4VR::DynArray<MP4VR::RegionWisePackingRegion>::const_iterator it = aRwpk.regions.begin();
+             it != aRwpk.regions.end(); ++it)
         {
             if ((*it).region.rectangular.projRegTop >= projectedPictureHeight ||
                 (*it).region.rectangular.projRegLeft >= projectedPictureWidth)
             {
-                // ignore, is probably stereo region for the other channel, but as noted above we don't support such case
+                // ignore, is probably stereo region for the other channel, but as noted above we don't support such
+                // case
                 continue;
             }
             VRCubeMapFaceSection tile;
@@ -261,7 +306,9 @@ namespace OmafMetadata
             int32_t facesTop = 0;
             int32_t facesLeft = 0;
             char_t face;
-            int32_t position = findPositionInCube((*it).region.rectangular.projRegTop, (*it).region.rectangular.projRegLeft, projectedPictureHeight, projectedPictureWidth);
+            int32_t position =
+                findPositionInCube((*it).region.rectangular.projRegTop, (*it).region.rectangular.projRegLeft,
+                                   projectedPictureHeight, projectedPictureWidth);
             int32_t faceIndex = 0;
             // position follows the OMAF order L F R D B U
             // faceIndex, i.e. output, follows internal order: 0 - front 1 - left 2 - back 3 - right 4 - top 5 - bottom
@@ -323,7 +370,8 @@ namespace OmafMetadata
             }
             }
 
-            // target coordinates within a face - Note: this maps to OMAF cubemap, which is still different than our internal cubemap, as OMAF rotates DBU, but we don't
+            // target coordinates within a face - Note: this maps to OMAF cubemap, which is still different than our
+            // internal cubemap, as OMAF rotates DBU, but we don't
             tile.originX = (float32_t)(*it).region.rectangular.projRegLeft / faceWidth - facesLeft;
             tile.originY = (float32_t)(*it).region.rectangular.projRegTop / faceHeight - facesTop;
             if (position == 3 || position == 5)
@@ -373,16 +421,18 @@ namespace OmafMetadata
             tile.originWidth = (float32_t)(*it).region.rectangular.projRegWidth / faceWidth;
             tile.originHeight = (float32_t)(*it).region.rectangular.projRegHeight / faceHeight;
 
-            //TODO is this correct mapping?
-            tile.sourceOrientation = (CubeFaceSectionOrientation::Enum)convertCustomOmafTransformToOmaf((*it).region.rectangular.transformType, face);
+            tile.sourceOrientation = (CubeFaceSectionOrientation::Enum) convertCustomOmafTransformToOmaf(
+                (*it).region.rectangular.transformType, face);
 
             aTiledCubeMap.cubeFaces[position].faceIndex = faceIndex;
             aTiledCubeMap.cubeFaces[position].sections[aTiledCubeMap.cubeFaces[position].numCoordinates++] = tile;
+            OMAF_LOG_V("cube %c pos %d section %d tile (%f,%f), (%f,%f)", face, position,
+                       aTiledCubeMap.cubeFaces[position].numCoordinates, tile.sourceX, tile.sourceY, tile.sourceWidth,
+                       tile.sourceHeight);
         }
         aTiledCubeMap.cubeNumFaces = 6;
 
         return Error::OK;
     }
-
-}
+}  // namespace OmafMetadata
 OMAF_NS_END

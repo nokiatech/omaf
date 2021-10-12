@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,48 +16,46 @@
 
 #include "NVREssentials.h"
 
-#include "Graphics/NVRDependencies.h"
 #include "Graphics/NVRBufferAccess.h"
-#include "Graphics/NVRIndexBufferFormat.h"
 #include "Graphics/NVRComputeBufferAccess.h"
+#include "Graphics/NVRDependencies.h"
+#include "Graphics/NVRIndexBufferFormat.h"
 
 OMAF_NS_BEGIN
 
 class IndexBufferGL
 {
-    public:
-        
-        IndexBufferGL();
-        ~IndexBufferGL();
-        
-        GLuint getHandle() const;
-        
-        bool_t create(BufferAccess::Enum access, IndexBufferFormat::Enum format, const void_t* data = OMAF_NULL, size_t bytes = 0);
-        void_t bufferData(size_t offset, const void_t* data, size_t bytes);
-        void_t destroy();
-        
-        void_t bind();
-        void_t unbind();
+public:
+    IndexBufferGL();
+    ~IndexBufferGL();
 
-        void_t bindCompute(uint16_t stage, ComputeBufferAccess::Enum computeAccess);
-        void_t unbindCompute(uint16_t stage);
-        
-        GLsizei getNumIndices() const;
-        GLenum getFormat() const;
-        
-    private:
-        
-        OMAF_NO_ASSIGN(IndexBufferGL);
-        OMAF_NO_COPY(IndexBufferGL);
-        
-    private:
-        
-        GLuint mHandle;
-        GLsizei mBytes;
+    GLuint getHandle() const;
 
-        ComputeBufferAccess::Enum mComputeAccess;
-        
-        IndexBufferFormat::Enum mFormat;
+    bool_t
+    create(BufferAccess::Enum access, IndexBufferFormat::Enum format, const void_t* data = OMAF_NULL, size_t bytes = 0);
+    void_t bufferData(size_t offset, const void_t* data, size_t bytes);
+    void_t destroy();
+
+    void_t bind();
+    void_t unbind();
+
+    void_t bindCompute(uint16_t stage, ComputeBufferAccess::Enum computeAccess);
+    void_t unbindCompute(uint16_t stage);
+
+    GLsizei getNumIndices() const;
+    GLenum getFormat() const;
+
+private:
+    OMAF_NO_ASSIGN(IndexBufferGL);
+    OMAF_NO_COPY(IndexBufferGL);
+
+private:
+    GLuint mHandle;
+    GLsizei mBytes;
+
+    ComputeBufferAccess::Enum mComputeAccess;
+
+    IndexBufferFormat::Enum mFormat;
 };
 
 OMAF_NS_END

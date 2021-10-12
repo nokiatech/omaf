@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,25 +14,25 @@
  */
 #pragma once
 
-#include "Math/OMAFMathTypes.h"
 #include "Math/OMAFMathConstants.h"
 #include "Math/OMAFMathFunctions.h"
+#include "Math/OMAFMathTypes.h"
 
 namespace OMAF
 {
-    static const Vector3 Vector3Zero = { 0.0f, 0.0f, 0.0f };
-    static const Vector3 Vector3One = { 1.0f, 1.0f, 1.0f };
+    static const Vector3 Vector3Zero = {0.0f, 0.0f, 0.0f};
+    static const Vector3 Vector3One = {1.0f, 1.0f, 1.0f};
 
-    static const Vector3 Vector3UnitX = { 1.0f, 0.0f, 0.0f };
-    static const Vector3 Vector3UnitY = { 0.0f, 1.0f, 0.0f };
-    static const Vector3 Vector3UnitZ = { 0.0f, 0.0f, 1.0f };
+    static const Vector3 Vector3UnitX = {1.0f, 0.0f, 0.0f};
+    static const Vector3 Vector3UnitY = {0.0f, 1.0f, 0.0f};
+    static const Vector3 Vector3UnitZ = {0.0f, 0.0f, 1.0f};
 
-    static const Vector3 Vector3Front = { 0.0f, 0.0f, -1.0f };
-    static const Vector3 Vector3Back = { 0.0f, 0.0f, 1.0f };
-    static const Vector3 Vector3Up = { 0.0f, 1.0f, 0.0f };
-    static const Vector3 Vector3Down = { 0.0f, -1.0f, 0.0f };
-    static const Vector3 Vector3Left = { -1.0f, 0.0f, 0.0f };
-    static const Vector3 Vector3Right = { 1.0f, 0.0f, 0.0f };
+    static const Vector3 Vector3Front = {0.0f, 0.0f, -1.0f};
+    static const Vector3 Vector3Back = {0.0f, 0.0f, 1.0f};
+    static const Vector3 Vector3Up = {0.0f, 1.0f, 0.0f};
+    static const Vector3 Vector3Down = {0.0f, -1.0f, 0.0f};
+    static const Vector3 Vector3Left = {-1.0f, 0.0f, 0.0f};
+    static const Vector3 Vector3Right = {1.0f, 0.0f, 0.0f};
 
     OMAF_INLINE Vector3 makeVector3(float32_t x, float32_t y, float32_t z);
     OMAF_INLINE Vector3 makeVector3(const float32_t v[3]);
@@ -74,42 +74,42 @@ namespace OMAF
 
     OMAF_INLINE bool_t equals(const Vector3& l, const Vector3& r, float32_t epsilon = OMAF_FLOAT32_EPSILON);
 
-    OMAF_INLINE Vector3 operator + (const Vector3& l, const Vector3& r);
-    OMAF_INLINE Vector3 operator - (const Vector3& l, const Vector3& r);
-    OMAF_INLINE Vector3 operator * (const Vector3& l, const Vector3& r);
-    OMAF_INLINE Vector3 operator / (const Vector3& l, const Vector3& r);
+    OMAF_INLINE Vector3 operator+(const Vector3& l, const Vector3& r);
+    OMAF_INLINE Vector3 operator-(const Vector3& l, const Vector3& r);
+    OMAF_INLINE Vector3 operator*(const Vector3& l, const Vector3& r);
+    OMAF_INLINE Vector3 operator/(const Vector3& l, const Vector3& r);
 
-    OMAF_INLINE void_t operator += (Vector3& l, const Vector3& r);
-    OMAF_INLINE void_t operator -= (Vector3& l, const Vector3& r);
-    OMAF_INLINE void_t operator *= (Vector3& l, const Vector3& r);
-    OMAF_INLINE void_t operator /= (Vector3& l, const Vector3& r);
+    OMAF_INLINE void_t operator+=(Vector3& l, const Vector3& r);
+    OMAF_INLINE void_t operator-=(Vector3& l, const Vector3& r);
+    OMAF_INLINE void_t operator*=(Vector3& l, const Vector3& r);
+    OMAF_INLINE void_t operator/=(Vector3& l, const Vector3& r);
 
-    OMAF_INLINE Vector3 operator + (const Vector3& v, float32_t s);
-    OMAF_INLINE Vector3 operator - (const Vector3& v, float32_t s);
-    OMAF_INLINE Vector3 operator * (const Vector3& v, float32_t s);
-    OMAF_INLINE Vector3 operator / (const Vector3& v, float32_t s);
+    OMAF_INLINE Vector3 operator+(const Vector3& v, float32_t s);
+    OMAF_INLINE Vector3 operator-(const Vector3& v, float32_t s);
+    OMAF_INLINE Vector3 operator*(const Vector3& v, float32_t s);
+    OMAF_INLINE Vector3 operator/(const Vector3& v, float32_t s);
 
-    OMAF_INLINE void_t operator += (Vector3& v, float32_t s);
-    OMAF_INLINE void_t operator -= (Vector3& v, float32_t s);
-    OMAF_INLINE void_t operator *= (Vector3& v, float32_t s);
-    OMAF_INLINE void_t operator /= (Vector3& v, float32_t s);
+    OMAF_INLINE void_t operator+=(Vector3& v, float32_t s);
+    OMAF_INLINE void_t operator-=(Vector3& v, float32_t s);
+    OMAF_INLINE void_t operator*=(Vector3& v, float32_t s);
+    OMAF_INLINE void_t operator/=(Vector3& v, float32_t s);
 
-    OMAF_INLINE bool_t operator == (const Vector3& l, const Vector3& r);
-    OMAF_INLINE bool_t operator != (const Vector3& l, const Vector3& r);
-}
+    OMAF_INLINE bool_t operator==(const Vector3& l, const Vector3& r);
+    OMAF_INLINE bool_t operator!=(const Vector3& l, const Vector3& r);
+}  // namespace OMAF
 
 namespace OMAF
 {
     Vector3 makeVector3(float32_t x, float32_t y, float32_t z)
     {
-        Vector3 result = { x, y, z };
+        Vector3 result = {x, y, z};
 
         return result;
     }
 
     Vector3 makeVector3(const float32_t v[3])
     {
-        Vector3 result = { v[0], v[1], v[2] };
+        Vector3 result = {v[0], v[1], v[2]};
 
         return result;
     }
@@ -306,9 +306,9 @@ namespace OMAF
 
         Vector3 result;
 
-        const float32_t epsilon = 0.99f; // Arbitrary epsilon
+        const float32_t epsilon = 0.99f;  // Arbitrary epsilon
 
-        if (fabsf(v.y) < epsilon) // Abs(DotProduct(u, UP))
+        if (fabsf(v.y) < epsilon)  // Abs(DotProduct(u, UP))
         {
             // CrossProduct(v, UP)
             result.x = -v.z;
@@ -353,55 +353,53 @@ namespace OMAF
 
     bool_t equals(const Vector3& l, const Vector3& r, float32_t epsilon)
     {
-        return (fabsf(l.x - r.x) <= epsilon &&
-                fabsf(l.y - r.y) <= epsilon &&
-                fabsf(l.z - r.z) <= epsilon);
+        return (fabsf(l.x - r.x) <= epsilon && fabsf(l.y - r.y) <= epsilon && fabsf(l.z - r.z) <= epsilon);
     }
 
 
-    Vector3 operator + (const Vector3& l, const Vector3& r)
+    Vector3 operator+(const Vector3& l, const Vector3& r)
     {
         return add(l, r);
     }
 
-    Vector3 operator - (const Vector3& l, const Vector3& r)
+    Vector3 operator-(const Vector3& l, const Vector3& r)
     {
         return subtract(l, r);
     }
 
-    Vector3 operator * (const Vector3& l, const Vector3& r)
+    Vector3 operator*(const Vector3& l, const Vector3& r)
     {
         return multiply(l, r);
     }
 
-    Vector3 operator / (const Vector3& l, const Vector3& r)
+    Vector3 operator/(const Vector3& l, const Vector3& r)
     {
         return divide(l, r);
     }
 
 
-    void_t operator += (Vector3& l, const Vector3& r)
+    void_t operator+=(Vector3& l, const Vector3& r)
     {
         return add(l, l, r);
     }
 
-    void_t operator -= (Vector3& l, const Vector3& r)
+    void_t operator-=(Vector3& l, const Vector3& r)
     {
         return subtract(l, l, r);
     }
 
-    void_t operator *= (Vector3& l, const Vector3& r)
+    void_t operator*=(Vector3& l, const Vector3& r)
     {
         return multiply(l, l, r);
     }
 
-    void_t operator /= (Vector3& l, const Vector3& r)
+    void_t operator/=(Vector3& l, const Vector3& r)
     {
         return divide(l, l, r);
     }
 
 
-    Vector3 operator + (const Vector3& v, float32_t s)
+    Vector3 operator+(const Vector3& v, float32_t s)
     {
         Vector3 result;
         result.x = v.x + s;
@@ -411,7 +409,7 @@ namespace OMAF
         return result;
     }
 
-    Vector3 operator - (const Vector3& v, float32_t s)
+    Vector3 operator-(const Vector3& v, float32_t s)
     {
         Vector3 result;
         result.x = v.x - s;
@@ -421,7 +419,7 @@ namespace OMAF
         return result;
     }
 
-    Vector3 operator * (const Vector3& v, float32_t s)
+    Vector3 operator*(const Vector3& v, float32_t s)
     {
         Vector3 result;
         result.x = v.x * s;
@@ -431,7 +429,7 @@ namespace OMAF
         return result;
     }
 
-    Vector3 operator / (const Vector3& v, float32_t s)
+    Vector3 operator/(const Vector3& v, float32_t s)
     {
         Vector3 result;
         result.x = v.x / s;
@@ -442,28 +440,28 @@ namespace OMAF
     }
 
 
-    void_t operator += (Vector3& v, float32_t s)
+    void_t operator+=(Vector3& v, float32_t s)
     {
         v.x += s;
         v.y += s;
         v.z += s;
     }
 
-    void_t operator -= (Vector3& v, float32_t s)
+    void_t operator-=(Vector3& v, float32_t s)
     {
         v.x -= s;
         v.y -= s;
         v.z -= s;
     }
 
-    void_t operator *= (Vector3& v, float32_t s)
+    void_t operator*=(Vector3& v, float32_t s)
     {
         v.x *= s;
         v.y *= s;
         v.z *= s;
     }
 
-    void_t operator /= (Vector3& v, float32_t s)
+    void_t operator/=(Vector3& v, float32_t s)
     {
         v.x /= s;
         v.y /= s;
@@ -471,13 +469,13 @@ namespace OMAF
     }
 
 
-    bool_t operator == (const Vector3& l, const Vector3& r)
+    bool_t operator==(const Vector3& l, const Vector3& r)
     {
         return equals(l, r);
     }
 
-    bool_t operator != (const Vector3& l, const Vector3& r)
+    bool_t operator!=(const Vector3& l, const Vector3& r)
     {
         return !equals(l, r);
     }
-}
+}  // namespace OMAF

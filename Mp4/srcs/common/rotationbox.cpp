@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -27,7 +27,7 @@ RotationBox::RotationBox(const RotationBox& box)
 {
 }
 
-RotationBox::Rotation RotationBox::getRotation() const
+Rotation RotationBox::getRotation() const
 {
     return mRotation;
 }
@@ -41,9 +41,9 @@ void RotationBox::writeBox(ISOBMFF::BitStream& bitstr)
 {
     writeFullBoxHeader(bitstr);
 
-    bitstr.write32Bits(mRotation.yaw);
-    bitstr.write32Bits(mRotation.pitch);
-    bitstr.write32Bits(mRotation.roll);
+    bitstr.write32BitsSigned(mRotation.yaw);
+    bitstr.write32BitsSigned(mRotation.pitch);
+    bitstr.write32BitsSigned(mRotation.roll);
 
     updateSize(bitstr);
 }
@@ -52,7 +52,7 @@ void RotationBox::parseBox(ISOBMFF::BitStream& bitstr)
 {
     parseFullBoxHeader(bitstr);
 
-    mRotation.yaw   = bitstr.read32Bits();
-    mRotation.pitch = bitstr.read32Bits();
-    mRotation.roll  = bitstr.read32Bits();
+    mRotation.yaw   = bitstr.read32BitsSigned();
+    mRotation.pitch = bitstr.read32BitsSigned();
+    mRotation.roll  = bitstr.read32BitsSigned();
 }

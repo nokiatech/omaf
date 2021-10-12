@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,10 +16,10 @@
 
 #include "NVREssentials.h"
 
+#include "Foundation/NVRFixedArray.h"
+#include "Foundation/NVRHashFunctions.h"
 #include "Graphics/NVRConfig.h"
 #include "Graphics/NVRVertexAttributeFormat.h"
-#include "Foundation/NVRHashFunctions.h"
-#include "Foundation/NVRFixedArray.h"
 
 OMAF_NS_BEGIN
 
@@ -34,37 +34,32 @@ struct VertexAttribute
 
 class VertexDeclaration
 {
-    public:
-        
-        typedef FixedArray<VertexAttribute, OMAF_MAX_SHADER_ATTRIBUTES> VertexAttributeList;
-        
-    public:
-        
-        VertexDeclaration();
-        VertexDeclaration(const VertexDeclaration& other);
-    
-        ~VertexDeclaration();
-    
-        VertexDeclaration& operator = (const VertexDeclaration& other);
-        
-        VertexDeclaration& begin();
-        VertexDeclaration& addAttribute(const char_t* name,
-                                        VertexAttributeFormat::Enum format,
-                                        uint32_t count,
-                                        bool_t normalized);
-        VertexDeclaration& end();
-        
-        uint16_t getOffset(const char_t* name) const;
-        uint32_t getAttributeCount() const;
-        uint32_t getStride() const;
-        
-        const VertexAttributeList& getAttributes() const;
+public:
+    typedef FixedArray<VertexAttribute, OMAF_MAX_SHADER_ATTRIBUTES> VertexAttributeList;
 
-    private:
-        
-        uint16_t mStride;
-        
-        VertexAttributeList mAttributes;
+public:
+    VertexDeclaration();
+    VertexDeclaration(const VertexDeclaration& other);
+
+    ~VertexDeclaration();
+
+    VertexDeclaration& operator=(const VertexDeclaration& other);
+
+    VertexDeclaration& begin();
+    VertexDeclaration&
+    addAttribute(const char_t* name, VertexAttributeFormat::Enum format, uint32_t count, bool_t normalized);
+    VertexDeclaration& end();
+
+    uint16_t getOffset(const char_t* name) const;
+    uint32_t getAttributeCount() const;
+    uint32_t getStride() const;
+
+    const VertexAttributeList& getAttributes() const;
+
+private:
+    uint16_t mStride;
+
+    VertexAttributeList mAttributes;
 };
 
 OMAF_NS_END

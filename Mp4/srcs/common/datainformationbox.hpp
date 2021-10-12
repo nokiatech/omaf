@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -42,6 +42,9 @@ public:
     /** @brief Parses a Data Information Box bitstream and fills in the necessary member variables
      *  @param [in]  bitstr Bitstream that contains the box data */
     virtual void parseBox(ISOBMFF::BitStream& bitstr);
+
+    /** @brief Access the data reference box */
+    const DataReferenceBox& getDataReferenceBox() const;
 
 private:
     DataReferenceBox mDataReferenceBox;  ///< private member that contains the Data Reference Box

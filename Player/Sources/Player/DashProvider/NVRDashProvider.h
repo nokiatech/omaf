@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -20,40 +20,33 @@ OMAF_NS_BEGIN
 
 class DashDownloadManager;
 
-class DashProvider
-: public ProviderBase
+class DashProvider : public ProviderBase
 {
 public:
-    
     DashProvider();
     virtual ~DashProvider();
 
-public: // CoreProvider
-    
+public:  // CoreProvider
     virtual const CoreProviderSourceTypes& getSourceTypes();
 
-public: // VideoProvider
-
-    virtual Error::Enum loadAuxiliaryStream(PathName& uri);
-    virtual Error::Enum playAuxiliary();
-    virtual Error::Enum stopAuxiliary();
-    virtual Error::Enum pauseAuxiliary();
-
-    virtual Error::Enum seekToMsAuxiliary(uint64_t seekTargetMS);
-
-
+public:  // VideoProvider
     virtual bool_t isSeekable();
     virtual bool_t isSeekableByFrame();
 
     virtual uint64_t durationMs() const;
 
-protected: // ProviderBase
-    
-    virtual uint64_t selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources& base, CoreProviderSources& enhancement);
+protected:  // ProviderBase
+    virtual uint64_t selectSources(HeadTransform headTransform,
+                                   float32_t fovHorizontal,
+                                   float32_t fovVertical,
+                                   CoreProviderSources& base,
+                                   CoreProviderSources& additional);
     virtual bool_t setInitialViewport(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical);
     virtual MP4AudioStream* getAudioStream();
+
+    virtual const CoreProviderSources& getAllSources() const;
+
 private:
-    
     void_t parserThreadCallback();
     void_t handlePendingUserRequest();
 
@@ -62,13 +55,8 @@ private:
     void_t clearDownloadedContent(DashDownloadManager* dlManager);
     void_t doSeek();
 
-    void_t doSeekAuxiliary();
-    
 private:
-
     DashDownloadManager* mDownloadManager;
-
-    DashDownloadManager* mAuxiliaryDownloadManager;
 
     CoreProviderSourceTypes mSourceTypes;
 };

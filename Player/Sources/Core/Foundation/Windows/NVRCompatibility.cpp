@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,18 +16,18 @@
 
 #include <math.h>
 
-//int clock_gettime(int clk_id, struct timespec* t)
+// int clock_gettime(int clk_id, struct timespec* t)
 //{
 //    struct timeval now;
 //    int rv = gettimeofday(&now, NULL);
-    
+
 //    if (rv)
 //    {
 //        return rv;
 //    }
-    
+
 //    t->tv_sec  = now.tv_sec;
 //    t->tv_nsec = now.tv_usec * 1000;
-    
+
 //    return 0;
 //}

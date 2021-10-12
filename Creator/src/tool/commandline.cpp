@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -94,6 +94,45 @@ namespace VDD
         {
             mResult.set(aArguments[0]);
             return ParseResult::OK();
+        }
+
+        AppendString::AppendString(std::string aArgumentName,
+                                   OptionallyReference<std::list<std::string>> aResult)
+            : Parse(aArgumentName, aResult.isRequired()), mResult(aResult.allowDuplicates())
+        {
+            // nothing
+        }
+
+        ParseResult AppendString::parse(Arguments aArguments) const
+        {
+            auto list = mResult.get();
+            list.push_back(aArguments[0]);
+            mResult.set(list);
+            return ParseResult::OK();
+        }
+
+        Integer::Integer(std::string aArgumentName,
+                         OptionallyReference<int> aResult)
+            : Parse(aArgumentName, aResult.isRequired())
+            , mResult(aResult)
+        {
+            // nothing
+        }
+
+        ParseResult Integer::parse(Arguments aArguments) const
+        {
+            std::istringstream st(aArguments[0]);
+            int value;
+            st >> value;
+            if (st)
+            {
+                mResult.set(value);
+                return ParseResult::OK();
+            }
+            else
+            {
+                return ParseResult(ParseResult::Fail(), "Cannot parse value, expected integer: " +  aArguments[0]);
+            }
         }
 
         InputFilename::InputFilename(std::string aArgumentName,

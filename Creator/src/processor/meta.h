@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,6 +15,7 @@
 #pragma once
 
 #include <streamsegmenter/segmenterapi.hpp>
+#include <streamsegmenter/mpdtree.hpp>
 
 #include "common/optional.h"
 
@@ -23,9 +24,13 @@ namespace VDD
     static const int MaxNumPlanes = 6;
 
     using TrackId = StreamSegmenter::TrackId;
+    using TrackGroupId = StreamSegmenter::Segmenter::TrackGroupId;
+
     using FrameTime = StreamSegmenter::FrameTime;
     using FrameDuration = StreamSegmenter::FrameDuration;
     using FrameRate = StreamSegmenter::FrameRate;
+
+    std::string to_string(const TrackId&);
 
     typedef std::int64_t Index;
     typedef std::int64_t CodingIndex;
@@ -45,12 +50,7 @@ namespace VDD
         CODED
     };
 
-    enum class OmafProjectionType
-    {
-        None,
-        EQUIRECTANGULAR,
-        CUBEMAP
-    };
+    using OmafProjectionType = StreamSegmenter::MPDTree::OmafProjectionType;
 
     enum class RawFormat
     {
@@ -70,7 +70,11 @@ namespace VDD
         H264,
         H265,
         AAC,
-        TimedMetadata,
+        TimedMetadataInvo,
+        TimedMetadataDyol,
+        TimedMetadataDyvp,
+        TimedMetadataInvp,
+        TimedMetadataRcvp,
         H265Extractor
     };
 
@@ -78,7 +82,7 @@ namespace VDD
     std::istream& operator>>(std::istream&, RawFormat&);
 
     std::ostream& operator<<(std::ostream&, CodedFormat);
-    std::istream& operator >> (std::istream&, CodedFormat&);
+    std::istream& operator>>(std::istream&, CodedFormat&);
 
     struct RawFormatDescription
     {
@@ -100,7 +104,7 @@ namespace VDD
 
     struct RawFrameMeta
     {
-        Index presIndex;        // presentation index
+        Index presIndex;  // presentation index
         FrameTime presTime;
         FrameDuration duration;
 
@@ -154,11 +158,11 @@ namespace VDD
     // applicable in OMAF
     struct Spherical
     {
-        std::int32_t cAzimuth;
-        std::int32_t cElevation;
-        std::int32_t cTilt;
-        std::uint32_t rAzimuth;
-        std::uint32_t rElevation;
+        double cAzimuth;
+        double cElevation;
+        double cTilt;
+        double rAzimuth;
+        double rElevation;
         //bool interpolate;
     };
     // applicable in OMAF
@@ -185,10 +189,9 @@ namespace VDD
         FrameTime codingTime;
         FrameTime presTime;
         FrameDuration duration;
-        // TODO remove trackId when not needed anymore when Dash can create its own metadata
         TrackId trackId;
 
-        bool inCodingOrder;
+        bool inCodingOrder = false;
 
         CodedFormat format = CodedFormat::None;
 
@@ -206,7 +209,7 @@ namespace VDD
         SegmenterMeta segmenterMeta;
 
         // applicable in OMAF
-        OmafProjectionType projection = OmafProjectionType::EQUIRECTANGULAR;
+        Optional<OmafProjectionType> projection = OmafProjectionType::Equirectangular;
         VDD::Optional<RegionPacking> regionPacking;
         VDD::Optional<Spherical> sphericalCoverage;
         VDD::Optional<Quality3d> qualityRankCoverage;
@@ -216,6 +219,8 @@ namespace VDD
             return type == FrameType::IDR;
         }
     };
+
+    std::ostream& operator<<(std::ostream&, const CodedFrameMeta&);
 
     /** Attach arbitrary tags to Meta */
     class MetaTag
@@ -275,7 +280,7 @@ namespace VDD
         CommonFrameMeta getCommonFrameMeta() const;
 
         /* Add the given tag (inheriting from MetaTag) to this Data */
-        template <typename T> void attachTag(const T& aTag);
+        template <typename T> Meta& attachTag(const T& aTag);
 
         /* is the tag T attached? If so, return it. */
         template <typename T> Optional<T> findTag() const;

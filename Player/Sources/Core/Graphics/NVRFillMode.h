@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -23,10 +23,10 @@ namespace FillMode
     enum Enum
     {
         INVALID = -1,
-        
+
         SOLID,
         WIREFRAME,
-        
+
         COUNT
     };
 }

@@ -2,7 +2,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -22,3 +22,10 @@ message(STATUS "controller files  : ${CONTROLLER_SRCS}")
 
 make_library(controller ${CONTROLLER_SRCS})
 
+target_compile_definitions(controller PRIVATE "MP4VR_USE_STATIC_LIB")
+target_compile_definitions(controller PRIVATE "_FILE_OFFSET_BITS=64")
+target_compile_definitions(controller PRIVATE "_LARGEFILE64_SOURCE")
+target_compile_definitions(controller-object PRIVATE "MP4VR_USE_STATIC_LIB")
+target_compile_definitions(controller-object PRIVATE "_FILE_OFFSET_BITS=64")
+target_compile_definitions(controller-object PRIVATE "_LARGEFILE64_SOURCE")
+target_link_libraries(controller mp4vr_static_fpic)

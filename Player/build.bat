@@ -2,7 +2,7 @@
 @echo off
 REM This file is part of Nokia OMAF implementation
 REM
-REM Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+REM Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 REM
 REM Contact: omaf@nokia.com
 REM
@@ -17,21 +17,20 @@ set STARTTIME=%TIME%
 set ORIGCD=%CD%
 call :getargc argc %*
 if %argc%==0 (
-    echo: 
-    echo Usage:
-    echo Run either one combination of SDK commands or one command from the Other commands
-    echo If an option is omitted from SDK commands it runs automatically both
-    echo "<script> debug vs2015" creates cmakes and builds vs2015 debug binaries
-    echo "<script> external" builds external binaries
-    echo: 
-    echo SDK commands
-    echo "generate || build"
-    echo "debug    || release"
-    echo "vs2013   || vs2015  || vs2017  || abiv7 || abiv8 || android"
-    echo:
-    echo Other commands
-    echo "all ^ clean"
-    echo:    
+ 	echo: 
+ 	echo Usage:
+ 	echo Run either one combination of SDK commands or one command from the Other commands
+ 	echo If an option is omitted from SDK commands it runs automatically both
+    echo "<script> debug vs2019" creates cmakes and builds Visual Studio debug binaries
+ 	echo: 
+ 	echo SDK commands
+ 	echo "generate || build"
+ 	echo "debug    || release"
+ 	echo "vs2017 || vs2019 || abiv7 || abiv8 || android"
+ 	echo:
+ 	echo Other commands
+ 	echo "all ^ clean"
+ 	echo:    
     exit /B 1
 )
 
@@ -43,8 +42,8 @@ REM Echo commands instead of executing
 REM set DEBUG_PRINT=YES
 
 if '%DEBUG_PRINT%' == 'YES' (
-    echo Echoing commands
-    set DEBUG_COMMAND=echo
+ 	echo Echoing commands
+ 	set DEBUG_COMMAND=echo
 ) ELSE (
     set DEBUG_COMMAND=
 )
@@ -55,9 +54,8 @@ SET BUILD=NO
 SET DEBUG=NO
 SET RELEASE=NO
 SET ANDROID=NO
-SET VS2013=NO
-SET VS2015=NO
 SET VS2017=NO
+SET VS2019=NO
 SET ANDROID_ABIV7=NO
 SET ANDROID_ABIV8=NO
 SET NINJA=NO
@@ -92,9 +90,8 @@ for %%i in (%*) do (
         call :check %%1 build BUILD OK
         call :check %%1 debug DEBUG OK
         call :check %%1 release RELEASE OK
-        call :check %%1 vs2013 VS2013 OK
-        call :check %%1 vs2015 VS2015 OK
         call :check %%1 vs2017 VS2017 OK
+        call :check %%1 vs2019 VS2019 OK
         call :check %%1 android ANDROID OK
         call :check %%1 abiv7 ANDROID_ABIV7 OK
         call :check %%1 abiv8 ANDROID_ABIV8 OK
@@ -126,9 +123,8 @@ if '%ALL%'=='YES' (
     SET BUILD=YES
     SET DEBUG=YES
     SET RELEASE=YES
-    SET VS2013=NO
-    SET VS2015=YES
-    SET VS2017=NO
+    SET VS2017=YES
+    SET VS2019=NO
     SET ANDROID=YES
     SET ANDROID_ABIV7=NO
     SET ANDROID_ABIV8=NO
@@ -160,17 +156,18 @@ if '%ANDROID_ABIV8%'=='YES' (
     set ANDROID=YES
 )
 
-if '%VS2013%%VS2015%%VS2017%%ANDROID%'=='NONONONO' (
-    REM Default to VS2015 build if compiler not set.
-    REM set VS2013=YES
-    set VS2015=YES
-    REM set VS2017=YES
+if '%ANDROID%'=='YES' (
+    REM Android build just doesnt work without ninja
+    SET NINJA=YES
 )
 
+if '%VS2017%%VS2019%%ANDROID%'=='NONONO' (
+    REM Default to VS2017 build if compiler not set.
+    set VS2017=YES
+)
 
 if '%NINJA%'=='YES' (
     REM check if ninja can be found.
-    
     set MAKE_BIN="%CD%\ninja.exe"
     call :checkninja !MAKE_BIN!
     if NOT !ERRORLEVEL! EQU 0 (
@@ -182,23 +179,17 @@ if '%NINJA%'=='YES' (
     )
 
     REM ninja requested.. fix VS builds..
-    if '%VS2013%'=='YES' (
-        set VS2013=NO
-        set NINJA2013=YES
-        %DEBUG_COMMAND% call "%VS120COMNTOOLS%..\..\vc\vcvarsall.bat" x64
-    )
-    if '%VS2015%'=='YES' (
-        set VS2015=NO
-        set NINJA2015=YES
-        %DEBUG_COMMAND% call "%VS140COMNTOOLS%..\..\vc\vcvarsall.bat" x64
-    )
-    if '%VS2017%'=='YES' (
+    if '%VS2017%'=='YES' OR '%VS2019%'=='YES' (
         set VS2017=NO
-        set NINJA2017=YES
-        REM see the following links
+        set VS2019=NO
+        if '%VS2017%'=='YES' (
+            set NINJA2017=YES
+        )
+        if '%VS2019%'=='YES' (
+            set NINJA2019=YES
+        )
         REM https://blogs.msdn.microsoft.com/vcblog/2017/03/06/finding-the-visual-c-compiler-tools-in-visual-studio-2017/
         REM https://github.com/Microsoft/vswhere
-        REM other option is to use powershell....
         for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
             set InstallDir=%%i
         )
@@ -214,14 +205,11 @@ if '%ANDROID%'=='YES' (
     set ANDROID_NATIVE_API_LEVEL=android-24
     set ANDROID_STL=c++_shared
     if '%NINJA%'=='YES' (
-        set ANDROID_GENERATOR="Ninja"
+        set ANDROID_GENERATOR=-G"Ninja"
         set ANDROID_PARAMETERS=-DCMAKE_TOOLCHAIN_FILE=%ANDROID_NDK%\build\cmake\android.toolchain.cmake -DCMAKE_ANDROID_STL_TYPE=!ANDROID_STL! -DANDROID_NATIVE_API_LEVEL=!ANDROID_NATIVE_API_LEVEL!
     ) else (
-        set ANDROID_GENERATOR="MinGW Makefiles"
-        set MAKE_BIN="%ANDROID_NDK%\prebuilt\windows-x86_64\bin\make.exe"
-        call :checkmake !MAKE_BIN!
-        if NOT !ERRORLEVEL! EQU 0 goto :error_exit
-        set ANDROID_PARAMETERS=-DCMAKE_TOOLCHAIN_FILE=android.toolchain.cmake -DANDROID_STL=!ANDROID_STL! -DANDROID_NATIVE_API_LEVEL=!ANDROID_NATIVE_API_LEVEL! -DCMAKE_MAKE_PROGRAM=!MAKE_BIN!
+        echo "Only ninja build allowed with android"
+        exit /B 1
     )  
 )
 
@@ -231,9 +219,8 @@ echo BUILD                      = %BUILD%
 echo DEBUG                      = %DEBUG%
 echo RELEASE                    = %RELEASE%
 echo NINJA                      = %NINJA%
-echo VS2013                     = %VS2013%
-echo VS2015                     = %VS2015%
 echo VS2017                     = %VS2017%
+echo VS2019                     = %VS2019%
 echo ANDROID                    = %ANDROID%
 echo ANDROID_ABIV7              = %ANDROID_ABIV7%
 echo ANDROID_ABIV8              = %ANDROID_ABIV8%
@@ -249,16 +236,14 @@ set PLATFORM_ANDROID=Android
 set BUILD_TYPE_DEBUG=Debug
 set BUILD_TYPE_RELEASE=Release
 set BUILDERS_ANDROID=ANDROID_ABIV7 ANDROID_ABIV8
-set BUILDERS_WINDOWS=VS2013 VS2015 VS2017 NINJA2013 NINJA2015 NINJA2017
+set BUILDERS_WINDOWS=VS2017 VS2019 NINJA2017 NINJA2019
 
-set IS_IDE_VS2013=IDE
-set IS_IDE_VS2015=IDE
 set IS_IDE_VS2017=IDE
+set IS_IDE_VS2019=IDE
 set IS_IDE_ANDROID_ABIV7=NO_IDE
 set IS_IDE_ANDROID_ABIV8=NO_IDE
-set IS_IDE_NINJA2013=NO_IDE
-set IS_IDE_NINJA2015=NO_IDE
 set IS_IDE_NINJA2017=NO_IDE
+set IS_IDE_NINJA2019=NO_IDE
 
 set EXT=
 
@@ -282,38 +267,27 @@ if '%CMAKE_TOOLCHAIN%'=='YES' (
 )
 set ANDROID_ABIV8_ABI=\arm64-v8a
 
-set GENERATOR_VS2013="Visual Studio 12 2013 Win64"
-set BUILD_PATH_VS2013_DEBUG=bld_windows_2013!EXT!
-set BUILD_PATH_VS2013_RELEASE=bld_windows_2013!EXT!
-set SDK_PARAMETERS_VS2013=!SDK_PARAMETERS!
-
-set GENERATOR_VS2015="Visual Studio 14 2015 Win64"
-set BUILD_PATH_VS2015_DEBUG=bld_windows_2015!EXT!
-set BUILD_PATH_VS2015_RELEASE=bld_windows_2015!EXT!
-set SDK_PARAMETERS_VS2015=!SDK_PARAMETERS!
-
-set GENERATOR_VS2017="Visual Studio 15 2017 Win64"
+set GENERATOR_VS2017=-G"Visual Studio 15 2017 Win64"
 set BUILD_PATH_VS2017_DEBUG=bld_windows_2017!EXT!
 set BUILD_PATH_VS2017_RELEASE=bld_windows_2017!EXT!
 set SDK_PARAMETERS_VS2017=!SDK_PARAMETERS!
 
-rem NINJA for vs2013
-set GENERATOR_NINJA2013="Ninja"
-set BUILD_PATH_NINJA2013_DEBUG=bld_windows_NINJA_2013_DEBUG!EXT!
-set BUILD_PATH_NINJA2013_RELEASE=bld_windows_NINJA_2013_RELEASE!EXT!
-set SDK_PARAMETERS_NINJA2013=!SDK_PARAMETERS! -DCMAKE_MAKE_PROGRAM="%CD%\ninja.exe" -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe"
+set GENERATOR_VS2019=-G"Visual Studio 16 2019" -A x64
+set BUILD_PATH_VS2019_DEBUG=bld_windows_2019!EXT!
+set BUILD_PATH_VS2019_RELEASE=bld_windows_2019!EXT!
+set SDK_PARAMETERS_VS2019=!SDK_PARAMETERS!
 
-rem NINJA for vs2015
-set GENERATOR_NINJA2015="Ninja"
-set BUILD_PATH_NINJA2015_DEBUG=bld_windows_NINJA_2015_DEBUG!EXT!
-set BUILD_PATH_NINJA2015_RELEASE=bld_windows_NINJA_2015_RELEASE!EXT!
-set SDK_PARAMETERS_NINJA2015=!SDK_PARAMETERS! -DCMAKE_MAKE_PROGRAM="%CD%\ninja.exe" -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe"
-
-rem NINJA for vs2015
-set GENERATOR_NINJA2017="Ninja"
+rem NINJA for vs2017
+set GENERATOR_NINJA2017=-G"Ninja"
 set BUILD_PATH_NINJA2017_DEBUG=bld_windows_NINJA_2017_DEBUG!EXT!
 set BUILD_PATH_NINJA2017_RELEASE=bld_windows_NINJA_2017_RELEASE!EXT!
 set SDK_PARAMETERS_NINJA2017=!SDK_PARAMETERS! -DCMAKE_MAKE_PROGRAM="%CD%\ninja.exe" -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe"
+
+rem NINJA for vs2019
+set GENERATOR_NINJA2019=-G"Ninja"
+set BUILD_PATH_NINJA2019_DEBUG=bld_windows_NINJA_2019_DEBUG!EXT!
+set BUILD_PATH_NINJA2019_RELEASE=bld_windows_NINJA_2019_RELEASE!EXT!
+set SDK_PARAMETERS_NINJA2019=!SDK_PARAMETERS! -DCMAKE_MAKE_PROGRAM="%CD%\ninja.exe" -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe"
 
 set CMAKE_GENERATE_NO_IDE_DEBUG=-DCMAKE_BUILD_TYPE=!BUILD_TYPE_DEBUG!
 set CMAKE_GENERATE_NO_IDE_RELEASE=-DCMAKE_BUILD_TYPE=!BUILD_TYPE_RELEASE!
@@ -339,8 +313,12 @@ for %%p in (WINDOWS ANDROID) do (
             for %%c in (CLEAN GENERATE BUILD) do (
                 if '!%%c!'=='YES' (
                     set FINAL_GENERATOR=!GENERATOR_%%a!
-                    set SDK_FINAL_PARAMETERS=-G!FINAL_GENERATOR! !SDK_PARAMETERS_%%a! !EXTRA_PARAMETERS!
-                    set SDK_FINAL_PARAMETERS=!SDK_FINAL_PARAMETERS! -DINSTALLER=NO
+                    set SDK_FINAL_PARAMETERS=!FINAL_GENERATOR! !SDK_PARAMETERS_%%a! !EXTRA_PARAMETERS!
+                    if '!INSTALLER!'=='YES' (
+                        set SDK_FINAL_PARAMETERS=!SDK_FINAL_PARAMETERS! -DINSTALLER=YES
+                    ) else (
+                        set SDK_FINAL_PARAMETERS=!SDK_FINAL_PARAMETERS! -DINSTALLER=NO
+                    )
                     
                     if '%%c'=='CLEAN' (
                         for %%t in (DEBUG RELEASE) do (
@@ -355,7 +333,8 @@ for %%p in (WINDOWS ANDROID) do (
                                 if '!doit!'=='YES' (
                                     %DEBUG_COMMAND% rd /S /Q !BUILD_PATH_%%a_%%t!
                                 )
-                                %DEBUG_COMMAND% rd /S /Q .\Lib\!PLATFORM!\!BUILD_TYPE_%%t!!%%a_ABI!
+                                %DEBUG_COMMAND% rd /S /Q Installer\SDK\OZOPlayer\Lib\!PLATFORM!\!BUILD_TYPE_%%t!!%%a_ABI!
+                                %DEBUG_COMMAND% rd /S /Q SDK\OZOPlayer\Lib\!PLATFORM!\!BUILD_TYPE_%%t!!%%a_ABI!
                             )
                         )
                     )
@@ -378,7 +357,6 @@ for %%p in (WINDOWS ANDROID) do (
                                         echo Generating %%p %%a %%t
                                         set final=!CMAKE_GENERATE_NO_IDE_%%t!
                                     )
-                                    echo From %ORIGCD% 
                                     echo -----------------------------------------------------
                                     %DEBUG_COMMAND% mkdir !BUILD_PATH_%%a_%%t!
                                     %DEBUG_COMMAND% cd !BUILD_PATH_%%a_%%t!
@@ -428,7 +406,7 @@ rem Helper functions after this
     )
     goto :eof
     
-:checkninja:
+:checkninja
     if NOT EXIST %1 (
         echo "ninja.exe is missing."
         exit /B 1

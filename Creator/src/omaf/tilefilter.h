@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,30 +19,35 @@
 
 #include "parser/h265parser.hpp"
 #include "tileconfig.h"
+#include "controller/videoinput.h"
 
 namespace VDD {
 
-    enum ExtractorMode
+    // At least currently, a boolean could serve the purpose as well, but this may be more elegant
+    enum ExtractorMode  
     {
         INVALID = -1,
         NO_EXTRACTOR,
-        COMMON_EXTRACTOR,
-        DEDICATED_EXTRACTOR,
+        CREATE_EXTRACTOR,
 
         COUNT
     };
     class TileFilter
     {
     public:
-        TileFilter(std::uint8_t aQualityRank, Projection& aProjection, bool aResetExtractorLevelIDCTo51);
+        TileFilter(std::uint8_t aQualityRank, Projection& aProjection,
+                   VideoInputMode aVideoMode, bool aResetExtractorLevelIDCTo51);
         ~TileFilter();
 
     public:
-        typedef std::vector<OmafTileSetConfiguration> OmafTileSets;
-
         bool parseParamSet(H265InputStream& aInputStream, const OmafTileSets& aTileConfig, const CodedFrameMeta& aInputMeta);
         bool parseAU(H265InputStream& aInputStream, int aExpectedTileCount);
-        void convertToSubpicture(std::uint32_t aConfigIndex, const OmafTileSetConfiguration& aConfig, size_t aAUIndex, std::vector<Views>& aSubPictures, FrameTime aPresTime, int64_t aCodingIndex, FrameDuration aDuration, ExtractorMode aExtractorMode);
+        void convertToSubpicture(std::uint32_t aConfigIndex,
+                                 const OmafTileSetConfiguration& aConfig, size_t aAUIndex,
+                                 std::vector<Data>& aSubPictures, bool inCodingOrder,
+                                 FrameTime aCodingTime, FrameTime aPresTime, int64_t aCodingIndex,
+                                 Index aPresIndex, FrameDuration aDuration,
+                                 ExtractorMode aExtractorMode);
 
     private:
         struct TilePixelRegion
@@ -63,14 +68,14 @@ namespace VDD {
             H265::SequenceParameterSet* aNewSps, H265::PictureParameterSet* aNewPps, H265::SliceHeader& aOldHeaderParsed, uint8_t& aNuhTemporalIdPlus1);
         void prepareParamSets(const OmafTileSets& aTileConfig, const CodedFrameMeta& aInputMeta);
         CodedFrameMeta createMetadata(const TilePixelRegion& aTile, TrackId aTrackId,
-                                      FrameTime aPresTime,
-                                      int64_t aCodingIndex,
+                                      FrameTime aCodingTime, FrameTime aPresTime,
+                                      int64_t aCodingIndex, Index aPresIndex,
                                       FrameDuration aDuration, bool aIsIDR, size_t aAUIndex,
                                       const CbsSpsData& aSps, const CbsPpsData& aPps,
                                       uint32_t aBitrate);
-        CodedFrameMeta createExtractorMetadata(const TilePixelRegion& aTile,
-                                               FrameTime aPresTime,
-                                               int64_t aCodingIndex,
+        CodedFrameMeta createExtractorMetadata(const TilePixelRegion& aTile, bool aInCodingOrder,
+                                               FrameTime aCodingTime, FrameTime aPresTime,
+                                               int64_t aCodingIndex, Index aPresIndex,
                                                FrameDuration aDuration, size_t aAUIndex,
                                                bool aIsIDR);
         RegionPacking createRwpk(const TilePixelRegion& aTile);
@@ -99,11 +104,13 @@ namespace VDD {
         SlcHdrOset mSlcHdrOset = {};
 
         std::uint8_t mQualityRank;
-        std::vector<int> mBitratePerSubpicture;
+        std::vector<uint32_t> mBitratePerSubpicture;
         Projection mProjection;
         bool mResetExtractorLevelIDCTo51;
 
         std::vector<TilePixelRegion> mTileRegions;
+
+        VideoInputMode mVideoMode;
     };
 
 

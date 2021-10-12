@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,43 +14,122 @@
  */
 #include "dash.h"
 
+#include "codecinfo.h"
 #include "common.h"
-#include "controllerops.h"
 #include "configreader.h"
+#include "controllerops.h"
 #include "log/log.h"
 
 namespace VDD
 {
+    namespace
+    {
+        const std::map<std::string, DashProfile> kNameToDashProfile{
+            {"live", DashProfile::Live}, {"on_demand", DashProfile::OnDemand}};
 
-    Dash::Dash(std::shared_ptr<Log> aLog,
-        const ConfigValue& aDashConfig,
-        ControllerOps& aControllerOps)
+        const std::function<DashProfile(const ConfigValue&)> readDashProfile =
+            readMapping("DashProfile", kNameToDashProfile);
+
+        const std::map<std::string, OutputMode> kNameToOutputMode{{"none", OutputMode::None},
+                                                                  {"omafv1", OutputMode::OMAFV1},
+                                                                  {"omafv2", OutputMode::OMAFV2}};
+
+        const std::function<OutputMode(const ConfigValue&)> readOutputMode =
+            readMapping("OutputMode", kNameToOutputMode);
+    }  // namespace
+
+    Optional<StreamSegmenter::MPDTree::OmafProjectionFormat>
+    mpdProjectionFormatOfOmafProjectionType(Optional<OmafProjectionType> aProjection)
+    {
+        if (aProjection)
+        {
+            switch (*aProjection)
+            {
+            case VDD::OmafProjectionType::Cubemap:
+            {
+                StreamSegmenter::MPDTree::OmafProjectionFormat p{};
+                p.projectionType.clear();
+                p.projectionType.push_back(StreamSegmenter::MPDTree::OmafProjectionType::Cubemap);
+                return p;
+            }
+            case VDD::OmafProjectionType::Equirectangular:
+            {
+                StreamSegmenter::MPDTree::OmafProjectionFormat p{};
+                p.projectionType.clear();
+                p.projectionType.push_back(
+                    StreamSegmenter::MPDTree::OmafProjectionType::Equirectangular);
+                return p;
+            }
+            }
+        }
+        else
+        {
+            return {};
+        }
+        assert(false);
+        return {};
+    }
+
+    Dash::Dash(std::shared_ptr<Log> aLog, const ConfigValue& aDashConfig,
+               ControllerOps& aControllerOps)
         : mOps(aControllerOps)
         , mLog(aLog)
         , mDashConfig(aDashConfig)
-        , mOverrideTotalDuration(VDD::readOptional("total duration", readSegmentDuration)(mDashConfig.tryTraverse(configPathOfString("mpd.total_duration"))))
+        , mOverrideTotalDuration(VDD::readOptional(readSegmentDuration)(
+              mDashConfig.tryTraverse(configPathOfString("mpd.total_duration"))))
+        , mCompactNumbering(optionWithDefault(mDashConfig, "compact_numbering", readBool, true))
+        , mBaseDirectory(optionWithDefault(mDashConfig, "output_directory_base", readString, ""))
+        , mDashProfile(optionWithDefault(mDashConfig, "profile", readDashProfile, DashProfile::Live))
+        , mOutputMode(optionWithDefault(mDashConfig, "output_mode", readOutputMode, OutputMode::OMAFV1))
     {
+        if (mCompactNumbering)
+        {
+            mNextId = 1;
+        }
+        else
+        {
+            mNextId = 1000;
+        }
+        assert(mDashConfig);
+    }
 
+    std::string Dash::getBaseName() const
+    {
+        assert(mBaseName);
+        return *mBaseName;
+    }
+
+    void Dash::setBaseName(std::string aBaseName)
+    {
+        mBaseName = aBaseName;
     }
 
     Dash::~Dash() = default;
 
-    void Dash::hookSegmentSaverSignal(const DashSegmenterConfig& aDashOutput, AsyncProcessor* aNode)
+    std::string Dash::getBaseDirectory() const
     {
-        if (!mSegmentSavedSignals.count(aDashOutput.segmenterName))
-        {
-            SegmentSaverSignal signal;
-            signal.combineSignals = Utils::make_unique<CombineNode>(mOps.getGraph());
-            mSegmentSavedSignals.insert(std::make_pair(aDashOutput.segmenterName, std::move(signal)));
-        }
-        auto& savedSignal = mSegmentSavedSignals.at(aDashOutput.segmenterName);
-
-        connect(*aNode, *mOps.configureForGraph(savedSignal.combineSignals->getSink(savedSignal.sinkCount++)));
+        return mBaseDirectory;
     }
 
-    bool Dash::isEnabled() const
+    void Dash::hookSegmentSaverSignal(const DashSegmenterConfig& aDashOutput, AsyncProcessor* aNode)
     {
-        return mDashConfig.valid();
+        // optional because currently we're not using views (omafvi)
+        Optional<ViewId> viewId = aDashOutput.viewId;
+        auto& segmentSaverSignals = mSegmentSavedSignals[viewId];
+        if (!segmentSaverSignals.count(aDashOutput.segmenterName))
+        {
+            SegmentSaverSignal signal;
+            CombineNode::Config config{};
+            config.labelPrefix = "SegmentSaverHook";
+            signal.combineSignals = Utils::make_unique<CombineNode>(mOps.getGraph(), config);
+            segmentSaverSignals.insert(std::make_pair(aDashOutput.segmenterName, std::move(signal)));
+        }
+        auto& savedSignal = segmentSaverSignals.at(aDashOutput.segmenterName);
+
+        size_t sinkIndex = savedSignal.sinkCount++;
+        mSinkIndexToRepresentationId[viewId][sinkIndex] = aDashOutput.representationId;
+
+        connect(*aNode, *mOps.configureForGraph(savedSignal.combineSignals->getSink(sinkIndex))).ASYNC_HERE;
     }
 
     ConfigValue Dash::dashConfigFor(std::string aDashName) const
@@ -58,100 +137,20 @@ namespace VDD
         return mDashConfig[aDashName];
     }
 
+    StreamId Dash::newId(IdKind aKind)
+    {
+        if (!mCompactNumbering && Optional<IdKind>(aKind) != mPrevIdKind)
+        {
+            mPrevIdKind = aKind;
+            mNextId = mNextId.get() + 1000 - mNextId.get() % 1000;
+        }
+        return mNextId++;
+    }
+
     void Dash::createHevcCodecsString(const std::vector<uint8_t>& aSps, std::string& aCodec)
     {
-        size_t k = 0; // k indexes aSps
-        if (aSps[0] == 0 && aSps[1] == 0 && aSps[2] == 0 && aSps[3] == 1)
-        {
-            // SPS has 4 byte start code
-            k += 4;
-        }
-        // scan the relevant part of SPS (NALU header + profile_tier_level == 16 RBSP bytes => 20+ input bytes) for EPB and remove if found
-        std::vector<uint8_t> rbsp;
-        for (; k < 25; k++)
-        {
-            rbsp.push_back(aSps[k]);
-            if (aSps[k] == 0 && aSps[k + 1] == 0 && aSps[k + 2] == 3)
-            {
-                // skip the EPB
-                rbsp.push_back(aSps[k + 1]);
-                k += 2; // k gets updated again in the for-loop
-            }
-        }
-
-        // NALU header 2 bytes
-        //uint8_t sps_video_parameter_set_id: 4 bits
-        //uint8_t sps_max_sub_layers_minus1: 3 bits
-        //uint8_t sps_temporal_id_nesting_flag: 1 bit;
-        size_t i = 3; // i indexes rbsp
-
-        uint8_t general_profile_space = (rbsp.at(i) >> 6) & 0x03;
-        uint8_t general_tier_flag = (rbsp.at(i) >> 5) & 0x01;
-        uint8_t general_profile_idc = rbsp.at(i) & 0x1F;
-        i += 1;
-        uint32_t spsu[4]{ rbsp.at(i), rbsp.at(i + 1), rbsp.at(i + 2), rbsp.at(i + 3) };
-        uint32_t general_profile_compatibility_flags = Utils::reverse((spsu[0] << 24) | (spsu[1] << 16) | (spsu[2] << 8) | spsu[3]);
-        i += 4;
-        size_t general_progressive_source_flag_index = i;
-        i += 6; // size of general_progressive_source_flags
-        uint8_t general_level_idc = rbsp.at(i);
-
-        // first element: general_profile_space + general_profile_idc info
-        if (general_profile_space) // 0 value is omitted from output on purpose
-        {
-            if (general_profile_space == 1)
-            {
-                aCodec.push_back('A');
-            }
-            else if (general_profile_space == 2)
-            {
-                aCodec.push_back('B');
-            }
-            else if (general_profile_space == 3)
-            {
-                aCodec.push_back('C');
-            }
-        }
-        aCodec += std::to_string(general_profile_idc);
-        aCodec.push_back('.');
-
-        // second element: general_profile_compatibility_flags info
-        std::stringstream stream;
-        stream << std::hex << general_profile_compatibility_flags;  // reverse bit order 32 bit flags field as hex
-        aCodec += stream.str();
-        aCodec.push_back('.');
-
-        // third element: general_tier_flag + general_level_idc
-        if (general_tier_flag == 0)
-        {
-            aCodec.push_back('L');
-        }
-        else // general_tier_flag == 1, other values are not specified by spec so assume all non-zero are H.
-        {
-            aCodec.push_back('H');
-        }
-        aCodec += std::to_string(general_level_idc);
-
-        // fourth+n element: ( zero values at end can be omitted )
-        uint32_t numberOfElements = 0;
-        for (size_t j = 0; j < 6; ++j)
-        {
-            if (rbsp.at(general_progressive_source_flag_index + j) != 0)
-            {
-                numberOfElements = (uint32_t)j + 1;
-            }
-        }
-
-        size_t element = 0;
-        while (numberOfElements > 0)
-        {
-            aCodec.push_back('.');
-            std::stringstream flags;
-            flags << std::hex << uint32_t(rbsp.at(general_progressive_source_flag_index + element));
-            aCodec += flags.str();
-            element++;
-            numberOfElements--;
-        }
+        HevcCodecInfo hevcCodecInfo = getHevcCodecInfo(aSps);
+        aCodec += getCodecInfoString(hevcCodecInfo);
     }
 
     void Dash::createAvcCodecsString(const std::vector<uint8_t>& aSps, std::string& aCodec)
@@ -171,4 +170,32 @@ namespace VDD
             aCodec.push_back(hex[aSps.at(i) % 16]);
         }
     }
-}
+
+    const ConfigValue& Dash::getConfig() const
+    {
+        return mDashConfig;
+    }
+
+    /** @brief Retrieve the curren opreating mode set by the "mode" field */
+    OutputMode Dash::getOutputMode() const
+    {
+        return mOutputMode;
+    }
+
+    StreamSegmenter::Segmenter::ImdaId Dash::newImdaId(PipelineOutput /*aOutput*/)
+    {
+        std::unique_lock<std::mutex> lock(mImdaIdMutex);
+        assert(false);
+        return mImdaId++;
+    }
+
+    DashProfile Dash::getProfile() const
+    {
+        return mDashProfile;
+    }
+
+    std::string Dash::getDefaultPeriodId() const
+    {
+        return "1";
+    }
+}  // namespace VDD

@@ -2,7 +2,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -218,6 +218,7 @@ target_include_directories(${MODULE_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Pl
 
 target_include_directories(${MODULE_NAME} PRIVATE "${PROJECT_BINARY_DIR}")
 
+target_include_directories(${MODULE_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/../Mp4/srcs/api/")
 target_include_directories(${MODULE_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/../Mp4/srcs/api/reader/")
 
 target_include_directories(${MODULE_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/../../libdash/libdash/libdash/include/")

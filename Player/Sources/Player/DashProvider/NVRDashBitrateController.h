@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,68 +13,70 @@
  * written consent of Nokia.
  */
 #pragma once
-#include "NVREssentials.h"
-#include "Foundation/NVRFixedArray.h"
 #include "DashProvider/NVRDashIssueType.h"
-#include "DashProvider/NVRDashAdaptationSet.h"
-#include "DashProvider/NVRDashAdaptationSetSubPicture.h"
+#include "DashProvider/NVRDashVideoDownloader.h"
+#include "Foundation/NVRFixedArray.h"
+#include "NVREssentials.h"
 
 OMAF_NS_BEGIN
 
-class DashAdaptationSet;
 class VASTilePicker;
 
 class DashBitrateContoller
 {
 public:
     DashBitrateContoller();
-    ~DashBitrateContoller();
+    virtual ~DashBitrateContoller();
 
-    void_t initialize(DashAdaptationSet* aBaseLayer, DashAdaptationSet* aBaseLayerStereo, const TileAdaptationSets& aTiles, VASTilePicker* aTilepicker);
+    virtual void_t initialize(DashVideoDownloader* aVideoDownloader);
 
-    bool_t update(uint32_t aBandwidthOverhead);
+    virtual bool_t update(uint32_t aBandwidthOverhead);
     bool_t reportDownloadProblem(IssueType::Enum aIssue);
 
-    bool_t allowEnhancement() const;
+    virtual void_t setNrQualityLevels(uint8_t aLevel);
+    virtual bool_t getQualityLevelForeground(uint8_t& aLevel, uint8_t& aNrLevels) const;
+    virtual bool_t getQualityLevelBackground(uint8_t& aLevel, uint8_t& aNrLevels) const;
+    virtual bool_t getQualityLevelMargin(uint8_t& aLevel) const;
+    virtual bool_t getQualityLevelMargin(size_t aNrViewportTiles, size_t& aMarginTilesBudget, uint8_t& aLevel) const;
 
-    void_t setNrQualityLevels(uint8_t aLevel);
-    bool_t getQualityLevelForeground(uint8_t& aLevel, uint8_t& aNrLevels) const;
-    bool_t getQualityLevelBackground(uint8_t& aLevel, uint8_t& aNrLevels) const;
-
+protected:
+    virtual void_t doUpdate();
+    virtual bool_t setBitrate(size_t aBitrateIndex);
+    virtual void_t increaseCache();
 
 private:
     bool_t canSwitch();
-    void_t doUpdate();
-    uint32_t estimateAvailableBandwidth(uint32_t aBandwidthOverhead);
-    size_t findCorrectBitrateIndex(const Bitrates& aBitrates, const uint32_t aAvailableBandwidth, const uint32_t aCurrentBitrate);
-    void_t dropToMono();
+    int32_t findDowngradeBitrateIndex(const Bitrates& aBitrates, const uint32_t aAvailableBandwidth);
+    size_t getQualityFromThroughput(const Bitrates& aBitrates, uint32_t throughput);
 
-private:
-
-    TileAdaptationSets mEnhTileAdaptationSets;  // Enhancement layer tiles that can be dropped, not OMAF tiles that are essential
-    DashAdaptationSet* mAudioAdaptationSet;
-    DashAdaptationSet* mBaselayerAdaptationSet;
-    DashAdaptationSet* mBaselayerAdaptationStereoSet;
-
-    Bitrates mPossibleBitrates;
-    Bitrates mTileBitrates;
-    size_t mCurrentBitrateIndex;
-    uint32_t mNrBaselayerBitrates;
-    Bitrates mPossibleMonoBitrates;
-
-    VASTilePicker* mTilePicker; // Not own
-    bool_t mAllowEnhancement;
-    uint32_t mDelayedSegmentCount;
-    uint32_t mLastBitrateCheckTimeMs;
-    uint64_t mUpdateInterval;
-    bool_t mRetry;
-    bool_t mUseWithEnhancementLayer;
-
-    bool_t mForcedToMono;
-
+protected:
+    DashVideoDownloader* mVideoDownloader;
+    int32_t mCurrentBitrateIndex;
+    uint32_t mIssueCount;
     uint8_t mNrQualityLevels;
     uint8_t mQualityBackground;
     uint8_t mQualityForeground;
+    uint32_t mNrVideoBitrates;
+    Bitrates mPossibleBitrates;
+
+private:
+    uint32_t mLastBitrateCheckTimeMs;
+    uint64_t mUpdateInterval;
+    bool_t mRetry;
+    bool_t mCanEstimate;
+};
+
+class DashBitrateContollerExtractor : public DashBitrateContoller
+{
+public:
+    DashBitrateContollerExtractor();
+    virtual ~DashBitrateContollerExtractor();
+
+    virtual void_t initialize(DashVideoDownloader* aVideoDownloader);
+
+protected:
+    virtual void_t doUpdate();
+    virtual bool_t setBitrate(size_t aBitrateIndex);
 };
 
 

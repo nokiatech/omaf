@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -22,67 +22,85 @@
 #include "Audio/NVRAudioRendererAPI.h"
 #include "Audio/NVRAudioRendererObserver.h"
 #include "Core/Foundation/NVRSpinlock.h"
-#include "Media/NVRMediaPacketQueue.h"
 #include "Foundation/NVRArray.h"
+#include "Media/NVRMediaPacketQueue.h"
 
 
 OMAF_NS_BEGIN
-    const int32_t kMaxAacInputBuffers = 100;
+const int32_t kMaxAacInputBuffers = 100;
 
-    class AACAudioRenderer : public AudioRendererAPI
-    {
-    public:
+struct AdditionalAudio
+{
+    AdditionalAudio()
+        : mAACBuffers(*MemorySystem::DefaultHeapAllocator(), 10000)
+        , mStreamId(InvalidStreamId){};
 
-        AACAudioRenderer(MemoryAllocator& allocator, AudioRendererObserver& observer);
-        virtual ~AACAudioRenderer();
+    streamid_t mStreamId;
+    MediaPacketQueue mAACBuffers;
+};
+// this is a stack of audios; new is added to front, and the first one is played if possible
+typedef FixedArray<AdditionalAudio*, 64> AdditionalAudioStreams;
 
-        virtual Error::Enum init();
-        virtual Error::Enum reset();
+class AACAudioRenderer : public AudioRendererAPI
+{
+public:
+    AACAudioRenderer(MemoryAllocator& allocator, AudioRendererObserver& observer);
+    virtual ~AACAudioRenderer();
 
-        virtual AudioReturnValue::Enum fetchAACFrame(uint8_t* aBuffer, size_t aBufferSize, size_t& aDataSize);
-        virtual uint32_t getInputSampleRate();
-        virtual uint32_t getInputChannels();
-        virtual void_t playbackStarted();
+    virtual Error::Enum init();
+    virtual Error::Enum reset();
 
-        virtual bool_t isReady() const;
+    virtual AudioReturnValue::Enum fetchAACFrame(uint8_t* aBuffer, size_t aBufferSize, size_t& aDataSize);
+    virtual uint32_t getInputSampleRate();
+    virtual uint32_t getInputChannels();
+    virtual void_t playbackStarted();
 
-        virtual AudioInputBuffer* getAudioInputBuffer();
+    virtual bool_t isReady() const;
 
-        virtual void_t setAudioVolume(float_t volume);
-        virtual void_t setAudioVolumeAuxiliary(float_t volume);
+    virtual AudioInputBuffer* getAudioInputBuffer();
 
-        virtual Error::Enum initializeForEncodedInput(streamid_t nrStreams, uint8_t* codecData, size_t dataSize);
-        virtual Error::Enum initializeForNoAudio();
+    virtual void_t setAudioVolume(float_t volume);
 
-        virtual Error::Enum write(streamid_t streamId, MP4VRMediaPacket* packet);
+    virtual Error::Enum initializeForEncodedInput(streamid_t aStreamId, uint8_t* codecData, size_t dataSize);
+    virtual Error::Enum initializeForNoAudio();
 
-        virtual void_t startPlayback();
-        virtual void_t stopPlayback();
+    virtual Error::Enum addStream(streamid_t aStreamId, uint8_t* codecData, size_t dataSize);
+    virtual Error::Enum removeStream(streamid_t aStreamId, bool_t& aNeedToPausePlayback);
+    virtual Error::Enum removeAllStreams();
 
-        virtual AudioState::Enum getState();
+    virtual Error::Enum write(streamid_t streamId, MP4VRMediaPacket* packet);
 
-        virtual AudioReturnValue::Enum flush();
+    virtual void_t startPlayback();
+    virtual void_t stopPlayback();
 
-        virtual void_t setObserver(AudioInputBufferObserver* observer);
-        virtual void_t removeObserver(AudioInputBufferObserver* observer);
+    virtual AudioState::Enum getState();
 
-        virtual bool_t isInitialized() const;
+    virtual AudioReturnValue::Enum flush();
 
-        virtual uint64_t getElapsedTimeUs() const;
+    virtual void_t setObserver(AudioInputBufferObserver* observer);
+    virtual void_t removeObserver(AudioInputBufferObserver* observer);
 
-        virtual AudioInputBuffer* getAuxiliaryAudioInputBuffer();
+    virtual bool_t isInitialized() const;
 
-    private:
-        MediaPacketQueue mAACBuffers;
-        Spinlock mBufferLock;
-        size_t mMaxBufferSize;
-        AudioRendererObserver& mObserver;
-        uint32_t mSampleRate;
-        uint32_t mInputChannels;
-        Array<AudioInputBufferObserver *> mAudioInputObservers;
-        bool_t mInitialized;
-        streamid_t mStreamId;
-        bool_t mPlaying;
-    };
+    virtual uint64_t getElapsedTimeUs() const;
+
+private:
+    bool_t
+    consumeAACFrame(MediaPacketQueue& aBufferQueue, uint8_t* aOutputBuffer, size_t aBufferSize, size_t& aDataSize);
+    bool_t storeAACFrame(MediaPacketQueue& aBufferQueue, MP4VRMediaPacket* packet);
+
+private:
+    MediaPacketQueue mMainAACBuffers;
+    AdditionalAudioStreams mAdditionalAudios;
+    Spinlock mBufferLock;
+    size_t mMaxBufferSize;
+    AudioRendererObserver& mObserver;
+    uint32_t mSampleRate;
+    uint32_t mInputChannels;
+    Array<AudioInputBufferObserver*> mAudioInputObservers;
+    bool_t mInitialized;
+    bool_t mPlaying;
+    streamid_t mMainStreamId;
+};
 
 OMAF_NS_END

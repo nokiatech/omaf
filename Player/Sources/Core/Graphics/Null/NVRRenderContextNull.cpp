@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,7 +21,7 @@ OMAF_NS_BEGIN
 OMAF_LOG_ZONE(RenderContextNull);
 
 RenderContextNull::RenderContextNull(RendererType::Enum type, RenderBackend::Parameters& parameters)
-: IRenderContext(type, parameters)
+    : IRenderContext(type, parameters)
 {
     resetDefaults();
 }
@@ -161,7 +161,10 @@ void_t RenderContextNull::setShaderConstant(ShaderConstantHandle handle, const v
     OMAF_UNUSED_VARIABLE(numValues);
 }
 
-void_t RenderContextNull::setShaderConstant(ShaderHandle shaderHandle, ShaderConstantHandle constantHandle, const void_t* values, uint32_t numValues)
+void_t RenderContextNull::setShaderConstant(ShaderHandle shaderHandle,
+                                            ShaderConstantHandle constantHandle,
+                                            const void_t* values,
+                                            uint32_t numValues)
 {
     OMAF_UNUSED_VARIABLE(shaderHandle);
     OMAF_UNUSED_VARIABLE(constantHandle);
@@ -189,7 +192,10 @@ void_t RenderContextNull::drawIndexed(PrimitiveType::Enum primitiveType, uint32_
     OMAF_UNUSED_VARIABLE(count);
 }
 
-void_t RenderContextNull::drawInstanced(PrimitiveType::Enum primitiveType, uint32_t offset, uint32_t vertexCount, uint32_t instanceCount)
+void_t RenderContextNull::drawInstanced(PrimitiveType::Enum primitiveType,
+                                        uint32_t offset,
+                                        uint32_t vertexCount,
+                                        uint32_t instanceCount)
 {
     OMAF_UNUSED_VARIABLE(primitiveType);
     OMAF_UNUSED_VARIABLE(offset);
@@ -197,7 +203,10 @@ void_t RenderContextNull::drawInstanced(PrimitiveType::Enum primitiveType, uint3
     OMAF_UNUSED_VARIABLE(instanceCount);
 }
 
-void_t RenderContextNull::drawIndexedInstanced(PrimitiveType::Enum primitiveType, uint32_t offset, uint32_t vertexCount, uint32_t instanceCount)
+void_t RenderContextNull::drawIndexedInstanced(PrimitiveType::Enum primitiveType,
+                                               uint32_t offset,
+                                               uint32_t vertexCount,
+                                               uint32_t instanceCount)
 {
     OMAF_UNUSED_VARIABLE(primitiveType);
     OMAF_UNUSED_VARIABLE(offset);
@@ -212,21 +221,26 @@ void_t RenderContextNull::bindComputeImage(uint16_t stage, TextureHandle handle,
     OMAF_UNUSED_VARIABLE(access);
 }
 
-void_t RenderContextNull::bindComputeVertexBuffer(uint16_t stage, VertexBufferHandle handle, ComputeBufferAccess::Enum access)
+void_t RenderContextNull::bindComputeVertexBuffer(uint16_t stage,
+                                                  VertexBufferHandle handle,
+                                                  ComputeBufferAccess::Enum access)
 {
     OMAF_UNUSED_VARIABLE(stage);
     OMAF_UNUSED_VARIABLE(handle);
     OMAF_UNUSED_VARIABLE(access);
 }
 
-void_t RenderContextNull::bindComputeIndexBuffer(uint16_t stage, IndexBufferHandle handle, ComputeBufferAccess::Enum access)
+void_t RenderContextNull::bindComputeIndexBuffer(uint16_t stage,
+                                                 IndexBufferHandle handle,
+                                                 ComputeBufferAccess::Enum access)
 {
     OMAF_UNUSED_VARIABLE(stage);
     OMAF_UNUSED_VARIABLE(handle);
     OMAF_UNUSED_VARIABLE(access);
 }
 
-void_t RenderContextNull::dispatchCompute(ShaderHandle handle, uint16_t numGroupsX, uint16_t numGroupsY, uint16_t numGroupsZ)
+void_t
+RenderContextNull::dispatchCompute(ShaderHandle handle, uint16_t numGroupsX, uint16_t numGroupsY, uint16_t numGroupsZ)
 {
     OMAF_UNUSED_VARIABLE(handle);
     OMAF_UNUSED_VARIABLE(numGroupsX);
@@ -242,7 +256,7 @@ bool_t RenderContextNull::createVertexBuffer(VertexBufferHandle handle, const Ve
 {
     OMAF_UNUSED_VARIABLE(handle);
     OMAF_UNUSED_VARIABLE(desc);
-    
+
     return true;
 }
 
@@ -250,7 +264,7 @@ bool_t RenderContextNull::createIndexBuffer(IndexBufferHandle handle, const Inde
 {
     OMAF_UNUSED_VARIABLE(handle);
     OMAF_UNUSED_VARIABLE(desc);
-    
+
     return true;
 }
 
@@ -259,7 +273,7 @@ bool_t RenderContextNull::createShader(ShaderHandle handle, const char_t* vertex
     OMAF_UNUSED_VARIABLE(handle);
     OMAF_UNUSED_VARIABLE(vertexShader);
     OMAF_UNUSED_VARIABLE(fragmentShader);
-    
+
     return true;
 }
 
@@ -267,17 +281,20 @@ bool_t RenderContextNull::createShader(ShaderHandle handle, const char_t* comput
 {
     OMAF_UNUSED_VARIABLE(handle);
     OMAF_UNUSED_VARIABLE(computeShader);
-    
+
     return true;
 }
 
-bool_t RenderContextNull::createShaderConstant(ShaderHandle shaderHandle, ShaderConstantHandle constantHandle, const char_t* name, ShaderConstantType::Enum type)
+bool_t RenderContextNull::createShaderConstant(ShaderHandle shaderHandle,
+                                               ShaderConstantHandle constantHandle,
+                                               const char_t* name,
+                                               ShaderConstantType::Enum type)
 {
     OMAF_UNUSED_VARIABLE(shaderHandle);
     OMAF_UNUSED_VARIABLE(constantHandle);
     OMAF_UNUSED_VARIABLE(name);
     OMAF_UNUSED_VARIABLE(type);
-    
+
     return true;
 }
 
@@ -285,7 +302,7 @@ bool_t RenderContextNull::createTexture(TextureHandle handle, const TextureDesc&
 {
     OMAF_UNUSED_VARIABLE(handle);
     OMAF_UNUSED_VARIABLE(desc);
-    
+
     return true;
 }
 
@@ -293,17 +310,20 @@ bool_t RenderContextNull::createNativeTexture(TextureHandle handle, const Native
 {
     OMAF_UNUSED_VARIABLE(handle);
     OMAF_UNUSED_VARIABLE(desc);
-    
+
     return true;
 }
 
-bool_t RenderContextNull::createRenderTarget(RenderTargetHandle handle, TextureHandle* attachments, uint8_t numAttachments, int16_t discardMask)
+bool_t RenderContextNull::createRenderTarget(RenderTargetHandle handle,
+                                             TextureHandle* attachments,
+                                             uint8_t numAttachments,
+                                             int16_t discardMask)
 {
     OMAF_UNUSED_VARIABLE(handle);
     OMAF_UNUSED_VARIABLE(attachments);
     OMAF_UNUSED_VARIABLE(numAttachments);
     OMAF_UNUSED_VARIABLE(discardMask);
-    
+
     return true;
 }
 

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,20 +14,20 @@
  */
 #pragma once
 
-#include "NVREssentials.h"
-#include "Provider/NVRVideoProvider.h"
 #include "Audio/NVRAudioInputBuffer.h"
 #include "Media/NVRMP4StreamManager.h"
+#include "NVREssentials.h"
+#include "Provider/NVRVideoProvider.h"
 
-#include "VideoDecoder/NVRVideoDecoderManager.h"
 #include "Provider/NVRSynchronizer.h"
+#include "VideoDecoder/NVRVideoDecoderManager.h"
 
-#include "Foundation/NVRThread.h"
-#include "Foundation/NVRMutex.h"
+#include "Foundation/NVRAtomicBoolean.h"
 #include "Foundation/NVREvent.h"
+#include "Foundation/NVRMutex.h"
 #include "Foundation/NVRPathName.h"
 #include "Foundation/NVRSemaphore.h"
-
+#include "Foundation/NVRThread.h"
 
 OMAF_NS_BEGIN
 
@@ -40,10 +40,7 @@ namespace PendingUserAction
         PLAY,
         PAUSE,
         STOP,
-
-        PLAY_AUXILIARY,
-        PAUSE_AUXILIARY,
-        STOP_AUXILIARY,
+        CONTROL_OVERLAY,
 
         COUNT
     };
@@ -72,42 +69,39 @@ namespace
     static const int ASYNC_OPERATION_TIMEOUT = 500000;
 }
 
-class ProviderBase
-: public AudioInputBufferObserver
+class ProviderBase : public AudioInputBufferObserver
 {
 public:
-
     ProviderBase();
     virtual ~ProviderBase();
 
-public: // CoreProvider
-    
+public:  // CoreProvider
     virtual const CoreProviderSourceTypes& getSourceTypes() = 0;
-    virtual Error::Enum prepareSources(HeadTransform currentHeadtransform, float32_t fovHorizontal, float32_t fovVertical);
-    virtual const CoreProviderSources& getSources();
+    virtual Error::Enum prepareSources(HeadTransform currentHeadtransform,
+                                       float32_t fovHorizontal,
+                                       float32_t fovVertical);
+    virtual const CoreProviderSources& getSources() const;
 
-    virtual Error::Enum setAudioInputBuffer(AudioInputBuffer *inputBuffer);
+    virtual Error::Enum setAudioInputBuffer(AudioInputBuffer* inputBuffer);
     virtual void enter();
     virtual void leave();
 
-public: // VideoProvider
-
+public:  // VideoProvider
     virtual VideoProviderState::Enum getState() const;
     virtual Error::Enum loadSource(const PathName& source, uint64_t initialPositionMS);
+    virtual const CoreProviderSources& getAllSources() const;
+    virtual bool_t getViewpointUserControls(ViewpointSwitchControls& aSwitchControls) const;
+
     virtual Error::Enum start();
     virtual Error::Enum stop();
     virtual Error::Enum pause();
+
+    virtual const OverlayState overlayState(uint32_t ovlyId) const;
+    virtual Error::Enum controlOverlay(const OverlayControl act);
+
     virtual Error::Enum next();
-
-    virtual VideoProviderState::Enum getAuxiliaryState() const { return mAuxiliaryPlaybackState; }
-    virtual Error::Enum loadAuxiliaryStream(PathName& uri) { return Error::NOT_SUPPORTED; }
-    virtual Error::Enum playAuxiliary() { return Error::NOT_SUPPORTED; }
-    virtual Error::Enum stopAuxiliary() { return Error::NOT_SUPPORTED; }
-    virtual Error::Enum pauseAuxiliary() { return Error::NOT_SUPPORTED; }
-    virtual Error::Enum seekToMsAuxiliary(uint64_t seekTargetMS) { return Error::NOT_SUPPORTED; }
-
-    virtual uint64_t durationMsAuxiliary() const { return mMediaInformationAuxiliary.duration; }
-    virtual uint64_t elapsedTimeMsAuxiliary() const;
+    virtual Error::Enum nextSourceGroup();
+    virtual Error::Enum prevSourceGroup();
 
     virtual bool_t isSeekable() = 0;
     virtual bool_t isSeekableByFrame() = 0;
@@ -119,49 +113,66 @@ public: // VideoProvider
 
     virtual const MediaInformation& getMediaInformation();
 
-public: // AudioInputBufferObserver
-
+public:  // AudioInputBufferObserver
     virtual void_t onPlaybackStarted(AudioInputBuffer* caller, int64_t bufferingOffset);
     virtual void_t onSamplesConsumed(AudioInputBuffer* caller, streamid_t streamId);
     virtual void_t onOutOfSamples(AudioInputBuffer* caller, streamid_t streamId);
     virtual void_t onAudioErrorOccurred(AudioInputBuffer* caller, Error::Enum error);
 
-protected:
+    virtual const Quaternion viewingOrientationOffset() const;
 
+protected:
     void_t destroyInstance();
 
-    virtual uint64_t selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources& required, CoreProviderSources& optional) = 0;
+    virtual uint64_t selectSources(HeadTransform headTransform,
+                                   float32_t fovHorizontal,
+                                   float32_t fovVertical,
+                                   CoreProviderSources& required,
+                                   CoreProviderSources& optional) = 0;
     virtual bool_t setInitialViewport(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical);
+    virtual const CoreProviderSources& getPastBackgroundSources(uint64_t aPts);
 
     virtual MP4AudioStream* getAudioStream() = 0;
 
     Streams extractStreamsFromSources(const CoreProviderSources& sources);
 
-protected: // Called by child classes
+    virtual Error::Enum handleOverlayControl(const OverlayControl act);
 
+protected:  // Called by child classes
     void_t startPlayback(bool_t waitForAudio = true);
     void_t stopPlayback();
 
-    void_t startAuxiliaryPlayback(bool_t waitForAudio = true);
-    void_t stopAuxiliaryPlayback();
-
     void_t setState(VideoProviderState::Enum state);
-    void_t setAuxliaryState(VideoProviderState::Enum state);
 
-    void_t initializeAudioFromMP4(const MP4AudioStreams& audioStreams);
+    void_t initializeAudioFromMP4(const MP4AudioStreams& aMainAudioStreams,
+                                  const MP4AudioStreams& aAdditionalAudioStreams);
+    void_t addAudioStreams(const MP4AudioStreams& aAdditionalAudioStreams);
 
-    void_t initializeAuxiliaryAudio(const MP4AudioStreams& audioStreams);
+    PacketProcessingResult::Enum processMP4Video();
 
-    PacketProcessingResult::Enum processMP4Video(MP4StreamManager& streamManager, MP4StreamManager* auxiliaryStreamManager = OMAF_NULL);
-    PacketProcessingResult::Enum processMP4Audio(MP4StreamManager& streamManager, AudioInputBuffer* audioInputBuffer);
+    PacketProcessingResult::Enum processMP4Audio(AudioInputBuffer* audioInputBuffer);
+
+    /**
+     * Handle dynamic changes in overlay metadata.
+     *
+     * Dynamic changes can be setting active overlays, overriding certain parameters and
+     * completely creating new temporary overlays
+     *
+     * Base info about of overlays is already read in MP4Parser::readInitialMetadata from
+     * video tracks povd box.
+     */
+    PacketProcessingResult::Enum processOverlayMetadataStream();
 
     // called by provider thread
-    bool_t retrieveInitialViewingOrientation(MP4StreamManager* aMediaStreamManager, int64_t aCurrentTimeUs);
+    bool_t retrieveInitialViewingOrientation(int64_t aCurrentTimeUs);
+
+    OverlaySource* getOverlaySource(uint32_t ovlyId) const;
+
+    virtual Error::Enum controlOverlayStream(streamid_t aVideoStreamId, bool_t aEnable);
 
 private:
-
     virtual void_t parserThreadCallback() = 0;
-    
+
     Thread::ReturnValue threadEntry(const Thread& thread, void_t* userData);
 
     // called by renderer thread
@@ -173,21 +184,22 @@ private:
     Semaphore mResourcesInUse;
 
 protected:
-
     Thread mParserThread;
     PathName mSourceURI;
 
     CoreProviderSources mPreparedSources;
     Synchronizer mSynchronizer;
 
+    MP4StreamManager* mMediaStreamManager;
+
     // reference, not owned
     AudioInputBuffer* mAudioInputBuffer;
-    AudioInputBuffer* mAuxiliaryAudioInputBuffer;
     VideoDecoderManager* mVideoDecoder;
 
     Event mUserActionSync;
     Mutex mPendingUserActionMutex;
     PendingUserAction::Enum mPendingUserAction;
+    OverlayControl mPendingOverlayControl;
 
     uint64_t mStreamInitialPositionMS;
 
@@ -196,14 +208,14 @@ protected:
     uint64_t mSeekTargetFrame;
     uint64_t mSeekResultMs;
 
-    uint64_t mSeekTargetUsAuxiliary;
-
     Event mSeekSyncronizeEvent;
     Error::Enum mSeekResult;
 
     Event mParserThreadControlEvent;
     bool_t mVideoDecoderFull;
+    bool_t mAudioUsed;
     bool_t mAudioFull;
+    bool_t mOverlayAudioPlayPending;
 
     bool_t mFirstVideoPacketRead;
     uint64_t mFirstFramePTSUs;
@@ -211,23 +223,13 @@ protected:
 
     uint64_t mElapsedTimeUs;
 
-    bool_t mAudioSyncPending;
+    int32_t mSelectedSourceGroup;
 
     Streams mPreviousStreams;
 
     MediaInformation mMediaInformation;
-    MediaInformation mMediaInformationAuxiliary;
 
-    VideoProviderState::Enum mAuxiliaryPlaybackState;
-    bool_t mAuxiliaryStreamPlaying;
-
-    bool_t mAuxiliaryStreamInitialized;
-    Spinlock mAuxiliarySourcesLock;
-    CoreProviderSources mAuxiliarySources;
-    Synchronizer mAuxiliarySynchronizer;
-    bool_t mAuxiliarySyncPending;
-    uint64_t mElapsedTimeUsAuxiliary;
-    bool_t mAuxiliaryAudioInitPending;
+    mutable Spinlock mStreamLock;
 
     struct RetrievedOrientation
     {
@@ -241,17 +243,28 @@ protected:
         streamid_t streamId;
         Spinlock lock;
 
-        RetrievedOrientation() : valid(false), timestampUs(0), refresh(true), streamId(OMAF_UINT8_MAX) {}
+        RetrievedOrientation()
+            : valid(false)
+            , timestampUs(0)
+            , refresh(true)
+            , streamId(OMAF_UINT8_MAX)
+        {
+        }
     };
     RetrievedOrientation mLatestSignaledViewingOrientation;
 
-private:
+    AtomicBoolean mSignalViewport;
+    AtomicBoolean mSwitchViewpoint;
+    uint32_t mNextViewpointId;
 
+private:
+    uint32_t mBufferingStartTimeMS;
     VideoProviderState::Enum mState;
     ForcedOrientation mViewingOrientationOffset;
 
+    ViewpointGlobalCoordinateSysRotation mViewpointCoordSysRotation;
+    AtomicBoolean mCoordSysRotationUpdated;
 };
 
 
 OMAF_NS_END
-

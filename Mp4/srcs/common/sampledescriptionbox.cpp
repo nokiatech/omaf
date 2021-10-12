@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,11 +15,15 @@
 #include "sampledescriptionbox.hpp"
 
 #include "avcsampleentry.hpp"
+#include "dynamicviewpointsampleentrybox.hpp"
 #include "hevcsampleentry.hpp"
 #include "initialviewingorientationsampleentry.hpp"
+#include "initialviewpointsampleentrybox.hpp"
 #include "log.hpp"
 #include "mp4audiosampleentrybox.hpp"
 #include "mp4visualsampleentrybox.hpp"
+#include "overlaysampleentrybox.hpp"
+#include "recommendedviewportsampleentry.hpp"
 #include "restrictedschemeinfobox.hpp"
 #include "urimetasampleentrybox.hpp"
 
@@ -102,6 +106,33 @@ void SampleDescriptionBox::parseBox(ISOBMFF::BitStream& bitstr)
                 CUSTOM_NEW(InitialViewingOrientation, ()));
             invoSampleEntry->parseBox(entryBitStream);
             mIndex.push_back(std::move(invoSampleEntry));
+        }
+        else if (boxType == "dyol")
+        {
+            UniquePtr<OverlaySampleEntryBox, SampleEntryBox> dyolSampleEntry(CUSTOM_NEW(OverlaySampleEntryBox, ()));
+            dyolSampleEntry->parseBox(entryBitStream);
+            mIndex.push_back(std::move(dyolSampleEntry));
+        }
+        else if (boxType == "dyvp")
+        {
+            UniquePtr<::DynamicViewpointSampleEntryBox, SampleEntryBox> dyvpSampleEntry(
+                CUSTOM_NEW(::DynamicViewpointSampleEntryBox, ()));
+            dyvpSampleEntry->parseBox(entryBitStream);
+            mIndex.push_back(std::move(dyvpSampleEntry));
+        }
+        else if (boxType == "invp")
+        {
+            UniquePtr<::InitialViewpointSampleEntryBox, SampleEntryBox> dyvpSampleEntry(
+                CUSTOM_NEW(::InitialViewpointSampleEntryBox, ()));
+            dyvpSampleEntry->parseBox(entryBitStream);
+            mIndex.push_back(std::move(dyvpSampleEntry));
+        }
+        else if (boxType == "rcvp")
+        {
+            UniquePtr<RecommendedViewportSampleEntryBox, SampleEntryBox> rcvpSampleEntry(
+                CUSTOM_NEW(RecommendedViewportSampleEntryBox, ()));
+            rcvpSampleEntry->parseBox(entryBitStream);
+            mIndex.push_back(std::move(rcvpSampleEntry));
         }
         else if (boxType == "mp4v")
         {

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -27,29 +27,14 @@ namespace VDD
         // nothing
     }
 
-    std::vector<Views> NoOp::process(const Views& aStreams)
+    std::vector<Streams> NoOp::process(const Streams& aStreams)
     {
-        std::vector<Views> frames;
-
         if (mConfig.counter)
         {
             ++*mConfig.counter;
         }
 
-        if (aStreams[0].isEndOfStream())
-        {
-            mEnd = true;
-        }
-        if (mEnd)
-        {
-            frames.push_back({Data(EndOfStream())});
-        }
-        else
-        {
-            frames.push_back({aStreams[0]});
-        }
-
-        return frames;
+        return {aStreams};
     }
 
 }  // namespace VDD

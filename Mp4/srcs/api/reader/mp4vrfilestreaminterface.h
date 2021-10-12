@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,7 +16,8 @@
 #define MP4VRFILESTREAMINTERFACE_HPP_
 
 #include <stdint.h>
-#include "mp4vrfileexport.h"
+
+#include "../isobmff/mp4vrfileexport.h"
 
 namespace MP4VR
 {

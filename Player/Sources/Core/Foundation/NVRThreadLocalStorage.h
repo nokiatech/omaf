@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,11 +15,11 @@
 #pragma once
 
 #include "Platform/OMAFCompiler.h"
-#include "Platform/OMAFPlatformDetection.h"
 #include "Platform/OMAFDataTypes.h"
+#include "Platform/OMAFPlatformDetection.h"
 
-#include "Foundation/NVRDependencies.h"
 #include "Foundation/NVRCompatibility.h"
+#include "Foundation/NVRDependencies.h"
 #include "Foundation/NVRNonCopyable.h"
 
 OMAF_NS_BEGIN
@@ -30,47 +30,44 @@ OMAF_NS_BEGIN
 
 class ThreadLocalStorage
 {
-    public:
-    
+public:
 #if OMAF_PLATFORM_WINDOWS || OMAF_PLATFORM_UWP
 
-        typedef DWORD Handle;
+    typedef DWORD Handle;
 
 #elif OMAF_PLATFORM_ANDROID
 
-        typedef pthread_key_t Handle;
+    typedef pthread_key_t Handle;
 
 #else
 
-    #error Unsupported platform
+#error Unsupported platform
 
 #endif
-    
-        ThreadLocalStorage();
 
-        ~ThreadLocalStorage();
-    
-        // Get data from calling thread TLS.
-        void_t* getValue() const;
+    ThreadLocalStorage();
 
-        // Get data from calling thread TLS.
-        template <typename T>
-        T* getValue() const
-        {
-            return (T*)getValue();
-        }
-    
-        // Set value for calling thread TLS.
-        bool_t setValue(void_t* value);
+    ~ThreadLocalStorage();
 
-    private:
+    // Get data from calling thread TLS.
+    void_t* getValue() const;
 
-        OMAF_NO_COPY(ThreadLocalStorage);
-        OMAF_NO_ASSIGN(ThreadLocalStorage);
+    // Get data from calling thread TLS.
+    template <typename T>
+    T* getValue() const
+    {
+        return (T*) getValue();
+    }
 
-    private:
+    // Set value for calling thread TLS.
+    bool_t setValue(void_t* value);
 
-        Handle mHandle;
+private:
+    OMAF_NO_COPY(ThreadLocalStorage);
+    OMAF_NO_ASSIGN(ThreadLocalStorage);
+
+private:
+    Handle mHandle;
 };
 
 OMAF_NS_END

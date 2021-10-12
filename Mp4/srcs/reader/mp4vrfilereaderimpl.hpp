@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,6 +14,11 @@
  */
 #ifndef MP4VRFILEREADERIMPL_HPP
 #define MP4VRFILEREADERIMPL_HPP
+
+#include <fstream>
+#include <functional>
+#include <istream>
+#include <memory>
 
 #include "api/reader/mp4vrfiledatatypes.h"
 #include "api/reader/mp4vrfilereaderinterface.h"
@@ -35,11 +40,6 @@
 #include "segmentindexbox.hpp"
 #include "smallvector.hpp"
 #include "writeoncemap.hpp"
-
-#include <fstream>
-#include <functional>
-#include <istream>
-#include <memory>
 
 class CleanAperture;
 class AvcDecoderConfigurationRecord;
@@ -117,180 +117,220 @@ namespace MP4VR
 
     public:  // From MP4VRFileReaderInterface
         /// @see MP4VRFileReaderInterface::initialize()
-        int32_t initialize(const char* fileName);
+        int32_t initialize(const char* fileName) override;
 
         /// @see MP4VRFileReaderInterface::initialize()
-        int32_t initialize(StreamInterface* stream);
+        int32_t initialize(StreamInterface* stream) override;
 
         /// @see MP4VRFileReaderInterface::close()
-        void close();
+        void close() override;
 
         /// @see MP4VRFileReaderInterface::getMajorBrand()
         int32_t getMajorBrand(FourCC& majorBrand,
                               uint32_t initializationSegmentId = 0,
-                              uint32_t segmentId               = UINT32_MAX) const;
+                              uint32_t segmentId               = UINT32_MAX) const override;
 
         /// @see MP4VRFileReaderInterface::getMinorBrand()
         int32_t getMinorVersion(uint32_t& minorVersion,
                                 uint32_t initializationSegmentId = 0,
-                                uint32_t segmentId               = UINT32_MAX) const;
+                                uint32_t segmentId               = UINT32_MAX) const override;
 
         /// @see MP4VRFileReaderInterface::getCompatibleBrands()
         int32_t getCompatibleBrands(DynArray<FourCC>& compatibleBrands,
                                     uint32_t initializationSegmentId = 0,
-                                    uint32_t segmentId               = UINT32_MAX) const;
+                                    uint32_t segmentId               = UINT32_MAX) const override;
 
         /// @see MP4VRFileReaderInterface::getFileInformation()
-        int32_t getFileInformation(FileInformation& fileinfo, uint32_t initializationSegmentId = 0) const;
+        int32_t getFileInformation(FileInformation& fileinfo, uint32_t initializationSegmentId = 0) const override;
+
+        int32_t getFileGroupsList(GroupsListProperty& groupsList, uint32_t initializationSegmentId = 0) const override;
 
         /// @see MP4VRFileReaderInterface::getTrackProperties()
-        int32_t getTrackInformations(DynArray<TrackInformation>& trackInfos) const;
+        int32_t getTrackInformations(DynArray<TrackInformation>& trackInfos) const override;
 
         /// @see MP4VRFileReaderInterface::getDisplayWidth()
-        int32_t getDisplayWidth(uint32_t trackId, uint32_t& displayWidth) const;
+        int32_t getDisplayWidth(uint32_t trackId, uint32_t& displayWidth) const override;
 
         /// @see MP4VRFileReaderInterface::getDisplayHeight()
-        int32_t getDisplayHeight(uint32_t trackId, uint32_t& displayHeight) const;
+        int32_t getDisplayHeight(uint32_t trackId, uint32_t& displayHeight) const override;
 
         /// @see MP4VRFileReaderInterface::getDisplayWidth()
-        int32_t getDisplayWidthFP(uint32_t trackId, uint32_t& displayWidth) const;
+        int32_t getDisplayWidthFP(uint32_t trackId, uint32_t& displayWidth) const override;
 
         /// @see MP4VRFileReaderInterface::getDisplayHeight()
-        int32_t getDisplayHeightFP(uint32_t trackId, uint32_t& displayHeight) const;
+        int32_t getDisplayHeightFP(uint32_t trackId, uint32_t& displayHeight) const override;
 
         /// @see MP4VRFileReaderInterface::getWidth()
-        int32_t getWidth(uint32_t trackId, uint32_t itemId, uint32_t& width) const;
+        int32_t getWidth(uint32_t trackId, uint32_t itemId, uint32_t& width) const override;
 
         /// @see MP4VRFileReaderInterface::getHeight()
-        int32_t getHeight(uint32_t trackId, uint32_t itemId, uint32_t& height) const;
+        int32_t getHeight(uint32_t trackId, uint32_t itemId, uint32_t& height) const override;
 
         /// @see MP4VRFileReaderInterface::getPlaybackDurationInSecs()
-        int32_t getPlaybackDurationInSecs(uint32_t trackId, double& durationInSecs) const;
+        int32_t getPlaybackDurationInSecs(uint32_t trackId, double& durationInSecs) const override;
 
         /// @see MP4VRFileReaderInterface::getTrackItemListByType()
-        int32_t getTrackSampleListByType(uint32_t trackId, TrackSampleType itemType, DynArray<uint32_t>& itemIds) const;
+        int32_t getTrackSampleListByType(uint32_t trackId,
+                                         TrackSampleType itemType,
+                                         DynArray<uint32_t>& itemIds) const override;
 
         /// @see MP4VRFileReaderInterface::getItemType()
-        int32_t getTrackSampleType(uint32_t trackId, uint32_t itemId, FourCC& trackItemType) const;
+        int32_t getTrackSampleType(uint32_t trackId, uint32_t itemId, FourCC& trackItemType) const override;
 
         /// @see MP4VRFileReaderInterface::getItemData()
         int32_t getTrackSampleData(uint32_t trackId,
                                    uint32_t itemId,
                                    char* memoryBuffer,
                                    uint32_t& memoryBufferSize,
-                                   bool videoByteStreamHeaders = true);
+                                   bool videoByteStreamHeaders = true) override;
 
         /// @see MP4VRFileReaderInterface::getItemData()
-        int32_t
-        getTrackSampleOffset(uint32_t trackId, uint32_t itemIdApi, uint64_t& sampleOffset, uint32_t& sampleLength);
+        int32_t getTrackSampleOffset(uint32_t trackId,
+                                     uint32_t itemIdApi,
+                                     uint64_t& sampleOffset,
+                                     uint32_t& sampleLength) override;
 
         /// @see MP4VRFileReaderInterface::getDecoderConfiguration()
         int32_t getDecoderConfiguration(uint32_t trackId,
                                         uint32_t itemId,
-                                        DynArray<DecoderSpecificInfo>& decoderInfos) const;
+                                        DynArray<DecoderSpecificInfo>& decoderInfos) const override;
 
         /// @see MP4VRFileReaderInterface::getItemTimestamps()
-        int32_t getTrackTimestamps(uint32_t trackId, DynArray<TimestampIDPair>& timestamps) const;
+        int32_t getTrackTimestamps(uint32_t trackId, DynArray<TimestampIDPair>& timestamps) const override;
 
         /// @see MP4VRFileReaderInterface::getTimestampsOfItem()
-        int32_t getTimestampsOfSample(uint32_t trackId, uint32_t itemId, DynArray<uint64_t>& timestamps) const;
+        int32_t getTimestampsOfSample(uint32_t trackId, uint32_t itemId, DynArray<uint64_t>& timestamps) const override;
 
         /// @see MP4VRFileReaderInterface::getItemsInDecodingOrder()
-        int32_t getSamplesInDecodingOrder(uint32_t trackId, DynArray<TimestampIDPair>& itemDecodingOrder) const;
+        int32_t getSamplesInDecodingOrder(uint32_t trackId,
+                                          DynArray<TimestampIDPair>& itemDecodingOrder) const override;
 
         /// @see MP4VRFileReaderInterface::getItemDecodeDependencies()
         int32_t getSyncSampleId(uint32_t trackId,
                                 uint32_t sampleId,
                                 MP4VR::SeekDirection direction,
-                                uint32_t& syncSampleId) const;
+                                uint32_t& syncSampleId) const override;
 
         /// @see MP4VRFileReaderInterface::getDecoderCodeType()
-        int32_t getDecoderCodeType(uint32_t trackId, uint32_t itemId, FourCC& decoderCodeType) const;
+        int32_t getDecoderCodeType(uint32_t trackId, uint32_t itemId, FourCC& decoderCodeType) const override;
 
         /// see MP4VRFileReaderInterface::getSampleDuration()
-        int32_t getSampleDuration(uint32_t trackId, uint32_t sampleId, uint32_t& sampleDuration) const;
+        int32_t getSampleDuration(uint32_t trackId, uint32_t sampleId, uint32_t& sampleDuration) const override;
 
         /// @see MP4VRFileReaderInterface::getPropertyChnl()
-        int32_t getPropertyChnl(uint32_t trackId, uint32_t sampleId, chnlProperty& aProp) const;
+        int32_t getPropertyChnl(uint32_t trackId, uint32_t sampleId, chnlProperty& aProp) const override;
 
         /// @see MP4VRFileReaderInterface::getPropertySpatialAudio()
         int32_t getPropertySpatialAudio(uint32_t trackId,
                                         uint32_t sampleId,
-                                        SpatialAudioProperty& spatialaudioproperty) const;
+                                        SpatialAudioProperty& spatialaudioproperty) const override;
 
         /// @see MP4VRFileReaderInterface::getPropertyStereoScopic3DV2()
         int32_t getPropertyStereoScopic3D(uint32_t trackId,
                                           uint32_t sampleId,
-                                          StereoScopic3DProperty& stereoscopicproperty) const;
+                                          StereoScopic3DProperty& stereoscopicproperty) const override;
 
         /// @see MP4VRFileReaderInterface::getPropertySphericalVideoV1()
         int32_t getPropertySphericalVideoV1(uint32_t trackId,
                                             uint32_t sampleId,
-                                            SphericalVideoV1Property& sphericalproperty) const;
+                                            SphericalVideoV1Property& sphericalproperty) const override;
 
         /// @see MP4VRFileReaderInterface::getPropertySphericalVideoV2()
         int32_t getPropertySphericalVideoV2(uint32_t trackId,
                                             uint32_t sampleId,
-                                            SphericalVideoV2Property& sphericalproperty) const;
+                                            SphericalVideoV2Property& sphericalproperty) const override;
 
         /// @see MP4VRFileReaderInterface::getPropertyRegionWisePacking()
         int32_t getPropertyRegionWisePacking(uint32_t trackId,
                                              uint32_t sampleId,
-                                             RegionWisePackingProperty& aProp) const;
+                                             RegionWisePackingProperty& aProp) const override;
 
         /// @see MP4VRFileReaderInterface::getPropertyCoverageInformation()
         int32_t getPropertyCoverageInformation(uint32_t trackId,
                                                uint32_t sampleId,
-                                               CoverageInformationProperty& aProp) const;
+                                               CoverageInformationProperty& aProp) const override;
 
         /// @see MP4VRFileReaderInterface::getPropertyProjectionFormat()
-        int32_t getPropertyProjectionFormat(uint32_t trackId, uint32_t sampleId, ProjectionFormatProperty& aProp) const;
+        int32_t getPropertyProjectionFormat(uint32_t trackId,
+                                            uint32_t sampleId,
+                                            ProjectionFormatProperty& aProp) const override;
+
+        /// @see MP4VRFileReaderInterface::getPropertyOverlayConfig()
+        int32_t getPropertyOverlayConfig(uint32_t trackId,
+                                         uint32_t sampleId,
+                                         OverlayConfigProperty& aProp) const override;
+
+        /// @see MP4VRFileReaderInterface::getPropertyDynamicViewpointConfig()
+        int32_t getPropertyDynamicViewpointConfig(
+            uint32_t trackId,
+            uint32_t sampleId,
+            DynamicViewpointConfigProperty& dynamicViewpointConfigProperty) const override;
+
+        /// @see MP4VRFileReaderInterface::getPropertyInitialViewpointConfig()
+        int32_t getPropertyInitialViewpointConfig(
+            uint32_t trackId,
+            uint32_t sampleId,
+            InitialViewpointConfigProperty& initialViewpointConfigProperty) const override;
 
         /// @see MP4VRFileReaderInterface::getPropertySchemeTypes()
         int32_t getPropertySchemeTypes(uint32_t trackId,
                                        uint32_t sampleId,
-                                       SchemeTypesProperty& schemeTypesProperty) const;
+                                       SchemeTypesProperty& schemeTypesProperty) const override;
 
         /// @see MP4VRFileReaderInterface::getPropertyStereoVideoConfiguration()
         int32_t getPropertyStereoVideoConfiguration(uint32_t trackId,
                                                     uint32_t sampleId,
-                                                    PodvStereoVideoConfiguration& stereoVideoProperty) const;
+                                                    PodvStereoVideoConfiguration& stereoVideoProperty) const override;
 
         /// @see MP4VRFileReaderInterface::getPropertyRotation()
-        int32_t getPropertyRotation(uint32_t trackId, uint32_t sampleId, Rotation& rotationProperty) const;
+        int32_t getPropertyRotation(uint32_t trackId,
+                                    uint32_t sampleId,
+                                    RotationProperty& rotationProperty) const override;
+
+        int32_t getPropertyRecommendedViewport(uint32_t trackId,
+                                               uint32_t sampleId,
+                                               RecommendedViewportProperty& property) const override;
 
     private:
+        // getProperty returns a copy as for some reason a const reference wouldn't do the trick (crash)
+        template <typename Property>
+        int32_t getPropertyGeneric(uint32_t trackId,
+                                   uint32_t sampleId,
+                                   Property& property,
+                                   std::function<PropertyMap<typename std::remove_reference<Property>::type>(const InitTrackInfo&)> getPropertyMap) const;
+
         uint32_t lookupTrackInfo(uint32_t trackId,
                                  uint32_t sampleId,
                                  InitTrackInfo& initTrackInfo,
                                  SampleDescriptionIndex& index) const;
 
-        template <typename Tkey, typename Tval>
-        Tval fetchSampleProp(WriteOnceMap<Tkey, Tval>& propertiesMap,
-                             SampleDescriptionIndex& index,
-                             uint32_t& result) const;
+        template <typename Property>
+        Property fetchSampleProp(const PropertyMap<Property>& propertiesMap,
+                                 const SampleDescriptionIndex& index,
+                                 uint32_t& result) const;
 
     public:
         /// @see MP4VRFileReaderInterface::parseInitializationSegment()
-        int32_t parseInitializationSegment(StreamInterface* streamInterface, uint32_t initSegmentId);
+        int32_t parseInitializationSegment(StreamInterface* streamInterface, uint32_t initSegmentId) override;
 
         /// @see MP4VRFileReaderInterface::parseInitializationSegment()
-        int32_t invalidateInitializationSegment(uint32_t initSegmentId);
+        int32_t invalidateInitializationSegment(uint32_t initSegmentId) override;
 
         /// @see MP4VRFileReaderInterface::parseSegment()
         int32_t parseSegment(StreamInterface* streamInterface,
                              uint32_t initSegmentId,
                              uint32_t segmentId,
-                             uint64_t earliestPTSinTS = UINT64_MAX);
+                             uint64_t earliestPTSinTS = UINT64_MAX) override;
 
         /// @see MP4VRFileReaderInterface::invalidateSegment()
-        int32_t invalidateSegment(uint32_t initSegmentId, uint32_t segmentId);
+        int32_t invalidateSegment(uint32_t initSegmentId, uint32_t segmentId) override;
 
         /// @see MP4VRFileReaderInterface::getSegmentIndex()
-        int32_t getSegmentIndex(uint32_t initSegmentId, DynArray<SegmentInformation>& segmentIndex);
+        int32_t getSegmentIndex(uint32_t initSegmentId, DynArray<SegmentInformation>& segmentIndex) override;
 
         /// @see MP4VRFileReaderInterface::parseSegmentIndex()
-        int32_t parseSegmentIndex(StreamInterface* streamInterface, DynArray<SegmentInformation>& segmentIndex);
+        int32_t parseSegmentIndex(StreamInterface* streamInterface,
+                                  DynArray<SegmentInformation>& segmentIndex) override;
 
     public:
         // For debugging
@@ -363,6 +403,18 @@ namespace MP4VR
         /** Parse input stream, fill mFileProperties and implementation internal data structures. */
         int32_t readStream(InitSegmentId initSegmentId, SegmentId segmentId);
 
+        /**
+         * Iterate boxes till the end of an Io by calling the given handler function
+         * @param [in] aIo IO to use for readaing
+         * @param [in] aHandler Callback to use for each box. If the handler consumes aIo (ie. read or skip),
+                                it must return the error code; otherwise it must not, and iterateBoxes will
+                                handle the skipping of the box
+        */
+        int32_t iterateBoxes(SegmentIO& aIo,
+                             std::function<ISOBMFF::Optional<int32_t>(String boxType, BitStream& bitstream)> aHandler);
+
+        int32_t parseImda(SegmentProperties& aSegmentProperties);
+
         FileFeature getFileFeatures() const;
 
         int32_t readBoxParameters(SegmentIO& io, String& boxType, std::int64_t& boxSize);
@@ -385,8 +437,7 @@ namespace MP4VR
          * @brief Check item protection status from ItemInfoEntry item_protection_index
          * @param segTrackId Meta context ID
          * @param itemId    ID of the item
-         * @return True if the item is protected. Returns always false for other than meta contexts.
-         * @todo Add support for protected track content if needed. */
+         * @return True if the item is protected. Returns always false for other than meta contexts. */
         bool isProtected(uint32_t trackId, std::uint32_t itemId) const;
 
         /** Get item data from AVC bitstream
@@ -558,6 +609,12 @@ namespace MP4VR
         void addSegmentSequence(InitSegmentId initializationSegmentId, SegmentId segmentId, Sequence sequence);
 
         /**
+         * @brief Create a TrackGroupMap for radiply finding (ie.) alte track group mappings
+         * @param [in] Track properties to build the data from
+         * @return Filled TrackGroupMap */
+        FourCCTrackReferenceInfoMap trackGroupsOfTrackProperties(const TrackPropertiesMap& aTrackProperties) const;
+
+        /**
          * @brief Create a TrackPropertiesMap struct for the reader interface
          * @param [in] segmentId Segment id of the track.
          * @param [in] moovBox MovieBox to extract properties from
@@ -599,7 +656,7 @@ namespace MP4VR
                                    const InitSegmentProperties& initSegmentProperties,
                                    const InitTrackInfo& initTrackInfo,
                                    const TrackProperties& trackProperties,
-                                   const std::uint64_t baseDataOffset,
+                                   const ISOBMFF::Optional<std::uint64_t> baseDataOffset,
                                    const uint32_t sampleDescriptionIndex,
                                    ItemId itemIdBase,
                                    ItemId trackrunItemIdBase,
@@ -617,9 +674,22 @@ namespace MP4VR
         void fillSampleEntryMap(TrackBox* trackBox, InitSegmentId initSegmentId);
 
         /**
-         * @brief Fills additional data found from restricted info scheme of sample entry to init track info.
+         * @brief Fill properties map; used by fillSampleEntryMap
+         * @param [in] stsdBox The SampleDescriptionBox
+         * @param [in] getPropertyMap Retrieve the matching property map from given InitTrackInfo
          */
-        void fillRinfBoxInfoForSampleEntry(InitTrackInfo& trackInfo, unsigned int index, const SampleEntryBox& entry);
+        template <typename SampleEntryBox, typename GetPropertyMap>
+        void fillSampleProperties(InitSegmentTrackId initSegTrackId,
+                                  const SampleDescriptionBox& stsdBox,
+                                  GetPropertyMap getPropertyMap);
+
+        /**
+         * @brief Fills additional data found from restricted info scheme, ovly etc. boxes
+         * of sample entry to init track info.
+         */
+        void fillAdditionalBoxInfoForSampleEntry(InitTrackInfo& trackInfo,
+                                                 unsigned int index,
+                                                 const SampleEntryBox& entry);
 
         /**
          * @brief Create a TrackFeature struct for the reader interface
@@ -637,7 +707,7 @@ namespace MP4VR
          * @brief Extract information about track groups for the reader interface
          * @param [in] trackBox TrackBox to extract data from
          * @return Track group information */
-        TypeToIdsMap getTrackGroupIds(TrackBox* trackBox) const;
+        TrackGroupInfoMap getTrackGroupInfoMap(TrackBox* trackBox) const;
 
         /**
          * @brief Extract information about sample group IDs for the reader interface
@@ -737,24 +807,42 @@ namespace MP4VR
     /**
      * Match types from map that is passed as argument to be able to use auto variables when calling.
      */
-    template <typename Tkey, typename Tval>
-    inline Tval MP4VRFileReaderImpl::fetchSampleProp(WriteOnceMap<Tkey, Tval>& propertiesMap,
-                                                     SampleDescriptionIndex& index,
-                                                     uint32_t& result) const
+    template <typename Property>
+    inline Property MP4VRFileReaderImpl::fetchSampleProp(const PropertyMap<Property>& propertiesMap,
+                                                         const SampleDescriptionIndex& index,
+                                                         uint32_t& result) const
     {
         // if already failed no need to go further
         if (result != ErrorCode::OK)
         {
-            return Tval();
+            return Property();
         }
 
         if (propertiesMap.count(index.get()) == 0)
         {
             result = ErrorCode::INVALID_SAMPLE_DESCRIPTION_INDEX;
-            return Tval();
+            return Property();
         }
 
         return propertiesMap.at(index);
+    }
+
+    /** Generic "find value from associative container, or don't" function to use with maps.
+     *
+     * findOptional(key, map) returns map[key] if it exists, otherwise it returns a None
+     */
+    template <typename Container, typename Key>
+    auto findOptional(const Key& aKey, const Container& aContainer) -> Optional<typename Container::mapped_type>
+    {
+        auto value = aContainer.find(aKey);
+        if (value != aContainer.end())
+        {
+            return {value->second};
+        }
+        else
+        {
+            return {};
+        }
     }
 }  // namespace MP4VR
 

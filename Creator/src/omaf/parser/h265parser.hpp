@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -26,8 +26,26 @@
 #include <vector>
 #include <memory>
 #include "h265datastructs.hpp"
+#include "common/exceptions.h"
 
 #define EXTENDED_SAR 255
+
+class H265ParserException : public VDD::Exception
+{
+public:
+    H265ParserException(std::string aWhat) : Exception(aWhat)
+    {
+    }
+};
+
+// Inherits from H265ParserException so the module has a single exception module user can catch
+class H265InputStreamException : public H265ParserException
+{
+public:
+    H265InputStreamException(std::string aWhat) : H265ParserException(aWhat)
+    {
+    }
+};
 
 class H265InputStream
 {
@@ -102,7 +120,7 @@ private:
     static int writePredWeightTable(Parser::BitStream&, H265::SequenceParameterSet&, H265::SliceHeader&, H265::PredWeightTable&);
     void printPicStats(const H265::Picture& pic);
     int decodeRefPicSet(H265::SliceHeader& slice, H265::RefPicSet& rps, int poc);
-    int deltaPocMsbCycleLt(H265::SliceHeader& slice, int i);
+    int deltaPocMsbCycleLt(H265::SliceHeader& slice, size_t i);
     H265::Picture* findPicInDpbPocLsb(unsigned int pocLsb);
     H265::Picture* findPicInDpbPoc(int poc);
     int generateRefPicLists(H265::SliceHeader& slice, H265::RefPicSet& rps);

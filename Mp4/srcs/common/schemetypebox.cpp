@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,6 +13,7 @@
  * written consent of Nokia.
  */
 #include "schemetypebox.hpp"
+
 #include "bitstream.hpp"
 
 using std::endl;
@@ -47,7 +48,7 @@ std::uint32_t SchemeTypeBox::getSchemeVersion() const
 
 void SchemeTypeBox::setSchemeUri(const String& uri)
 {
-    std::uint32_t hasUriFieldFlags = uri.empty() ? getFlags() & (~0x1) : getFlags() | 0x1;
+    std::uint32_t hasUriFieldFlags = uri.empty() ? getFlags() & (~0x1u) : getFlags() | 0x1;
     setFlags(hasUriFieldFlags);
     mSchemeUri = uri;
 }

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,27 +17,27 @@
 #include "NVRNamespace.h"
 
 OMAF_NS_BEGIN
-    namespace AudioReturnValue
+namespace AudioReturnValue
+{
+    enum Enum
     {
-        enum Enum
-        {
-            INVALID = -1,
-            
-            OK,
-            
-            // This source has now given all the samples it has, there will be no more.
-            END_OF_FILE,
-            
-            // This source is currently out of samples, but it might get more later
-            OUT_OF_SAMPLES,
-            
-            // There was unrecoverable error while processing the request.
-            FAIL,
-            
-            // Source has not been initialized. Do that first, then try again.
-            NOT_INITIALIZED,
-            
-            COUNT
-        };
-    }
+        INVALID = -1,
+
+        OK,
+
+        // This source has now given all the samples it has, there will be no more.
+        END_OF_FILE,
+
+        // This source is currently out of samples, but it might get more later
+        OUT_OF_SAMPLES,
+
+        // There was unrecoverable error while processing the request.
+        FAIL,
+
+        // Source has not been initialized. Do that first, then try again.
+        NOT_INITIALIZED,
+
+        COUNT
+    };
+}
 OMAF_NS_END

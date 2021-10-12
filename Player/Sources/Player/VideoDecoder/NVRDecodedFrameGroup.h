@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,9 +14,9 @@
  */
 #pragma once
 
+#include "Foundation/NVRSpinlock.h"
 #include "NVRNamespace.h"
 #include "Platform/OMAFDataTypes.h"
-#include "Foundation/NVRSpinlock.h"
 #include "VideoDecoder/NVRVideoDecoderTypes.h"
 
 OMAF_NS_BEGIN
@@ -40,19 +40,17 @@ public:
     void_t discardFrames(uint64_t targetPTSUs);
 
     void_t cleanupOldFrames(uint64_t currentPTS);
-    
+
     void_t clearDiscardedFrames();
 
     bool_t stageFrame(DecoderFrame* frame);
     DecoderFrame* fetchStagedFrame();
 
 private:
-
     void_t discardFramesInternal(uint64_t targetPTSUs);
     DecoderFrame* findFrameWithPTSInternal(uint64_t targetPTSUs, bool_t ignoreOldFrames);
 
 private:
-
     FrameCache* mFrameCache;
     Spinlock mFramesLock;
     Spinlock mStagedFrameLock;

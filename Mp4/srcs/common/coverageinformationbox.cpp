@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -99,9 +99,9 @@ void CoverageInformationBox::writeBox(ISOBMFF::BitStream& bitstr)
             bitstr.write8Bits(((uint8_t) region->viewIdc & 0b0011) << 6);
         }
 
-        bitstr.write32Bits(region->region.centreAzimuth);
-        bitstr.write32Bits(region->region.centreElevation);
-        bitstr.write32Bits(region->region.centreTilt);
+        bitstr.write32BitsSigned(region->region.centreAzimuth);
+        bitstr.write32BitsSigned(region->region.centreElevation);
+        bitstr.write32BitsSigned(region->region.centreTilt);
         bitstr.write32Bits(region->region.azimuthRange);
         bitstr.write32Bits(region->region.elevationRange);
 
@@ -138,9 +138,9 @@ void CoverageInformationBox::parseBox(ISOBMFF::BitStream& bitstr)
             region->viewIdc = ViewIdcType::INVALID;
         }
 
-        region->region.centreAzimuth   = bitstr.read32Bits();
-        region->region.centreElevation = bitstr.read32Bits();
-        region->region.centreTilt      = bitstr.read32Bits();
+        region->region.centreAzimuth   = bitstr.read32BitsSigned();
+        region->region.centreElevation = bitstr.read32BitsSigned();
+        region->region.centreTilt      = bitstr.read32BitsSigned();
         region->region.azimuthRange    = bitstr.read32Bits();
         region->region.elevationRange  = bitstr.read32Bits();
 

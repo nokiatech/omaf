@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,27 +19,28 @@
 
 OMAF_NS_BEGIN
 
-    class DashAdaptationSetSubPicture : public DashAdaptationSetViewportDep
-    {
-    public:
-        DashAdaptationSetSubPicture(DashAdaptationSetObserver& observer);
+class DashAdaptationSetSubPicture : public DashAdaptationSetViewportDep
+{
+public:
+    DashAdaptationSetSubPicture(DashAdaptationSetObserver& observer);
 
-        virtual ~DashAdaptationSetSubPicture();
+    virtual ~DashAdaptationSetSubPicture();
 
-        static bool_t isSubPicture(DashComponents aDashComponents);
+    static bool_t isSubPicture(DashComponents aDashComponents);
 
-    public: // from DashAdaptationSet
-        virtual AdaptationSetType::Enum getType() const;
+public:  // from DashAdaptationSet
+    virtual AdaptationSetType::Enum getType() const;
 
-    protected: // from DashAdaptationSet
-        virtual DashRepresentation* createRepresentation(DashComponents aDashComponents, uint32_t aInitializationSegmentId, uint32_t aBandwidth);
-        virtual bool_t parseVideoProperties(DashComponents& aNextComponents);
-        virtual void_t parseVideoViewport(DashComponents& aNextComponents);
-        virtual void_t doSwitchRepresentation();
+protected:  // from DashAdaptationSet
+    virtual DashRepresentation* createRepresentation(DashComponents aDashComponents,
+                                                     uint32_t aInitializationSegmentId,
+                                                     uint32_t aBandwidth);
+    virtual bool_t parseVideoProperties(DashComponents& aNextComponents);
+    virtual void_t parseVideoViewport(DashComponents& aNextComponents);
+    virtual void_t doSwitchRepresentation();
+};
 
-    };
-
-    typedef FixedArray<DashAdaptationSetSubPicture*, MAX_ADAPTATION_SET_COUNT> TileAdaptationSets;
+typedef FixedArray<DashAdaptationSetSubPicture*, MAX_ADAPTATION_SET_COUNT> TileAdaptationSets;
 
 
 OMAF_NS_END

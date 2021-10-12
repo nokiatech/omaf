@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -30,24 +30,17 @@ RawRenderer::~RawRenderer()
 void_t RawRenderer::createImpl()
 {
     VertexDeclaration vertexDeclaration = VertexDeclaration()
-        .begin()
-        .addAttribute("aPosition", VertexAttributeFormat::FLOAT32, 2, false)
-        .addAttribute("aTextureCoord", VertexAttributeFormat::FLOAT32, 2, false)
-        .end();
+                                              .begin()
+                                              .addAttribute("aPosition", VertexAttributeFormat::FLOAT32, 2, false)
+                                              .addAttribute("aTextureCoord", VertexAttributeFormat::FLOAT32, 2, false)
+                                              .end();
 
     VertexBufferDesc vertexBufferDesc;
     vertexBufferDesc.declaration = vertexDeclaration;
     vertexBufferDesc.access = BufferAccess::STATIC;
 
-    Vertex verts[] =
-    {
-        { -1.f,-1.f, 0.f, 0.f },
-        {  1.f,-1.f, 1.f, 0.f },
-        {  1.f, 1.f, 1.f, 1.f },
-        { -1.f,-1.f, 0.f, 0.f },
-        {  1.f, 1.f, 1.f, 1.f },
-        { -1.f, 1.f, 0.f, 1.f }
-    };
+    Vertex verts[] = {{-1.f, -1.f, 0.f, 0.f}, {1.f, -1.f, 1.f, 0.f}, {1.f, 1.f, 1.f, 1.f},
+                      {-1.f, -1.f, 0.f, 0.f}, {1.f, 1.f, 1.f, 1.f},  {-1.f, 1.f, 0.f, 1.f}};
 
     vertexBufferDesc.data = verts;
     vertexBufferDesc.size = 6 * OMAF_SIZE_OF(Vertex);
@@ -65,19 +58,18 @@ void_t RawRenderer::destroyImpl()
     mOpaqueShader.destroy();
 }
 
-ProjectionType::Enum RawRenderer::getType() const
-{
-    return ProjectionType::RAW;
-}
-
-void_t RawRenderer::render(const HeadTransform& headTransform, const RenderSurface& renderSurface, const CoreProviderSources& sources, const TextureID& renderMask, const RenderingParameters& renderingParameters)
+void_t RawRenderer::render(const HeadTransform& headTransform,
+                           const RenderSurface& renderSurface,
+                           const CoreProviderSources& sources,
+                           const TextureID& renderMask,
+                           const RenderingParameters& renderingParameters)
 {
     OMAF_ASSERT(sources.getSize() == 1, "Supports only one input source");
-    //OMAF_ASSERT(sources.at(0)->type == SourceType::IDENTITY || sources.at(0)->type == SourceType::IDENTITY_AUXILIARY, "Source is not an identity source");
-    //TODO Check all renderable types
+    // OMAF_ASSERT(sources.at(0)->type == SourceType::IDENTITY,
+    // "Source is not an identity source");
 
     RenderBackend::pushDebugMarker("RawRenderer::render");
-    IdentitySource* source = (IdentitySource*)sources.at(0);
+    IdentitySource* source = (IdentitySource*) sources.at(0);
 
     if (mDirtyShader)
     {
@@ -96,8 +88,7 @@ void_t RawRenderer::render(const HeadTransform& headTransform, const RenderSurfa
 
     selectedShader.bind();
 
-    if (source->videoFrame.format == VideoPixelFormat::RGB ||
-        source->videoFrame.format == VideoPixelFormat::RGBA ||
+    if (source->videoFrame.format == VideoPixelFormat::RGB || source->videoFrame.format == VideoPixelFormat::RGBA ||
         source->videoFrame.format == VideoPixelFormat::RGB_422_APPLE)
     {
         selectedShader.setSourceConstant(0);
@@ -120,20 +111,22 @@ void_t RawRenderer::render(const HeadTransform& headTransform, const RenderSurfa
 
     selectedShader.setTextureRectConstant(makeVector4(0, 0, 1, 1));
 
-    //Convert head orientation quaternion into texture coordinates
+    // Convert head orientation quaternion into texture coordinates
     Vector3 e = Vector3();
     OMAF::eulerAngles(headTransform.orientation, e.y, e.x, e.z, OMAF::EulerAxisOrder::YXZ);
     Vector2 v = Vector2();
-    v.x = (-e.y/(OMAF_PI*2) - 0.5f);
-    if (v.x < 0) v.x += 1;
-    v.y = (-e.x/ OMAF_PI) - 0.5f;
-    if (v.y < 0) v.y += 1;
+    v.x = (-e.y / (OMAF_PI * 2) - 0.5f);
+    if (v.x < 0)
+        v.x += 1;
+    v.y = (-e.x / OMAF_PI) - 0.5f;
+    if (v.y < 0)
+        v.y += 1;
     selectedShader.setViewDirConstant(v);
 
     Matrix44 modelMatrix = makeMatrix44(source->extrinsicRotation);
 
-    float outputAspect = (float32_t)renderSurface.viewport.height / (float32_t)renderSurface.viewport.width ;
-    float videoAspect = (float32_t)source->videoFrame.height / (float32_t)source->videoFrame.width;
+    float outputAspect = (float32_t) renderSurface.viewport.height / (float32_t) renderSurface.viewport.width;
+    float videoAspect = (float32_t) source->videoFrame.height / (float32_t) source->videoFrame.width;
     modelMatrix.m11 = videoAspect / outputAspect;
     if (modelMatrix.m11 > 1.0f)
     {
@@ -244,7 +237,7 @@ void_t RawRenderer::Shader::create(VideoPixelFormat::Enum textureFormat)
         FixedString1024 extensions;
         FixedString1024 defines;
 
-        // GLSL / GLSL ES versions
+// GLSL / GLSL ES versions
 #if OMAF_GRAPHICS_API_OPENGL
         version.append("#version 150\n");
 #elif OMAF_GRAPHICS_API_OPENGL_ES
@@ -280,7 +273,7 @@ void_t RawRenderer::Shader::create(VideoPixelFormat::Enum textureFormat)
         // Enable st matrix
         defines.append("#define ENABLE_ST_MATRIX\n");
 
-        // Sampler type
+// Sampler type
 #if OMAF_PLATFORM_ANDROID
 
         extensions.append("#extension GL_OES_EGL_image_external : require\n");

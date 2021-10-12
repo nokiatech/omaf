@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -49,4 +49,9 @@ void DataInformationBox::parseBox(ISOBMFF::BitStream& bitstr)
     {
         logError() << "Read an empty dinf box." << std::endl;
     }
+}
+
+const DataReferenceBox& DataInformationBox::getDataReferenceBox() const
+{
+    return mDataReferenceBox;
 }

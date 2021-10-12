@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,7 +18,7 @@ namespace VDD
 {
     /* Add the given tag (inheriting from MetaTag) to this Meta */
     template <typename T>
-    void Meta::attachTag(const T& aTag)
+    Meta& Meta::attachTag(const T& aTag)
     {
         auto value = Utils::static_cast_unique_ptr<MetaTag>(Utils::make_unique<T>(aTag));
         for (auto& tag : mTags)
@@ -27,10 +27,11 @@ namespace VDD
             if (ptr)
             {
                 tag = std::move(value);
-                return;
+                return *this;
             }
         }
         mTags.push_back(std::move(value));
+        return *this;
     }
 
     /* is the tag T attached? If so, return it. */

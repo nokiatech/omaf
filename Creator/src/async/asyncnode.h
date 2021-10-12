@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,13 +19,14 @@
 #include <list>
 #include <set>
 #include <atomic>
-#include <type_traits>
 
 #include "common/exceptions.h"
+#include "processor/streams.h"
 #include "processor/data.h"
 #include "processor/processor.h"
 #include "processor/sink.h"
 #include "processor/source.h"
+#include "common/optional.h"
 
 /**
  * GraphBase and AsyncNode enable an asynchronous graph where data flows from one node to another. While
@@ -36,7 +37,7 @@
 namespace VDD {
     class Log;
 
-    using AsyncPushCallback = std::function<void(const Views& views)>;
+    using AsyncPushCallback = std::function<void(const Streams& streams)>;
 
     class GraphBase;
 
@@ -44,14 +45,13 @@ namespace VDD {
     class AsyncSource;
     struct AsyncCallback;
 
-    typedef uint64_t ViewMask;
-    const ViewMask allViews = std::numeric_limits<uint64_t>::max();
-
     class AsyncProcessor;
 
     struct AsyncCallback {
         AsyncProcessor* processor;
-        ViewMask viewMask;
+        StreamFilter streamFilter;
+        std::string label; // for annotating graph
+        AsyncCallback& setLabel(std::string aLabel);
     };
 
     typedef unsigned int AsyncNodeId;
@@ -63,6 +63,22 @@ namespace VDD {
     class AsyncNode
     {
     public:
+        struct ScopeColored
+        {
+            ScopeColored(std::string aColor)
+            {
+                AsyncNode::pushDefaultColor(aColor);
+            }
+            ScopeColored(const ScopeColored&) = delete;
+            void operator=(const ScopeColored&) = delete;
+            ~ScopeColored()
+            {
+                AsyncNode::popDefaultColor();
+            }
+        };
+
+        static std::string debugPrefix;
+
         AsyncNode(GraphBase&, std::string aName = "node");
         AsyncNode(const AsyncNode&) = delete;
         void operator=(const AsyncNode&) = delete;
@@ -71,6 +87,13 @@ namespace VDD {
 
         virtual std::string getInfo() const;
         void setName(std::string aName);
+        std::string getName() const;
+
+        // For debugging in the GraphViz graph
+        static void pushDefaultColor(Optional<std::string> aColor);
+        static void popDefaultColor();
+        Optional<std::string> getColor() const;
+        void setColor(Optional<std::string> aColor);
 
         GraphBase& getGraph();
 
@@ -89,10 +112,10 @@ namespace VDD {
         virtual ~AsyncNode();
 
     protected:
-        friend void connect(AsyncNode& aFrom, AsyncProcessor& aTo, ViewMask aViewMask);
-        void addCallback(AsyncProcessor& aCallback, ViewMask aViewMask);
+        friend AsyncCallback& connect(AsyncNode& aFrom, AsyncProcessor& aTo, StreamFilter aStreamFilter);
+        AsyncCallback& addCallback(AsyncProcessor& aCallback, StreamFilter aStreamFilter);
 
-        void hasOutput(const Views& views);
+        void hasOutput(const Streams& streams);
 
     private:
         GraphBase& mGraph;
@@ -101,6 +124,9 @@ namespace VDD {
         std::list<AsyncCallback> mCallbacks;
         bool mActive = true;
         size_t mOutputCounter = 0;
+
+        static std::list<Optional<std::string>> sDefaultColor;
+        Optional<std::string> mColor;
 
         friend class GraphBase;
     };
@@ -124,7 +150,7 @@ namespace VDD {
         AsyncProcessor(GraphBase&, std::string aName = "processor");
         ~AsyncProcessor();
 
-        virtual void hasInput(const Views& views) = 0;
+        virtual void hasInput(const Streams& streams) = 0;
     };
 
     /** @brief Used for converting functions to AsyncNodes for the purposes
@@ -136,7 +162,7 @@ namespace VDD {
                           std::string aName,
                           const AsyncPushCallback& aCallback);
 
-        void hasInput(const Views& views) override;
+        void hasInput(const Streams& streams) override;
 
     private:
         std::atomic<bool> mRunning = {};
@@ -152,7 +178,7 @@ namespace VDD {
         AsyncForwardProcessor(GraphBase&, std::string aName = "forward");
         ~AsyncForwardProcessor();
 
-        void hasInput(const Views& views) override;
+        void hasInput(const Streams& streams) override;
 
     private:
         std::atomic<bool> mRunning = {};
@@ -170,7 +196,7 @@ namespace VDD {
          * this node in the graph.
          */
         void setProcessor(std::unique_ptr<Processor> aProcessor);
-        void hasInput(const Views& views) override;
+        void hasInput(const Streams& streams) override;
         void setLog(std::shared_ptr<Log> aLog) override;
 
         std::string getInfo() const override;
@@ -195,7 +221,7 @@ namespace VDD {
          * this node in the graph.
          */
         void setSink(std::unique_ptr<Sink> aSink);
-        void hasInput(const Views& views) override;
+        void hasInput(const Streams& streams) override;
         void setLog(std::shared_ptr<Log> aLog) override;
 
         std::string getInfo() const override;

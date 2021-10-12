@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,6 +16,47 @@
 
 namespace VDD
 {
+    std::string to_string(const TrackId& aTrackId)
+    {
+        return std::to_string(aTrackId.get());
+    }
+
+    std::ostream& operator<<(std::ostream& aStream, const CodedFrameMeta& aMeta)
+    {
+        aStream << "presIndex:" << aMeta.presIndex;
+        aStream << "\n" "codingIndex:" << aMeta.codingIndex;
+        aStream << "\n" "codingTime:" << aMeta.codingTime;
+        aStream << "\n" "presTime:" << aMeta.presTime;
+        aStream << "\n" "duration:" << aMeta.duration;
+        aStream << "\n" "trackId:" << aMeta.trackId;
+
+        aStream << "\n" "inCodingOrder:" << aMeta.inCodingOrder;
+
+        aStream << "\n" "format:" << aMeta.format;
+
+        // not supported yet
+        //std::map<ConfigType, std::vector<std::uint8_t>> decoderConfig;
+
+        aStream << "\n" "width:" << aMeta.width;
+        aStream << "\n" "height:" << aMeta.height;
+
+        //aStream << "\n" "channelConfig:" << aMeta.channelConfig;
+        aStream << "\n" "samplingFrequency:" << aMeta.samplingFrequency;
+        //aStream << "\n" "bitrate:" << aMeta.bitrate;
+
+        aStream << "\n" "type:" << int(aMeta.type);
+
+        //aStream << "\n" "segmenterMeta:" << aMeta.segmenterMeta;
+
+        // applicable in OMAF
+        // aStream << "\n" "projection:" << aMeta.projection;
+        // aStream << "\n" "regionPacking:" << aMeta.regionPacking;
+        // aStream << "\n" "sphericalCoverage:" << aMeta.sphericalCoverage;
+        // aStream << "\n" "qualityRankCoverage:" << aMeta.qualityRankCoverage;
+
+        return aStream;
+    }
+
     Meta::Meta()
         : mContentType(ContentType::None)
     {

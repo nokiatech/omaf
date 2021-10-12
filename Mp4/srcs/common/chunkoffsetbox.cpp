@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -26,7 +26,8 @@ ChunkOffsetBox::ChunkOffsetBox()
 void ChunkOffsetBox::setChunkOffsets(const Vector<uint64_t>& chunkOffsets)
 {
     mChunkOffsets = chunkOffsets;
-    if (*std::max_element(mChunkOffsets.cbegin(), mChunkOffsets.cend()) > std::numeric_limits<std::uint32_t>::max())
+    if (mChunkOffsets.size() &&
+        *std::max_element(mChunkOffsets.cbegin(), mChunkOffsets.cend()) > std::numeric_limits<std::uint32_t>::max())
     {
         setType("co64");
     }

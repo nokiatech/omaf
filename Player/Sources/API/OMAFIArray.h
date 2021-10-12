@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -22,11 +22,11 @@ namespace OMAF
     class IArray
     {
     public:
-        virtual ~IArray() {};
-        virtual const T& operator [] (size_t index) const = 0;
+        virtual ~IArray(){};
+        virtual const T& operator[](size_t index) const = 0;
         virtual const T& at(size_t index) const = 0;
 
         virtual size_t getSize() const = 0;
         virtual bool_t isEmpty() const = 0;
     };
-}
+}  // namespace OMAF

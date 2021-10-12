@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -41,7 +41,20 @@ namespace VDD
              * This allow disabling the actual writing part but still keeping
              * that behavior.
              */
-            bool disable;
+            bool disable = false;
+
+            /** @brief if set, init segment is required (normal case) */
+            bool requireInitSegment = true;
+
+            /** @brief if set, imda segment is required (special case for on-demand OMAFv2 base segments) */
+            bool expectImdaSegment = false;
+
+            /** @brief if set, track run segment is required (normal case for on-demand OMAFv2 base
+                segments; false is the special case for media segments) */
+            bool expectTrackRunSegment = true;
+
+            /** @brief if set, segment indexes are expected */
+            bool expectSegmentIndex = true;
         };
 
         SingleFileSave(Config aConfig);
@@ -54,7 +67,9 @@ namespace VDD
 
         // returns an empty Data upon processing data; this is useful for determining when the data
         // has been saved
-        std::vector<Views> process(const Views& data) override;
+        std::vector<Streams> process(const Streams& data) override;
+
+        std::string getGraphVizDescription() override;
 
     private:
         Config mConfig;
@@ -64,9 +79,12 @@ namespace VDD
 
         // once this is empty, we may produce EndOfStream when we receive one
         std::set<SegmentRole> mRolesPending;
+        std::mutex mRolesPendingMutex; // for graphviz output..
 
         Optional<std::ostream::pos_type> mSidxPosition;
 
         void writeData(std::ostream& aStream, const Data& aData, SegmentRole aRole);
+
+        bool mFirstWrite = true;
     };
 }

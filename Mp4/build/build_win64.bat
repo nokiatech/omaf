@@ -2,7 +2,7 @@
 @echo off
 REM This file is part of Nokia OMAF implementation
 REM
-REM Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+REM Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 REM
 REM Contact: omaf@nokia.com
 REM
@@ -15,7 +15,7 @@ REM written consent of Nokia.
 rd /S /Q msvcwin64
 md msvcwin64
 cd msvcwin64
-cmake ..\..\srcs -G "Visual Studio 14 2015 Win64" 
+cmake ..\..\srcs -G "Visual Studio 16 2019" 
 
 cmake --build . --config Debug -- /m 
 

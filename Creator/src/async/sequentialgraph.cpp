@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -20,27 +20,23 @@ namespace VDD
 
     SequentialGraph::~SequentialGraph() = default;
 
-    void SequentialGraph::nodeHasOutput(AsyncNode* aNode, const Views& aViews)
+    void SequentialGraph::nodeHasOutput(AsyncNode* aNode, const Streams& aStreams)
     {
         for (auto& callback: getNodeCallbacks(aNode))
         {
-            if (callback.viewMask == allViews)
+            if (callback.streamFilter.allStreams())
             {
-                callback.processor->hasInput(aViews);
+                callback.processor->hasInput(aStreams);
             }
             else
             {
-                Views callbackViews;
-                size_t viewIndex = 0;
-                size_t mask = callback.viewMask;
-                while (mask)
+                Streams callbackViews;
+                auto set = callback.streamFilter.asSet();
+                for (const auto& view: aStreams)
                 {
-                    if (mask & 1)
-                    {
-                        callbackViews.push_back(aViews[viewIndex]);
+                    if (set.count(view.getStreamId())) {
+                        callbackViews.add(view);
                     }
-                    mask >>= 1;
-                    ++viewIndex;
                 }
                 callback.processor->hasInput(callbackViews);
             }

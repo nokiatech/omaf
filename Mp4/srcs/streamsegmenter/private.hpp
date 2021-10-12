@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,6 +21,7 @@
 #include "filetypebox.hpp"
 #include "handlerbox.hpp"
 #include "mediaheaderbox.hpp"
+#include "metabox.hpp"
 #include "moviebox.hpp"
 #include "regionwisepackingbox.hpp"
 #include "trackheaderbox.hpp"
@@ -100,7 +101,28 @@ namespace StreamSegmenter
                 // nothing
             }
         };
-    }
-}  // namespace StreamSegmenter::Segmenter
+
+        struct MetaBox
+        {
+            UniquePtr<::MetaBox> metaBox;
+            MetaBox(UniquePtr<::MetaBox>&& aMetaBox)
+                : metaBox(std::move(aMetaBox))
+            {
+                // nothing
+            }
+        };
+
+        struct EntityToGroupBox
+        {
+            UniquePtr<::EntityToGroupBox> entityToGroupBox;
+            EntityToGroupBox(UniquePtr<::EntityToGroupBox>&& aEntityToGroupBox)
+                : entityToGroupBox(std::move(aEntityToGroupBox))
+            {
+                // nothing
+            }
+        };
+
+    }  // namespace Segmenter
+}  // namespace StreamSegmenter
 
 #endif  // STREAMSEGMENTER_PRIVATE_HPP

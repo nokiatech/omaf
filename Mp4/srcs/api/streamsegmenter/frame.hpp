@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,7 +21,8 @@
 #include <list>
 #include <vector>
 
-#include "optional.hpp"
+#include "../isobmff/optional.h"
+
 #include "rational.hpp"
 
 namespace StreamSegmenter
@@ -69,7 +70,7 @@ namespace StreamSegmenter
         bool isIDR;
         SampleFlags sampleFlags;
 
-        Utils::Optional<FrameDts> dts;
+        ISOBMFF::Optional<FrameDts> dts;
 
         FrameInfo() = default;
     };
@@ -81,6 +82,6 @@ namespace StreamSegmenter
     };
 
     void dumpFrameInfo(const Frame& aFrame);
-}
+}  // namespace StreamSegmenter
 
 #endif  // FRAME_H

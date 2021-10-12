@@ -2,7 +2,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -34,9 +34,8 @@ endif()
 
 add_definitions(-D_CRT_SECURE_NO_WARNINGS -DTARGET_OS_WINDOWS)
 
-
-if (MSVC_VERSION EQUAL 1900)
-    set(VSVERSION VS2015)
+if (MSVC_VERSION GREATER 1919)
+    set(VSVERSION VS2019)
 elseif (MSVC_VERSION GREATER 1900)
     set(VSVERSION VS2017)
 else()

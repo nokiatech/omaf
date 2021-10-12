@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,7 +19,6 @@
 #include <set>
 #include <stdexcept>
 #include <string>
-#include "optional.hpp"
 #include "rational.hpp"
 #include "segmenterapi.hpp"
 
@@ -107,7 +106,8 @@ namespace StreamSegmenter
         enum class DashProfile
         {
             Live,
-            OnDemand
+            OnDemand,
+            TiledLive
         };
 
         enum class RepresentationType
@@ -167,19 +167,52 @@ namespace StreamSegmenter
             using std::list<T>::list;
         };
 
+
+        /* <xs:simpleType name="Range1">
+         *   <xs:restriction base="xs:int">
+         *     <xs:minInclusive value="-11796480"/>
+         *     <xs:maxInclusive value="11796479"/>
+         *   </xs:restriction>
+         * </xs:simpleType> */
+        using Range1 = std::int32_t;
+
+        /* <xs:simpleType name="Range2">
+         *   <xs:restriction base="xs:int">
+         *     <xs:minInclusive value="-5898240"/>
+         *     <xs:maxInclusive value="5898240"/>
+         *   </xs:restriction>
+         * </xs:simpleType> */
+        using Range2 = std::int32_t;
+
+        /* <xs:simpleType name="HRange">
+         *   <xs:restriction base="xs:unsignedInt">
+         *     <xs:minInclusive value="0"/>
+         *     <xs:maxInclusive value="23592960"/>
+         *   </xs:restriction>
+         * </xs:simpleType> */
+        using HRange = std::uint32_t;
+
+        /* <xs:simpleType name="VRange">
+         *   <xs:restriction base="xs:unsignedInt">
+         *      <xs:minInclusive value="0"/>
+         *      <xs:maxInclusive value="11796480"/>
+         *   </xs:restriction>
+         * </xs:simpleType> */
+        using VRange = std::uint32_t;
+
         struct SphereRegion
         {
-            std::int32_t centreAzimuth   = 0;
-            std::int32_t centreElevation = 0;
-            std::int32_t centreTilt      = 0;
-            std::uint32_t azimuthRange   = 23592960;
-            std::uint32_t elevationRange = 11796480;
+            Range1 centreAzimuth   = 0;
+            Range2 centreElevation = 0;
+            Range1 centreTilt      = 0;
+            HRange azimuthRange    = 23592960;
+            VRange elevationRange  = 11796480;
         };
 
         struct URLType
         {
-            Utils::Optional<std::string> sourceURL;
-            Utils::Optional<std::string> range;
+            ISOBMFF::Optional<std::string> sourceURL;
+            ISOBMFF::Optional<std::string> range;
 
             void writeXML(std::ostream& out, std::uint16_t indentLevel, std::string elementName) const;
         };
@@ -199,10 +232,14 @@ namespace StreamSegmenter
         {
             virtual ~MPDNode() = default;
 
+            // Do you need to write something in the upper level before writing the rest of the inner xml? This happens
+            // with omaf adaptation sets and property ordering.
+            virtual void writeInnerXMLStage1(std::ostream& out, std::uint16_t indentLevel) const;
+
             // virtual method for writing sub elements of this XML node
             // if there are multiple implementations of the same element
             // this can be called by subclass to write common parts
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const = 0;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const = 0;
 
             // virtual method for writing complete element
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const = 0;
@@ -212,7 +249,7 @@ namespace StreamSegmenter
         {
             SpaceSeparatedAttrList<OmafProjectionType> projectionType = {OmafProjectionType::Equirectangular};
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -222,16 +259,16 @@ namespace StreamSegmenter
             std::uint8_t qualityRanking = 0;
 
             // should be set only if qualityType is QualityType::MayDiffer
-            Utils::Optional<std::uint16_t> origWidth;
-            Utils::Optional<std::uint16_t> origHeight;
+            ISOBMFF::Optional<std::uint16_t> origWidth;
+            ISOBMFF::Optional<std::uint16_t> origHeight;
 
             // should be set only if default view idc was not set
-            Utils::Optional<OmafViewType> viewIdc;
+            ISOBMFF::Optional<OmafViewType> viewIdc;
 
             // only written if remainingArea == false
-            Utils::Optional<SphereRegion> sphere;
+            ISOBMFF::Optional<SphereRegion> sphere;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -244,12 +281,12 @@ namespace StreamSegmenter
             Bool qualityRankingLocal = false;
             // mandatory field without implicit default when element is read
             OmafQualityType qualityType = OmafQualityType::AllCorrespondTheSame;
-            Utils::Optional<OmafViewType> defaultViewIdc;
+            ISOBMFF::Optional<OmafViewType> defaultViewIdc;
 
             // child elements
             std::list<OmafQualityInfo> qualityInfos;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -257,7 +294,7 @@ namespace StreamSegmenter
         {
             SpaceSeparatedAttrList<OmafRwpkPackingType> packingType;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -265,7 +302,7 @@ namespace StreamSegmenter
         {
             std::uint8_t packingType;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -273,7 +310,162 @@ namespace StreamSegmenter
         {
             std::string url;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        // Overlays
+
+        struct OverlayVideoInfo
+        {
+            std::uint8_t overlayId;
+            ISOBMFF::Optional<std::uint8_t> overlayPriority;
+        };
+
+        struct OverlayVideo : public MPDNode
+        {
+            bool isSupplementalProperty = true;  // essential when false
+            std::list<OverlayVideoInfo> overlayInfo;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        struct OverlayBackground : public MPDNode
+        {
+            std::list<std::uint32_t> backgroundIds;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        // Viewpoints
+
+        struct Omaf2ViewpointGeomagneticInfo : public MPDNode
+        {
+            ISOBMFF::Optional<Range1> yaw;
+            ISOBMFF::Optional<Range2> pitch;
+            ISOBMFF::Optional<Range1> roll;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        struct Omaf2ViewpointPosition : public MPDNode
+        {
+            ISOBMFF::Optional<int> x;
+            ISOBMFF::Optional<int> y;
+            ISOBMFF::Optional<int> z;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        struct Omaf2ViewpointGPSPosition : public MPDNode
+        {
+            ISOBMFF::Optional<int> longitude;
+            ISOBMFF::Optional<int> latitude;
+            ISOBMFF::Optional<int> altitude;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        struct Omaf2ViewpointGroupInfo : public MPDNode
+        {
+            uint8_t groupId = 0u;
+            ISOBMFF::Optional<std::string> groupDescription;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        struct Omaf2ViewpointRelative : public MPDNode
+        {
+            uint16_t rectLeftPct = 0;
+            uint16_t rectTopPct = 0;
+            uint16_t rectWidthPct = 100;
+            uint16_t rectHeightPct = 100;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        struct Omaf2SphereRegion : public MPDNode
+        {
+            Range1 centreAzimuth   = 0;
+            Range2 centreElevation = 0;
+            Range1 centreTilt      = 0;
+            ISOBMFF::Optional<HRange> azimuthRange;
+            ISOBMFF::Optional<VRange> elevationRange;
+            uint8_t shapeType = 0;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        struct Omaf2OneViewpointSwitchRegion : public MPDNode
+        {
+            ISOBMFF::Optional<Omaf2ViewpointRelative> vpRelative;
+            ISOBMFF::Optional<Omaf2SphereRegion> sphereRegion;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        using RestDatType = uint8_t; /* valid range: [0..2] */
+
+        struct Omaf2ViewpointSwitchRegion : public MPDNode
+        {
+            std::list<Omaf2OneViewpointSwitchRegion> regions;
+            RestDatType regionType;
+            ISOBMFF::Optional<std::uint8_t> refOverlayId;
+            std::string id;
+
+			/**
+             * ViewpointInfo.SwitchingInfo.SwitchRegion@id from which the parent Adaptation Set 
+			 * in the Period whose identifier is ViewpointInfo.SwitchingInfo.SwitchRegion@period
+			 * shall be selected as to be played back after the current Period
+			 */
+            ISOBMFF::Optional<std::string> region;
+            std::string period;
+            ISOBMFF::Optional<std::string> label;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        struct Omaf2ViewpointSwitchingInfo : public MPDNode
+        {
+            std::list<Omaf2ViewpointSwitchRegion> switchRegions;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        struct Omaf2ViewpointInfo : public MPDNode
+        {
+            // Attributes
+            ISOBMFF::Optional<std::string> label;
+            ISOBMFF::Optional<bool> initialViewpoint;
+
+            // Elements
+            Omaf2ViewpointPosition position;
+            ISOBMFF::Optional<Omaf2ViewpointGPSPosition> gpsPosition;
+            ISOBMFF::Optional<Omaf2ViewpointGeomagneticInfo> geomagneticInfo;
+            Omaf2ViewpointGroupInfo groupInfo;
+            ISOBMFF::Optional<Omaf2ViewpointSwitchingInfo> switchingInfo;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        struct Omaf2Viewpoint : public MPDNode
+        {
+            std::string id;
+            Omaf2ViewpointInfo viewpointInfo;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -287,23 +479,23 @@ namespace StreamSegmenter
         {
             // all optional, because it is not mandatory to define these attributes
             // only in every AdaptationSet, Representation and SubPresentation elements
-            Utils::Optional<std::string> profiles;
-            Utils::Optional<std::uint32_t> width;
-            Utils::Optional<std::uint32_t> height;
-            Utils::Optional<RatU64> sar;
-            Utils::Optional<FrameRate> frameRate;
+            ISOBMFF::Optional<std::string> profiles;
+            ISOBMFF::Optional<std::uint32_t> width;
+            ISOBMFF::Optional<std::uint32_t> height;
+            ISOBMFF::Optional<RatU64> sar;
+            ISOBMFF::Optional<FrameRate> frameRate;
             // space separated list of 1 or 2 decimal numbers (rate or rate range)
             SpaceSeparatedAttrList<std::uint32_t> audioSamplingRate;
-            Utils::Optional<std::string> mimeType;
-            Utils::Optional<std::string> segmentProfiles;
-            Utils::Optional<std::string> codecs;
-            Utils::Optional<double> maximumSAPPeriod;
-            Utils::Optional<std::uint32_t> startWithSAP;  // min: 0 max: 6
-            Utils::Optional<double> maxPlayoutRate;
-            Utils::Optional<Bool> codingDependency;
-            Utils::Optional<VideoScanType> scanType;
-            Utils::Optional<std::uint32_t> selectionPriority;
-            Utils::Optional<std::string> tag;
+            ISOBMFF::Optional<std::string> mimeType;
+            ISOBMFF::Optional<std::string> segmentProfiles;
+            ISOBMFF::Optional<std::string> codecs;
+            ISOBMFF::Optional<double> maximumSAPPeriod;
+            ISOBMFF::Optional<std::uint32_t> startWithSAP;  // min: 0 max: 6
+            ISOBMFF::Optional<double> maxPlayoutRate;
+            ISOBMFF::Optional<Bool> codingDependency;
+            ISOBMFF::Optional<VideoScanType> scanType;
+            ISOBMFF::Optional<std::uint32_t> selectionPriority;
+            ISOBMFF::Optional<std::string> tag;
 
             virtual AttributeList getXMLAttributes() const;
         };
@@ -328,10 +520,10 @@ namespace StreamSegmenter
                                  std::int32_t rIn);
 
             std::uint64_t d;
-            Utils::Optional<std::uint64_t> t;
-            Utils::Optional<std::uint64_t> n;
-            Utils::Optional<std::uint64_t> k;
-            Utils::Optional<std::int32_t> r;
+            ISOBMFF::Optional<std::uint64_t> t;
+            ISOBMFF::Optional<std::uint64_t> n;
+            ISOBMFF::Optional<std::uint64_t> k;
+            ISOBMFF::Optional<std::int32_t> r;
         };
 
         struct SegmentTimeline : public MPDNode
@@ -339,7 +531,7 @@ namespace StreamSegmenter
             // list of S elements
             std::list<SegmentTimelineEntry> ss;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -347,21 +539,21 @@ namespace StreamSegmenter
         struct SegmentBaseInformation : public MPDNode
         {
             // attributes
-            Utils::Optional<std::uint32_t> timescale;
-            Utils::Optional<std::uint64_t> presentationTimeOffset;
-            Utils::Optional<std::uint64_t> presentationDuration;
-            Utils::Optional<Duration> timeShiftBufferDepth;
-            Utils::Optional<std::string> indexRange;
-            Utils::Optional<Bool> indexRangeExact;
-            Utils::Optional<double> availabilityTimeOffset;
-            Utils::Optional<Bool> availabilityTimeComplete;
+            ISOBMFF::Optional<std::uint32_t> timescale;
+            ISOBMFF::Optional<std::uint64_t> presentationTimeOffset;
+            ISOBMFF::Optional<std::uint64_t> presentationDuration;
+            ISOBMFF::Optional<Duration> timeShiftBufferDepth;
+            ISOBMFF::Optional<std::string> indexRange;
+            ISOBMFF::Optional<Bool> indexRangeExact;
+            ISOBMFF::Optional<double> availabilityTimeOffset;
+            ISOBMFF::Optional<Bool> availabilityTimeComplete;
 
             // child elements
-            Utils::Optional<URLType> initElement;          /// <Initialization ...>
-            Utils::Optional<URLType> representationIndex;  /// <RepresentationIndex ...>
+            ISOBMFF::Optional<URLType> initElement;          /// <Initialization ...>
+            ISOBMFF::Optional<URLType> representationIndex;  /// <RepresentationIndex ...>
 
             virtual AttributeList getXMLAttributes() const;
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
         // also DASH 5.3.9.2
@@ -373,18 +565,17 @@ namespace StreamSegmenter
         struct MultipleSegmentBaseInformation : public SegmentBaseInformation
         {
             // attributes
-            Utils::Optional<std::uint32_t> duration;
-            Utils::Optional<std::uint32_t> startNumber;
+            ISOBMFF::Optional<std::uint32_t> duration;
+            ISOBMFF::Optional<std::uint32_t> startNumber;
 
             // child elements
-            Utils::Optional<SegmentTimeline> segmentTimeLine;
-            Utils::Optional<URLType> bitstreamSwitchingElement;
+            ISOBMFF::Optional<SegmentTimeline> segmentTimeLine;
+            ISOBMFF::Optional<URLType> bitstreamSwitchingElement;
 
             virtual AttributeList getXMLAttributes() const override;
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
-        // DASH 5.3.9.3 @todo add implementation for segment lists (might be needed if referring data in CDN with
         // inconsistent naming convention)
         struct SegmentList : public MultipleSegmentBaseInformation
         {
@@ -395,11 +586,26 @@ namespace StreamSegmenter
         struct SegmentTemplate : public MultipleSegmentBaseInformation
         {
             // attributes
-            Utils::Optional<std::string> media;
-            Utils::Optional<std::string> index;
-            Utils::Optional<std::string> initialization;
-            Utils::Optional<std::string> bitstreamSwitching;
+            ISOBMFF::Optional<std::string> media;
+            ISOBMFF::Optional<std::string> index;
+            ISOBMFF::Optional<std::string> initialization;
+            ISOBMFF::Optional<std::string> bitstreamSwitching;
 
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        //------------------------------------------------------------------------------
+        //
+        // Association
+        //
+        //------------------------------------------------------------------------------
+
+        struct Association : MPDNode
+        {
+            CommaSeparatedAttrList<std::string> associationKindList;
+            std::list<std::string> associations;
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -408,39 +614,62 @@ namespace StreamSegmenter
         // Representations
         //
         //------------------------------------------------------------------------------
+        struct ContentComponent : public MPDNode
+        {
+            ISOBMFF::Optional<std::uint64_t> id;
+            ISOBMFF::Optional<std::string> contentType;
+
+            // not implemented:
+            // <xs:complexType name="ContentComponentType">
+            // <xs:sequence>
+            //   <xs:element name="Accessibility" type="DescriptorType" minOccurs="0" maxOccurs="unbounded"/>
+            //   <xs:element name="Role" type="DescriptorType" minOccurs="0" maxOccurs="unbounded"/>
+            //   <xs:element name="Rating" type="DescriptorType" minOccurs="0" maxOccurs="unbounded"/>
+            //   <xs:element name="Viewpoint" type="DescriptorType" minOccurs="0" maxOccurs="unbounded"/>
+            //   <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+            // </xs:sequence>
+            // <xs:attribute name="lang" type="xs:language"/>
+            // <xs:attribute name="par" type="RatioType"/>
+            // <xs:anyAttribute namespace="##other" processContents="lax"/>
+
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
 
         struct Representation : public MPDNodeWithCommonAttributes
         {
             std::string id          = "default";
             std::uint64_t bandwidth = 0;  // in bits per second.
 
-            Utils::Optional<std::uint32_t> qualityRanking;
+            ISOBMFF::Optional<std::uint32_t> qualityRanking;
 
             SpaceSeparatedAttrList<std::string> dependencyId;
             SpaceSeparatedAttrList<std::string> associationId;
             SpaceSeparatedAttrList<std::string> associationType;
             SpaceSeparatedAttrList<std::string> mediaStreamStructureId;
+            ISOBMFF::Optional<std::string> allMediaAssociationViewpoint;
 
-            Utils::Optional<SegmentBase> segmentBase;
-            Utils::Optional<SegmentList> segmentList;
-            Utils::Optional<SegmentTemplate> segmentTemplate;
-            Utils::Optional<BaseURL> baseURL;
+            ISOBMFF::Optional<SegmentBase> segmentBase;
+            ISOBMFF::Optional<SegmentList> segmentList;
+            ISOBMFF::Optional<SegmentTemplate> segmentTemplate;
+            ISOBMFF::Optional<BaseURL> baseURL;
+            std::list<ContentComponent> contentComponent;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
 
         struct OmafRepresentation : public Representation
         {
-            Utils::Optional<OmafRegionWisePacking> regionWisePacking;
-            Utils::Optional<OmafProjectionFormat> projectionFormat;
+            ISOBMFF::Optional<OmafRegionWisePacking> regionWisePacking;
+            ISOBMFF::Optional<OmafProjectionFormat> projectionFormat;
 
             // At most one SRQR descriptor for each sphRegionQuality@shape_type
             // value of 0 and 1 may be present at representation level.
             std::list<OmafSphereRegionWiseQuality> sphereRegionQualityRanks;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -454,35 +683,40 @@ namespace StreamSegmenter
         struct AdaptationSet : public MPDNodeWithCommonAttributes
         {
             // element attributes
-            Utils::Optional<std::uint32_t> id;
-            Utils::Optional<std::uint32_t> group;
+            ISOBMFF::Optional<std::uint32_t> id;
+            ISOBMFF::Optional<std::uint32_t> group;
 
-            Utils::Optional<std::string> lang;
-            Utils::Optional<std::string> contentType;
-            Utils::Optional<RatU64> par;
-            Utils::Optional<std::uint32_t> minBandwidth;
-            Utils::Optional<std::uint32_t> maxBandwidth;
-            Utils::Optional<std::uint32_t> minWidth;
-            Utils::Optional<std::uint32_t> maxWidth;
-            Utils::Optional<std::uint32_t> minHeight;
-            Utils::Optional<std::uint32_t> maxHeight;
-            Utils::Optional<FrameRate> minFramerate;
-            Utils::Optional<FrameRate> maxFramerate;
+            ISOBMFF::Optional<std::string> lang;
+            ISOBMFF::Optional<std::string> contentType;
+            ISOBMFF::Optional<RatU64> par;
+            ISOBMFF::Optional<std::uint32_t> minBandwidth;
+            ISOBMFF::Optional<std::uint32_t> maxBandwidth;
+            ISOBMFF::Optional<std::uint32_t> minWidth;
+            ISOBMFF::Optional<std::uint32_t> maxWidth;
+            ISOBMFF::Optional<std::uint32_t> minHeight;
+            ISOBMFF::Optional<std::uint32_t> maxHeight;
+            ISOBMFF::Optional<FrameRate> minFramerate;
+            ISOBMFF::Optional<FrameRate> maxFramerate;
 
-            Utils::Optional<BoolOrNumber> segmentAlignment;
-            Utils::Optional<Bool> bitstreamSwitching;
-            Utils::Optional<Bool> subsegmentAlignment;
-            Utils::Optional<std::uint32_t> subsegmentStartsWithSAP;  // sap type 0..6
+            ISOBMFF::Optional<BoolOrNumber> segmentAlignment;
+            ISOBMFF::Optional<Bool> bitstreamSwitching;
+            ISOBMFF::Optional<Bool> subsegmentAlignment;
+            ISOBMFF::Optional<std::uint32_t> subsegmentStartsWithSAP;  // sap type 0..6
 
             std::list<std::string> viewpoints;
 
-            Utils::Optional<PreselectionType> preselection;
+            std::list<PreselectionType> preselection;
 
             // sub elements
-            Utils::Optional<std::string> stereoId;
+            ISOBMFF::Optional<std::string> stereoId;
 
-            // 
-            Utils::Optional<VideoFramePacking> videoFramePacking;
+            //
+            ISOBMFF::Optional<VideoFramePacking> videoFramePacking;
+
+            ISOBMFF::Optional<OverlayVideo> overlayVideo;
+            ISOBMFF::Optional<OverlayBackground> overlayBackground;
+
+            ISOBMFF::Optional<Omaf2Viewpoint> viewpoint;
 
             // @note add support for Roles
             // std::list<std::string> roles;
@@ -490,7 +724,10 @@ namespace StreamSegmenter
             std::list<RepresentationType> representations;
 
             virtual AttributeList getXMLAttributes() const override;
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+
+            // avoid difficult order coding
+            virtual void writeInnerXMLStage1(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -501,10 +738,10 @@ namespace StreamSegmenter
         // omaf:coverageInfo
         struct OmafCoverageInfo : MPDNode
         {
-            Utils::Optional<OmafViewType> viewIdc;
+            ISOBMFF::Optional<OmafViewType> viewIdc;
             SphereRegion region;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -513,19 +750,19 @@ namespace StreamSegmenter
         {
             OmafShapeType shapeType = OmafShapeType::FourGreatCircles;
 
-            Utils::Optional<OmafViewType> defaultViewIdc;
+            ISOBMFF::Optional<OmafViewType> defaultViewIdc;
 
             std::list<OmafCoverageInfo> coverageInfos;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
         // AdaptationSet with omaf specific elements / attributes
         struct OmafAdaptationSet : public AdaptationSet<OmafRepresentation>
         {
-            Utils::Optional<OmafRegionWisePacking> regionWisePacking;
-            Utils::Optional<OmafProjectionFormat> projectionFormat;
+            ISOBMFF::Optional<OmafRegionWisePacking> regionWisePacking;
+            ISOBMFF::Optional<OmafProjectionFormat> projectionFormat;
 
             // create SupplementalProperty "urn:mpeg:mpegI:omaf:2017:cc" with given coverage infos
             std::list<OmafContentCoverage> contentCoverages;
@@ -534,8 +771,34 @@ namespace StreamSegmenter
             // value of 0 and 1 may be present at adaptation set level.
             std::list<OmafSphereRegionWiseQuality> sphereRegionQualityRanks;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        //------------------------------------------------------------------------------
+        //
+        // EntityGroup
+        //
+        //------------------------------------------------------------------------------
+        struct EntityId: public MPDNode
+        {
+            std::uint32_t adaptationSetId;
+            std::string representationId;
+
+            void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
+        };
+
+        struct EntityGroup: public MPDNode
+        {
+            std::string groupType; // 4cc
+            uint32_t groupId;
+            std::list<EntityId> entities;
+            SpaceSeparatedAttrList<std::uint16_t> refOverlayId;
+            AttributeList attributes; // other attributes, specific to the particular type
+
+            void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
+            void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
         //------------------------------------------------------------------------------
@@ -546,13 +809,14 @@ namespace StreamSegmenter
         template <class AdaptationSetType>
         struct Period : public MPDNode
         {
-            Utils::Optional<std::string> id;
-            Utils::Optional<Duration> start;
-            Utils::Optional<Duration> duration;
+            ISOBMFF::Optional<std::string> id;
+            ISOBMFF::Optional<Duration> start;
+            ISOBMFF::Optional<Duration> duration;
 
             std::list<AdaptationSetType> adaptationSets;
+            std::list<EntityGroup> entityGroups;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel) const override;
         };
 
@@ -581,15 +845,15 @@ namespace StreamSegmenter
             Duration minBufferTime;
 
             // mandatory for RepresentationType::Dynamic
-            Utils::Optional<std::time_t> availabilityStartTime;
+            ISOBMFF::Optional<std::time_t> availabilityStartTime;
 
             // mandatory for RepresentationType::Dynamic
-            Utils::Optional<std::time_t> publishTime;
+            ISOBMFF::Optional<std::time_t> publishTime;
 
             // optional, This attribute shall be present when neither
             // the attribute MPD@minimumUpdatePeriod nor the
             // Period@duration of the last Period are present.
-            Utils::Optional<Duration> mediaPresentationDuration;
+            ISOBMFF::Optional<Duration> mediaPresentationDuration;
 
             std::list<PeriodType> periods;
 
@@ -599,7 +863,7 @@ namespace StreamSegmenter
             virtual AttributeList getXMLAttributes() const;
 
             // write inner elements but no headers for subclasses to to write common parts
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel = 0) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel = 0) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel = 0) const override;
         };
 
@@ -612,10 +876,10 @@ namespace StreamSegmenter
         // Omaf spec
         struct OmafMPDRoot : public MPDRoot<OmafPeriod>
         {
-            Utils::Optional<OmafRegionWisePacking> regionWisePacking;
-            Utils::Optional<OmafProjectionFormat> projectionFormat;
+            ISOBMFF::Optional<OmafRegionWisePacking> regionWisePacking;
+            ISOBMFF::Optional<OmafProjectionFormat> projectionFormat;
 
-            virtual void writeInnerXML(std::ostream& out, std::uint16_t indentLevel = 0) const override;
+            virtual void writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel = 0) const override;
             virtual void writeXML(std::ostream& out, std::uint16_t indentLevel = 0) const override;
         };
     }  // namespace MPDTree

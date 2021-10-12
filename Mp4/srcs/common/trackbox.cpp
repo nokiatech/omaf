@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -213,7 +213,6 @@ void TrackBox::parseBox(ISOBMFF::BitStream& bitstr)
         }
         else if (boxType == "meta")
         {
-            // @todo Implement this when reading meta box in tracks is supported
         }
         else if (boxType == "tref")
         {

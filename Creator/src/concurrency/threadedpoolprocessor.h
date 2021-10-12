@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -36,7 +36,7 @@ namespace VDD {
 
         StorageType getPreferredStorageType() const override;
 
-        std::vector<Views> process(const Views& data) override;
+        std::vector<Streams> process(const Streams& data) override;
 
     private:
         class Job;
@@ -49,17 +49,17 @@ namespace VDD {
         // Is there some work sent that we don't have yet results for?
         bool workPending();
 
-        void enqueue(const Views& views);
+        void enqueue(const Streams& streams);
 
-        void process(WorkQueueIndex aIndex, const Views& aViews);
+        void process(WorkQueueIndex aIndex, const Streams& aStreams);
 
         // Dequeue ready jobs, or if mEndOfStream then wait for all jobs to finish
-        std::vector<Views> dequeue();
+        std::vector<Streams> dequeue();
 
         // sorry for the name ;), but I want to indicate that the mResultQueueMutex must be held
         // when this function is called.  It returns all the available results from mResultQueue and
         // puts them to aFrames.
-        void pullAvailableJobsFromResultsWithMutexHeld(std::vector<Views>& aFrames);
+        void pullAvailableJobsFromResultsWithMutexHeld(std::vector<Streams>& aFrames);
 
         // Lend a processor (or create one if all are busy)
         std::unique_ptr<Processor> lendProcessor();
@@ -84,7 +84,7 @@ namespace VDD {
         // index of the next job to pick from mResultQueue
         WorkQueueIndex mResultQueueIndex = 0;
         // map from queue index to job
-        std::map<WorkQueueIndex, std::vector<Views>> mResultQueue;
+        std::map<WorkQueueIndex, std::vector<Streams>> mResultQueue;
 
         // not protected, as this is always set from the process method and read from the dequeue
         // method, which is called only by the process method.

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,22 +13,22 @@
  * written consent of Nokia.
  */
 #include "VideoDecoder/Android/NVRSurfaceTexture.h"
-#include "Foundation/NVRLogger.h"
 #include "Foundation/Android/NVRAndroid.h"
-#include "NVRGraphics.h"
+#include "Foundation/NVRLogger.h"
 #include "Foundation/NVRPerformanceLogger.h"
+#include "NVRGraphics.h"
 OMAF_NS_BEGIN
 OMAF_LOG_ZONE(SurfaceTexture)
 
 SurfaceTexture::SurfaceTexture()
-: mJEnv(NULL)
-, mJavaObject(NULL)
-, mTexture(0)
-, mNanoTimestamp(0)
-, mUpdateTexImageMethodId(NULL)
-, mGetTimestampMethodId(NULL)
-, mSetDefaultBufferSizeMethodId(NULL)
-, mGetTransformMatrixId(NULL)
+    : mJEnv(NULL)
+    , mJavaObject(NULL)
+    , mTexture(0)
+    , mNanoTimestamp(0)
+    , mUpdateTexImageMethodId(NULL)
+    , mGetTimestampMethodId(NULL)
+    , mSetDefaultBufferSizeMethodId(NULL)
+    , mGetTransformMatrixId(NULL)
 {
     mJEnv = OMAF::Private::Android::getJNIEnv();
 
@@ -47,7 +47,7 @@ SurfaceTexture::SurfaceTexture()
     glBindTexture(GL_TEXTURE_EXTERNAL_OES, currentTexture);
 
     // Find class
-    const char *className = "android/graphics/SurfaceTexture";
+    const char* className = "android/graphics/SurfaceTexture";
     const jclass surfaceTextureClass = mJEnv->FindClass(className);
 
     if (surfaceTextureClass == 0)
@@ -138,17 +138,16 @@ SurfaceTexture::~SurfaceTexture()
 
     if (mJavaObject != NULL)
     {
-
         JavaVM* javaVM = Android::getJavaVM();
         JNIEnv* jniEnv = NULL;
 
-        int result = javaVM->GetEnv((void**)&jniEnv, JNI_VERSION_1_6);
+        int result = javaVM->GetEnv((void**) &jniEnv, JNI_VERSION_1_6);
 
         if (result != JNI_OK)
         {
             result = javaVM->AttachCurrentThread(&jniEnv, NULL);
         }
-        
+
         if (result == JNI_OK)
         {
             jniEnv->DeleteGlobalRef(mJavaObject);

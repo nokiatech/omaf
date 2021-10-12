@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,65 +21,104 @@
 
 OMAF_NS_BEGIN
 
-    class MP4VRMediaPacket
+class MP4VRMediaPacket
+{
+public:
+    MP4VRMediaPacket(size_t bufferSize);
+    virtual ~MP4VRMediaPacket();
+
+public:
+    // Deletes old data, sets datasize to zero and allocates new mBuffer of specified size.
+    virtual void resizeBuffer(size_t bufferSize);
+    virtual uint8_t* buffer()
     {
-    public:
-        MP4VRMediaPacket(size_t bufferSize, MP4VRMediaPacketQueue* metaPackets = OMAF_NULL);
-        virtual ~MP4VRMediaPacket();
+        return mBuffer;
+    }
+    virtual const uint8_t* buffer() const
+    {
+        return mBuffer;
+    }
+    virtual size_t bufferSize() const
+    {
+        return mBufferSize;
+    }
+    virtual size_t dataSize() const
+    {
+        return mDataSize;
+    }
+    virtual void_t setDataSize(size_t dataSize)
+    {
+        mDataSize = dataSize;
+    }
 
-    public:
-        //Deletes old data, sets datasize to zero and allocates new mBuffer of specified size. 
-        virtual void            resizeBuffer(size_t bufferSize);
-        virtual uint8_t *       buffer() { return mBuffer; }
-        virtual const uint8_t * buffer() const { return mBuffer; }
-        virtual size_t          bufferSize() const { return mBufferSize; }
-        virtual size_t          dataSize() const { return mDataSize; }
-        virtual void_t          setDataSize(size_t dataSize) { mDataSize = dataSize; }
+    virtual int64_t decodingTimeUs() const
+    {
+        return mDecodingTimeUs;
+    }
+    virtual void setDecodingTimeUs(int64_t decodingTimeUs)
+    {
+        mDecodingTimeUs = decodingTimeUs;
+    }
 
-        virtual int         streamIndex() const { return mStreamIndex; }
-        virtual void_t      setStreamIndex(int streamIndex) { mStreamIndex = streamIndex; }
+    virtual int64_t durationUs() const
+    {
+        return mDurationUs;
+    }
+    virtual void_t setDurationUs(int64_t durationUs)
+    {
+        mDurationUs = durationUs;
+    }
 
-        virtual int64_t     decodingTimeUs() const { return mDecodingTimeUs; }
-        virtual void        setDecodingTimeUs(int64_t decodingTimeUs) { mDecodingTimeUs = decodingTimeUs; }
+    virtual void_t setReConfigRequired(bool_t required)
+    {
+        mReConfigRequired = required;
+    }
+    virtual bool_t isReConfigRequired()
+    {
+        return mReConfigRequired;
+    }
 
-        virtual int64_t     durationUs() const { return mDurationUs; }
-        virtual void_t      setDurationUs(int64_t durationUs) { mDurationUs = durationUs; }
+    virtual void setIsReferenceFrame(bool_t);
+    virtual bool_t isReferenceFrame() const;
 
-        virtual void_t      setReConfigRequired(bool_t required) { mReConfigRequired = required; }
-        virtual bool_t      isReConfigRequired() { return mReConfigRequired; }
+    virtual int64_t presentationTimeUs() const
+    {
+        return mPresentationTimeUs;
+    }
+    virtual void setPresentationTimeUs(int64_t presentationTimeUs)
+    {
+        mPresentationTimeUs = presentationTimeUs;
+    }
 
-        virtual void        setIsReferenceFrame(bool_t);
-        virtual bool_t      isReferenceFrame() const;
+    virtual uint32_t sampleId() const
+    {
+        return mSampleId;
+    }
+    virtual void setSampleId(uint32_t sampleId)
+    {
+        mSampleId = sampleId;
+    }
 
-        virtual int64_t     presentationTimeUs() const { return mPresentationTimeUs; }
-        virtual void        setPresentationTimeUs(int64_t presentationTimeUs) { mPresentationTimeUs = presentationTimeUs; }
+    virtual size_t copyTo(const size_t srcOffset, uint8_t* destBuffer, const size_t destBufferSize);
 
-        virtual uint32_t    sampleId() { return mSampleId; }
-        virtual void        setSampleId(uint32_t sampleId) { mSampleId = sampleId; }
+private:
+    MP4VRMediaPacket(const MP4VRMediaPacket& mediaPacket);
+    MP4VRMediaPacket& operator=(const MP4VRMediaPacket& mediaPacket);
 
-        virtual MP4VRMediaPacketQueue* getMetaPacketsQueue();
+    int64_t mDecodingTimeUs;
+    int64_t mDurationUs;
 
-        virtual size_t copyTo(const size_t srcOffset, uint8_t * destBuffer, const size_t destBufferSize);
+private:
+    bool_t mIsReferenceFrame;
+    size_t mBufferSize;
+    size_t mDataSize;
 
-    private:
-        MP4VRMediaPacket(const MP4VRMediaPacket& mediaPacket);
-        MP4VRMediaPacket& operator=(const MP4VRMediaPacket& mediaPacket);
+    int64_t mPresentationTimeUs;
+    uint32_t mSampleId;
 
-        int64_t             mDecodingTimeUs;
-        int64_t             mDurationUs;
+    uint8_t* mBuffer;
+    bool_t mReConfigRequired;
 
-    private:
-        bool_t              mIsReferenceFrame;
-        size_t              mBufferSize;
-        size_t              mDataSize;
-
-        int32_t             mStreamIndex;
-        int64_t             mPresentationTimeUs;
-        uint32_t            mSampleId;
-
-        uint8_t*             mBuffer;
-        bool_t               mReConfigRequired;
-
-        MP4VRMediaPacketQueue* mMetaPackets;
-    };
+    MP4VRMediaPacketQueue* mMetaPackets;
+};
 OMAF_NS_END

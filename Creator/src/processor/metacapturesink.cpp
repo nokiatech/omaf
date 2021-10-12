@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,11 +16,9 @@
 
 namespace VDD
 {
-    MetaCaptureSink::MetaCaptureSink(const Config& aConfig)
-        : mPickFirstOne(aConfig.pickFirstOne)
-        , mStreamId(aConfig.streamId)
-        , mDone(false)
+    MetaCaptureSink::MetaCaptureSink(const Config&)
     {
+        // nothing
     }
 
     MetaCaptureSink::~MetaCaptureSink() = default;
@@ -30,47 +28,24 @@ namespace VDD
         return StorageType::CPU;
     }
 
-    Future<std::vector<CodedFrameMeta>> MetaCaptureSink::getCodedFrameMeta() const
+    Future<std::vector<Meta>> MetaCaptureSink::getMeta() const
     {
-        return mCodedFrameMeta;
+        return mMeta;
     }
 
-    void MetaCaptureSink::consume(const Views& aViews)
+    void MetaCaptureSink::consume(const Streams& aStreams)
     {
-        if (!mDone)
+        if (mFirst)
         {
-            if (mPickFirstOne)
+            mFirst = false;
+            if (!aStreams.isEndOfStream())
             {
-                mDone = true;
-                if (!aViews[0].isEndOfStream())
+                std::vector<Meta> meta;
+                for (auto& data: aStreams)
                 {
-                    std::vector<CodedFrameMeta> meta;
-                    for (auto& data : aViews)
-                    {
-                        meta.push_back(data.getCodedFrameMeta());
-                    }
-                    mCodedFrameMeta.set(meta);
+                    meta.push_back(data.getMeta());
                 }
-            }
-            else
-            {
-                if (!aViews[0].isEndOfStream())
-                {
-                    std::vector<CodedFrameMeta> meta;
-                    for (auto& data : aViews)
-                    {
-                        if (data.getStreamId() == mStreamId)
-                        {
-                            auto codedMeta = data.getCodedFrameMeta();
-                            meta.push_back(codedMeta);
-                            mDone = true;
-                        }
-                    }
-                    if (!meta.empty())
-                    {
-                        mCodedFrameMeta.set(meta);
-                    }
-                }
+                mMeta.set(meta);
             }
         }
     }

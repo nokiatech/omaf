@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,8 +16,8 @@
 
 #include "NVREssentials.h"
 
-#include "Graphics/NVRBlendFunction.h"
 #include "Graphics/NVRBlendEquation.h"
+#include "Graphics/NVRBlendFunction.h"
 #include "Graphics/NVRColorMask.h"
 
 OMAF_NS_BEGIN
@@ -26,33 +26,33 @@ struct BlendState
 {
     bool_t blendEnabled;
     bool_t alphaToCoverageEnabled;
-    
+
     BlendFunction::Enum blendFunctionSrcRgb;
     BlendFunction::Enum blendFunctionDstRgb;
     BlendFunction::Enum blendFunctionSrcAlpha;
     BlendFunction::Enum blendFunctionDstAlpha;
-    
+
     BlendEquation::Enum blendEquationRgb;
     BlendEquation::Enum blendEquationAlpha;
-    
+
     ColorMask::Enum blendWriteMask;
     uint8_t blendFactor[4];
-    
+
     BlendState()
     {
         blendEnabled = false;
         alphaToCoverageEnabled = false;
-        
+
         blendFunctionSrcRgb = BlendFunction::ONE;
         blendFunctionDstRgb = BlendFunction::ZERO;
         blendFunctionSrcAlpha = BlendFunction::ONE;
         blendFunctionDstAlpha = BlendFunction::ZERO;
-        
+
         blendEquationRgb = BlendEquation::ADD;
         blendEquationAlpha = BlendEquation::ADD;
-        
+
         blendWriteMask = ColorMask::ALL;
-        
+
         blendFactor[0] = 255;
         blendFactor[1] = 255;
         blendFactor[2] = 255;

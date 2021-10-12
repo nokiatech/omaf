@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,13 +14,14 @@
  */
 #pragma once
 
-#include <NVRNamespace.h>
-#include <OMAFPlayerDataTypes.h>
+#include "OMAFPlayerDataTypes.h"
 
-#include "Foundation/NVRFixedString.h"
+#include "NVRNamespace.h"
+
 #include "Foundation/NVRDataBuffer.h"
-#include "Foundation/NVRPair.h"
+#include "Foundation/NVRFixedString.h"
 #include "Foundation/NVRHttpHeaderList.h"
+#include "Foundation/NVRPair.h"
 
 OMAF_NS_BEGIN
 
@@ -32,10 +33,10 @@ namespace HttpConnectionState
 
         IDLE,
         IN_PROGRESS,
-        COMPLETED,// => IDLE
-        FAILED,// => IDLE
+        COMPLETED,  // => IDLE
+        FAILED,     // => IDLE
         ABORTING,
-        ABORTED,// => IDLE
+        ABORTED,  // => IDLE
 
         COUNT
     };
@@ -65,18 +66,18 @@ struct HttpRequestState
     uint64_t bytesDownloaded;
     uint64_t bytesUploaded;
     uint64_t totalBytes;
-    const DataBuffer<uint8_t>* output; // Not own
-    const DataBuffer<uint8_t>* input; // Not own
+    const DataBuffer<uint8_t>* output;  // Not own
+    const DataBuffer<uint8_t>* input;   // Not own
 
     HttpRequestState()
-    : connectionState(HttpConnectionState::INVALID)
-    , httpStatus(0)
-    , headers()
-    , bytesDownloaded(0)
-    , bytesUploaded(0)
-    , totalBytes(-1)
-    , output(OMAF_NULL)
-    , input(OMAF_NULL)
+        : connectionState(HttpConnectionState::INVALID)
+        , httpStatus(0)
+        , headers()
+        , bytesDownloaded(0)
+        , bytesUploaded(0)
+        , totalBytes(-1)
+        , output(OMAF_NULL)
+        , input(OMAF_NULL)
     {
     }
 };
@@ -85,15 +86,14 @@ struct HttpRequestState
 // The http download thread calls this before setting download state as completed
 class IHttpDataProcessor
 {
-    public:
+public:
     virtual void_t processHttpData() = 0;
 };
 
 class HttpConnection
 {
 public:
-
-    virtual ~HttpConnection() {};
+    virtual ~HttpConnection(){};
 
     virtual const HttpRequestState& getState() const = 0;
 
@@ -122,6 +122,5 @@ public:
     virtual void_t waitForCompletion() = 0;
     // Sync
     virtual bool_t hasCompleted() = 0;
-
 };
 OMAF_NS_END

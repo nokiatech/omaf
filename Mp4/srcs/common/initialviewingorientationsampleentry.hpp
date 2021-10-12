@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,8 +15,8 @@
 #ifndef INITIALVIEWINGORIENTETAIONSAMPLEENTRYBOX_HPP
 #define INITIALVIEWINGORIENTETAIONSAMPLEENTRYBOX_HPP
 
+#include "api/isobmff/commontypes.h"
 #include "bitstream.hpp"
-#include "commontypes.hpp"
 #include "customallocator.hpp"
 #include "sphereregionsampleentrybox.hpp"
 
@@ -32,20 +32,34 @@ public:
         bool refreshFlag = false;
 
         InitialViewingOrientationSample();
+
+        void write(ISOBMFF::BitStream& bitstr)
+        {
+            SphereRegion& region = regions.at(0);
+            region.write(bitstr, false);
+            bitstr.write8Bits(refreshFlag ? 0b10000000 : 0);
+        }
+
+        void parse(ISOBMFF::BitStream& bitstr)
+        {
+            SphereRegion& region = regions.at(0);
+            region.parse(bitstr, false);
+            refreshFlag = bitstr.read8Bits() & 0b10000000;
+        }
     };
 
     InitialViewingOrientation();
     virtual ~InitialViewingOrientation() = default;
 
-    virtual InitialViewingOrientation* clone() const override;
+    InitialViewingOrientation* clone() const override;
 
     /** @brief Creates the bitstream that represents the box in the ISOBMFF file
      *  @param [out] bitstr Bitstream that contains the box data. */
-    virtual void writeBox(ISOBMFF::BitStream& bitstr);
+    void writeBox(ISOBMFF::BitStream& bitstr) override;
 
     /** @brief Parses bitstream and fills in the necessary member variables
      *  @param [in]  bitstr Bitstream that contains the box data */
-    virtual void parseBox(ISOBMFF::BitStream& bitstr);
+    void parseBox(ISOBMFF::BitStream& bitstr) override;
 
 private:
 };

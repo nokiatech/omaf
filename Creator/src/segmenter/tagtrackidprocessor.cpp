@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -22,13 +22,13 @@ namespace VDD
         // nothing
     }
 
-    std::vector<Views> TagTrackIdProcessor::process(const Views& aViews)
+    std::vector<Streams> TagTrackIdProcessor::process(const Streams& aStreams)
     {
-        Views views;
-        for (auto data : aViews)
+        Streams streams;
+        for (auto data : aStreams)
         {
-            views.push_back(data.withTag(TrackIdTag(mConfig.trackId)));
+            streams.add(data.withTag(TrackIdTag(mConfig.trackId)));
         }
-        return { views };
+        return { streams };
     }
 }

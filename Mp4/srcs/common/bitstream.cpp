@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -197,17 +197,6 @@ namespace ISOBMFF
         mStorage.push_back(static_cast<uint8_t>((bits) &0xff));
     }
 
-    void BitStream::write8BitsArray(const Vector<std::uint8_t>& bits,
-                                    const std::uint64_t len,
-                                    const std::uint64_t srcOffset)
-    {
-        // if len was not given, add everything until end of the vector
-        auto copyLen = len == UINT64_MAX ? (bits.size() - srcOffset) : len;
-
-        mStorage.insert(mStorage.end(), bits.begin() + static_cast<std::int64_t>(srcOffset),
-                        bits.begin() + static_cast<std::int64_t>(srcOffset + copyLen));
-    }
-
     void BitStream::writeBits(std::uint64_t bits, std::uint32_t len)
     {
         if (len == 0)
@@ -240,6 +229,11 @@ namespace ISOBMFF
                 }
             } while (len > 0);
         }
+    }
+
+    void BitStream::writeBit(bool bit)
+    {
+        writeBits(bit, 1);
     }
 
     void BitStream::writeString(const String& srcString)
@@ -375,6 +369,11 @@ namespace ISOBMFF
         }
     }
 
+    bool BitStream::readBit()
+    {
+        return readBits(1);
+    }
+
     std::uint32_t BitStream::readBits(const std::uint32_t len)
     {
         std::uint32_t returnBits        = 0;
@@ -391,6 +390,10 @@ namespace ISOBMFF
                          (unsigned int) ((1 << len) - 1);
             mBitOffset += (unsigned int) len;
         }
+        else if (mByteOffset >= mStorage.size())
+        {
+            return 0;
+        }
         else
         {
             std::uint32_t numBitsToGo = len - numBitsLeftInByte;
@@ -401,12 +404,20 @@ namespace ISOBMFF
             {
                 if (numBitsToGo >= 8)
                 {
+                    if (mByteOffset >= mStorage.size())
+                    {
+                        return 0;
+                    }
                     returnBits = (returnBits << 8) | (mStorage).at(mByteOffset);
                     mByteOffset++;
                     numBitsToGo -= 8;
                 }
                 else
                 {
+                    if (mByteOffset >= mStorage.size())
+                    {
+                        return 0;
+                    }
                     returnBits = (returnBits << numBitsToGo) |
                                  ((unsigned int) ((mStorage).at(mByteOffset) >> (8 - numBitsToGo)) &
                                   (((unsigned int) 1 << numBitsToGo) - 1));

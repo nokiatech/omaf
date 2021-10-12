@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,23 +21,23 @@
 namespace VDD {
     class ThreadedPoolProcessor::Job : public VDD::Job {
     public:
-        Job(ThreadedPoolProcessor& aPool, ThreadedPoolProcessor::WorkQueueIndex aIndex, const Views& aViews)
+        Job(ThreadedPoolProcessor& aPool, ThreadedPoolProcessor::WorkQueueIndex aIndex, const Streams& aStreams)
             : mPool(aPool)
             , mIndex(aIndex)
-            , mViews(aViews)
+            , mStreams(aStreams)
         {
             // nothing
         }
 
         void run() override
         {
-            mPool.process(mIndex, mViews);
+            mPool.process(mIndex, mStreams);
         }
 
     private:
         ThreadedPoolProcessor& mPool;
         WorkQueueIndex mIndex;
-        Views mViews;
+        Streams mStreams;
     };
 
     ThreadedPoolProcessor::ThreadedPoolProcessor(const Config& aConfig)
@@ -51,13 +51,13 @@ namespace VDD {
         // nothing
     }
 
-    void ThreadedPoolProcessor::process(WorkQueueIndex aIndex, const Views& aViews)
+    void ThreadedPoolProcessor::process(WorkQueueIndex aIndex, const Streams& aStreams)
     {
         auto processor = lendProcessor();
-        std::vector<Views> frames;
+        std::vector<Streams> frames;
         try
         {
-            frames = processor->process(aViews);
+            frames = processor->process(aStreams);
         }
         catch (std::runtime_error& exn)
         {
@@ -93,7 +93,7 @@ namespace VDD {
         mAvailableProcessors.push_back(std::move(processor));
     }
 
-    void ThreadedPoolProcessor::enqueue(const Views& aViews)
+    void ThreadedPoolProcessor::enqueue(const Streams& aStreams)
     {
         WorkQueueIndex index;
         {
@@ -101,11 +101,11 @@ namespace VDD {
             index = mWorkQueueIndex;
             ++mWorkQueueIndex;
         }
-        auto job = Utils::make_unique<Job>(*this, index, aViews);
+        auto job = Utils::make_unique<Job>(*this, index, aStreams);
         mConfig.workpool->enqueue(std::move(job));
     }
 
-    void ThreadedPoolProcessor::pullAvailableJobsFromResultsWithMutexHeld(std::vector<Views>& aFrames)
+    void ThreadedPoolProcessor::pullAvailableJobsFromResultsWithMutexHeld(std::vector<Streams>& aFrames)
     {
         // pull all results once the first one is available
         while (mResultQueue.count(mResultQueueIndex) > 0)
@@ -116,9 +116,9 @@ namespace VDD {
             }
             else
             {
-                for (Views& views: mResultQueue[mResultQueueIndex])
+                for (Streams& streams: mResultQueue[mResultQueueIndex])
                 {
-                    aFrames.push_back(views);
+                    aFrames.push_back(streams);
                 }
             }
             mResultQueue.erase(mResultQueueIndex);
@@ -126,9 +126,9 @@ namespace VDD {
         }
     }
 
-    std::vector<Views> ThreadedPoolProcessor::dequeue()
+    std::vector<Streams> ThreadedPoolProcessor::dequeue()
     {
-        std::vector<Views> frames;
+        std::vector<Streams> frames;
 
         if (mEndOfStream)
         {
@@ -168,17 +168,17 @@ namespace VDD {
         return mPreferredStorageType;
     }
 
-    std::vector<Views> ThreadedPoolProcessor::process(const Views& aViews)
+    std::vector<Streams> ThreadedPoolProcessor::process(const Streams& aStreams)
     {
-        std::vector<Views> frames;
+        std::vector<Streams> frames;
         frames = dequeue();
-        enqueue(aViews);
-        if (aViews[0].isEndOfStream())
+        enqueue(aStreams);
+        if (aStreams.isEndOfStream())
         {
             mEndOfStream = true;
-            for (Views& views: dequeue())
+            for (Streams& streams: dequeue())
             {
-                frames.push_back(views);
+                frames.push_back(streams);
             }
         }
         return frames;

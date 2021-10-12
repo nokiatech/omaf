@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -12,50 +12,66 @@
  * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
  * written consent of Nokia.
  */
+#include "segmenter.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#include "alternateitemsgroupbox.hpp"
 #include "api/streamsegmenter/frame.hpp"
+#include "api/streamsegmenter/segmenterapi.hpp"
+#include "api/streamsegmenter/track.hpp"
 #include "avccommondefs.hpp"
-#include "utils.hpp"
-
-#include "mp4access.hpp"
-
 #include "avcsampleentry.hpp"
+#include "dynamicviewpointsampleentrybox.hpp"
+#include "entitytogroupbox.hpp"
 #include "filetypebox.hpp"
 #include "hevcconfigurationbox.hpp"
 #include "hevcdecoderconfigrecord.hpp"
 #include "hevcsampleentry.hpp"
 #include "initialviewingorientationsampleentry.hpp"
+#include "initialviewpointsampleentrybox.hpp"
 #include "mediadatabox.hpp"
 #include "moviebox.hpp"
 #include "moviefragmentbox.hpp"
+#include "mp4access.hpp"
 #include "mp4audiosampleentrybox.hpp"
+#include "overlayandbackgroundgroupingbox.hpp"
+#include "overlaysampleentrybox.hpp"
+#include "overlayswitchalternativesbox.hpp"
+#include "private.hpp"
+#include "recommendedviewportsampleentry.hpp"
 #include "segmentindexbox.hpp"
 #include "segmenttypebox.hpp"
 #include "urimetasampleentrybox.hpp"
 #include "userdatabox.hpp"
-
-#include "api/streamsegmenter/segmenterapi.hpp"
-#include "api/streamsegmenter/track.hpp"
-#include "private.hpp"
-#include "segmenter.hpp"
+#include "utils.hpp"
+#include "viewpointentitygroupbox.hpp"
+#include "visualsampleentrybox.hpp"
 
 namespace StreamSegmenter
 {
     namespace Segmenter
     {
+        const WriterConfig& defaultWriterConfig = WriterConfig();
+
         namespace
         {
+            struct OffsetInfo {
+                std::streampos moofOffset;
+                SegmentMoofInfos segmentMoofInfos;
+            };
+
             typedef std::vector<Track> TrackInfo;
-            typedef std::vector<TrackId> TrackIds;
 
             TrackFrames& findTrackFramesByTrackId(FrameAccessors& frameAccessor, TrackId trackId)
             {
@@ -77,86 +93,6 @@ namespace StreamSegmenter
                 return trackIds;
             }
 
-            // This is used while actually writing the data down
-            struct SegmentMoofInfo
-            {
-                SegmentTrackInfo trackInfo;
-                std::int32_t moofToDataOffset;
-            };
-
-            typedef std::map<TrackId, SegmentMoofInfo> SegmentMoofInfos;
-
-            void writeMoof(std::ostream& aOut,
-                           const TrackIds& aTrackIds,
-                           const Segment& aSegment,
-                           const SegmentMoofInfos& aSegmentMoofInfos,
-                           const std::map<TrackId, Frames>& aFrames)
-            {
-                Vector<MOVIEFRAGMENTS::SampleDefaults> sampleDefaults;
-                for (auto trackId : aTrackIds)
-                {
-                    sampleDefaults.push_back(MOVIEFRAGMENTS::SampleDefaults{
-                        trackId.get(),  // trackId
-                        1,              // defaultSampleDescriptionIndex
-                        0,              // defaultSampleDuration
-                        0,              // defaultSampleSize
-                        {0}             // defaultSampleFlags
-                    });
-                }
-                MovieFragmentBox moof(sampleDefaults);
-                moof.getMovieFragmentHeaderBox().setSequenceNumber(aSegment.sequenceId.get());
-                for (auto trackId : aTrackIds)
-                {
-                    const auto& segmentMoofInfo = aSegmentMoofInfos.find(trackId)->second;
-                    const auto& trackMeta       = segmentMoofInfo.trackInfo.trackMeta;
-                    auto traf                   = makeCustomUnique<TrackFragmentBox, TrackFragmentBox>(sampleDefaults);
-                    auto trun                   = makeCustomUnique<TrackRunBox, TrackRunBox>(
-                        uint8_t(1), 0u | TrackRunBox::TrackRunFlags::SampleDurationPresent |
-                                        TrackRunBox::TrackRunFlags::SampleSizePresent |
-                                        TrackRunBox::TrackRunFlags::SampleCompositionTimeOffsetsPresent |
-                                        TrackRunBox::TrackRunFlags::SampleFlagsPresent);
-                    auto tfdt =
-                        makeCustomUnique<TrackFragmentBaseMediaDecodeTimeBox, TrackFragmentBaseMediaDecodeTimeBox>();
-
-                    tfdt->setBaseMediaDecodeTime(
-                        uint64_t((segmentMoofInfo.trackInfo.t0.cast<RatU64>() / trackMeta.timescale).asDouble()));
-                    assert(segmentMoofInfo.trackInfo.t0 >= FrameTime(0, 1));
-                    traf->getTrackFragmentHeaderBox().setTrackId(trackMeta.trackId.get());
-                    traf->getTrackFragmentHeaderBox().setFlags(0 | TrackFragmentHeaderBox::DefaultBaseIsMoof);
-
-                    trun->setDataOffset(segmentMoofInfo.moofToDataOffset);
-
-                    FrameTime time = segmentMoofInfo.trackInfo.t0;
-
-                    for (const auto& frame : aFrames.find(trackId)->second)
-                    {
-                        std::uint64_t frameSize = frame.getSize();
-                        FrameInfo frameInfo     = frame.getFrameInfo();
-
-                        TrackRunBox::SampleDetails s;
-                        s.version1.sampleDuration =
-                            std::uint32_t((frameInfo.duration / trackMeta.timescale).asDouble());
-                        s.version1.sampleSize                  = std::uint32_t(frameSize);
-                        s.version1.sampleFlags                 = {frameInfo.sampleFlags.flagsAsUInt};
-                        s.version1.sampleCompositionTimeOffset = std::int32_t(
-                            ((frameInfo.cts.front() - time) / trackMeta.timescale.cast<RatS64>()).asDouble());
-                        trun->addSampleDetails(s);
-
-                        time += frameInfo.duration.cast<FrameTime>();
-                    }
-                    trun->setSampleCount((uint32_t) aFrames.find(trackId)->second.size());
-
-                    traf->setTrackFragmentDecodeTimeBox(std::move(tfdt));
-                    traf->addTrackRunBox(std::move(trun));
-                    moof.addTrackFragmentBox(std::move(traf));
-                }
-
-                BitStream bs;
-                moof.writeBox(bs);
-                auto data = bs.getStorage();
-                aOut.write(reinterpret_cast<const char*>(&data[0]), std::streamsize(data.size()));
-            }
-
             void flush(BitStream& aBs, std::ostream& aOut)
             {
                 auto data = aBs.getStorage();
@@ -175,7 +111,7 @@ namespace StreamSegmenter
             template <typename T>
             UniquePtr<T> cloneBox(const T& src)
             {
-                UniquePtr<T> dst(new T);
+                UniquePtr<T> dst(CUSTOM_NEW(T, ()));
                 BitStream bs;
                 const_cast<T&>(src).writeBox(bs);
                 bs.reset();
@@ -247,44 +183,12 @@ namespace StreamSegmenter
             }
         }  // anonymous namespace
 
-        Metadata::Metadata()  = default;
-        Metadata::~Metadata() = default;
-
-        void Metadata::setSoftware(const std::string& aSoftware)
-        {
-            mSoftware = aSoftware;
-        }
-
-        void Metadata::setVersion(const std::string& aVersion)
-        {
-            mVersion = aVersion;
-        }
-
-        void Metadata::setOther(const std::string& aKey, const std::string& aValue)
-        {
-            mOthers[aKey] = aValue;
-        }
-
-        std::string Metadata::getSoftware() const
-        {
-            return mSoftware;
-        }
-
-        std::string Metadata::getVersion() const
-        {
-            return mVersion;
-        }
-
-        std::map<std::string, std::string> Metadata::getOthers() const
-        {
-            return mOthers;
-        }
-
         InitSegment::InitSegment() = default;
 
         InitSegment::InitSegment(const InitSegment& other)
             : moov(other.moov ? new MovieBox{cloneBox(*other.moov->movieBox)} : nullptr)
             , ftyp(other.ftyp ? new FileTypeBox{cloneBox(*other.ftyp->fileTypeBox)} : nullptr)
+            , meta(other.meta ? new MetaBox{cloneBox(*other.meta->metaBox)} : nullptr)
         {
             // nothing
         }
@@ -301,6 +205,15 @@ namespace StreamSegmenter
             {
                 moov.reset();
             }
+
+            if (other.meta)
+            {
+                meta.reset(new MetaBox{cloneBox(*other.meta->metaBox)});
+            }
+            else
+            {
+                meta.reset();
+            }
             return *this;
         }
 
@@ -310,20 +223,229 @@ namespace StreamSegmenter
             return *this;
         }
 
-        void writeSegmentHeader(std::ostream& aOut)
+        void writeMoof(std::ostream& aOut,
+                       const TrackIds& aTrackIds,
+                       const Segment& aSegment,
+                       const SegmentMoofInfos& aSegmentMoofInfos,
+                       const std::map<TrackId, Frames>& aFrames,
+                       const StreamSegmenter::Segmenter::WriterConfig& aConfig)
+        {
+            Vector<MOVIEFRAGMENTS::SampleDefaults> sampleDefaults;
+            for (auto trackId : aTrackIds)
+            {
+                sampleDefaults.push_back(MOVIEFRAGMENTS::SampleDefaults{
+                    trackId.get(),  // trackId
+                    1,              // defaultSampleDescriptionIndex
+                    0,              // defaultSampleDuration
+                    0,              // defaultSampleSize
+                    {0}             // defaultSampleFlags
+                });
+            }
+            MovieFragmentBox moof(sampleDefaults);
+            moof.getMovieFragmentHeaderBox().setSequenceNumber(aSegment.sequenceId.get());
+            // There used to be a dinf box that was written here
+            std::int32_t omafv2SampleSizesSoFar = 0;
+            for (auto trackId : aTrackIds)
+            {
+                const auto& segmentMoofInfo = aSegmentMoofInfos.find(trackId)->second;
+                const auto& trackMeta       = segmentMoofInfo.trackInfo.trackMeta;
+                auto traf                   = makeCustomUnique<TrackFragmentBox, TrackFragmentBox>(sampleDefaults);
+                auto trun                   = makeCustomUnique<TrackRunBox, TrackRunBox>(
+                    uint8_t(1), 0u | TrackRunBox::TrackRunFlags::SampleDurationPresent |
+                                    TrackRunBox::TrackRunFlags::SampleSizePresent |
+                                    TrackRunBox::TrackRunFlags::SampleCompositionTimeOffsetsPresent |
+                                    TrackRunBox::TrackRunFlags::SampleFlagsPresent);
+                auto tfdt =
+                    makeCustomUnique<TrackFragmentBaseMediaDecodeTimeBox, TrackFragmentBaseMediaDecodeTimeBox>();
+
+                tfdt->setBaseMediaDecodeTime(
+                    uint64_t((segmentMoofInfo.trackInfo.t0.cast<RatU64>() / trackMeta.timescale).asDouble()));
+                //assert(segmentMoofInfo.trackInfo.t0 >= FrameTime(0, 1));
+                traf->getTrackFragmentHeaderBox().setTrackId(trackMeta.trackId.get());
+                if (aConfig.getKey() == WriterMode::CLASSIC)
+                {
+                    traf->getTrackFragmentHeaderBox().setFlags(0 | TrackFragmentHeaderBox::DefaultBaseIsMoof);
+                }
+
+                trun->setDataOffset(segmentMoofInfo.moofToDataOffset + omafv2SampleSizesSoFar);
+
+                FrameTime time = segmentMoofInfo.trackInfo.t0;
+
+                for (const auto& frame : aFrames.find(trackId)->second)
+                {
+                    std::uint64_t frameSize = frame.getSize();
+                    FrameInfo frameInfo     = frame.getFrameInfo();
+
+                    TrackRunBox::SampleDetails s;
+                    s.version1.sampleDuration = std::uint32_t((frameInfo.duration / trackMeta.timescale).asDouble());
+                    s.version1.sampleSize     = std::uint32_t(frameSize);
+                    if (aConfig.getKey() == WriterMode::OMAFV2)
+                    {
+                        omafv2SampleSizesSoFar += frameSize;
+                    }
+                    s.version1.sampleFlags    = {frameInfo.sampleFlags.flagsAsUInt};
+                    s.version1.sampleCompositionTimeOffset =
+                        std::int32_t(((frameInfo.cts.front() - time) / trackMeta.timescale.cast<RatS64>()).asDouble());
+                    trun->addSampleDetails(s);
+
+                    time += frameInfo.duration.cast<FrameTime>();
+                }
+                trun->setSampleCount((uint32_t) aFrames.find(trackId)->second.size());
+
+                traf->setTrackFragmentDecodeTimeBox(std::move(tfdt));
+                traf->addTrackRunBox(std::move(trun));
+                moof.addTrackFragmentBox(std::move(traf));
+            }
+
+            BitStream bs;
+            moof.writeBox(bs);
+            auto data = bs.getStorage();
+            aOut.write(reinterpret_cast<const char*>(&data[0]), std::streamsize(data.size()));
+        }
+
+        void writeSegmentHeader(std::ostream& aOut, const WriterConfig& aConfig)
         {
             BitStream bs;
 
             SegmentTypeBox styp;
-            styp.setMajorBrand("msdh");
-            styp.addCompatibleBrand("msdh");
-            styp.addCompatibleBrand("msix");
-            styp.writeBox(bs);
-
-            flush(bs, aOut);
+            switch (aConfig.getKey())
+            {
+            case WriterMode::CLASSIC:
+            {
+                styp.setMajorBrand("msdh");
+                styp.addCompatibleBrand("msdh");
+                styp.addCompatibleBrand("msix");
+                styp.writeBox(bs);
+                flush(bs, aOut);
+            }
+            break;
+            case WriterMode::OMAFV2:
+            {
+                if (aConfig.at<WriterMode::OMAFV2>().writeSegmentHeader)
+                {
+                    styp.setMajorBrand("imds");
+                    styp.addCompatibleBrand("imds");
+                    styp.writeBox(bs);
+                    flush(bs, aOut);
+                }
+            }
+            break;
+            }
         }
 
-        void writeTrackRunWithData(std::ostream& aOut, const Segment& aSegment)
+        void writeTrackRun(std::ostream& aOut,
+                           const Segment& aSegment,
+                           const WriterConfig& aConfig,
+                           Optional<OffsetInfo>& aOffsetInfo)
+        {
+            TrackIds trackIds = Utils::vectorOfKeys(aSegment.tracks);
+            std::map<TrackId, Frames> frames;
+            for (auto trackInfo : aSegment.tracks)
+            {
+                frames.insert(std::make_pair(trackInfo.first, trackInfo.second.frames));
+            }
+
+            if (aOffsetInfo)
+            {
+                aOffsetInfo->moofOffset = aOut.tellp();
+            }
+            SegmentMoofInfos localSegmentMoofInfos;
+            SegmentMoofInfos& segmentMoofInfos = aOffsetInfo ? aOffsetInfo->segmentMoofInfos : localSegmentMoofInfos;
+            for (auto trackId : trackIds)
+            {
+                SegmentMoofInfo moofInfo = {aSegment.tracks.find(trackId)->second.trackInfo, 0};
+                segmentMoofInfos.insert(std::make_pair(trackId, std::move(moofInfo)));
+            }
+
+            writeMoof(aOut, trackIds, aSegment, segmentMoofInfos, frames, aConfig);
+        }
+
+
+        void writeMedia(std::ostream& aOut,
+                        const Segment& aSegment,
+                        const WriterConfig& aConfig,
+                        Optional<OffsetInfo>& aOffsetInfo)
+        {
+            TrackIds trackIds = Utils::vectorOfKeys(aSegment.tracks);
+            std::map<TrackId, Frames> frames;
+            for (auto trackInfo : aSegment.tracks)
+            {
+                frames.insert(std::make_pair(trackInfo.first, trackInfo.second.frames));
+            }
+
+            if (aSegment.omafv2 && aConfig.at<WriterMode::OMAFV2>().writeSegmentHeader)
+            {
+                BitStream bs;
+
+                SegmentTypeBox styp;
+
+                styp.setMajorBrand("imds");
+                styp.addCompatibleBrand("imds");
+                styp.writeBox(bs);
+
+                flush(bs, aOut);
+            }
+
+            std::vector<uint8_t> header;
+            header.push_back(0);
+            header.push_back(0);
+            header.push_back(0);
+            header.push_back(0);
+            if (auto& omafv2 = aSegment.omafv2)
+            {
+                uint32_t imda = omafv2->imdaId.get();
+                header.push_back(uint8_t('i'));
+                header.push_back(uint8_t('m'));
+                header.push_back(uint8_t('d'));
+                header.push_back(uint8_t('a'));
+                header.push_back(uint8_t((imda >> 24) & 0xff));
+                header.push_back(uint8_t((imda >> 16) & 0xff));
+                header.push_back(uint8_t((imda >> 8) & 0xff));
+                header.push_back(uint8_t((imda >> 0) & 0xff));
+            }
+            else
+            {
+                // moof offset required if not using imda
+                assert(aOffsetInfo);
+                header.push_back(uint8_t('m'));
+                header.push_back(uint8_t('d'));
+                header.push_back(uint8_t('a'));
+                header.push_back(uint8_t('t'));
+            }
+            auto mdatOffset = aOut.tellp();
+            aOut.write(reinterpret_cast<const char*>(&header[0]), std::streamsize(header.size()));
+            uint64_t size = header.size();
+
+            for (auto trackId : trackIds)
+            {
+                if (aOffsetInfo)
+                {
+                    SegmentMoofInfo moofInfo = {
+                        aSegment.tracks.find(trackId)->second.trackInfo,
+                        std::int32_t(aOut.tellp() - std::streamoff(aOffsetInfo->moofOffset))};
+                    aOffsetInfo->segmentMoofInfos[trackId] = std::move(moofInfo);
+                }
+                for (const auto& frame : frames.find(trackId)->second)
+                {
+                    const auto& frameData = *frame;
+                    const auto& data      = frameData.data;
+                    aOut.write(reinterpret_cast<const char*>(&data[0]), std::streamsize(data.size()));
+                    size += data.size();
+                }
+            }
+            std::streampos afterMdat = aOut.tellp();
+
+            header[0] = uint8_t((size >> 24) & 0xff);
+            header[1] = uint8_t((size >> 16) & 0xff);
+            header[2] = uint8_t((size >> 8) & 0xff);
+            header[3] = uint8_t((size >> 0) & 0xff);
+            aOut.seekp(mdatOffset);
+            aOut.write(reinterpret_cast<const char*>(&header[0]), std::streamsize(4));
+
+            aOut.seekp(afterMdat);
+        }
+
+        void writeTrackRunWithData(std::ostream& aOut, const Segment& aSegment, const WriterConfig& aConfig)
         {
             TrackIds trackIds = Utils::vectorOfKeys(aSegment.tracks);
             std::map<TrackId, Frames> frames;
@@ -341,20 +463,36 @@ namespace StreamSegmenter
                 segmentMoofInfos.insert(std::make_pair(trackId, std::move(moofInfo)));
             }
 
-            writeMoof(aOut, trackIds, aSegment, segmentMoofInfos, frames);
+            writeMoof(aOut, trackIds, aSegment, segmentMoofInfos, frames, aConfig);
 
             std::vector<uint8_t> header;
             header.push_back(0);
             header.push_back(0);
             header.push_back(0);
             header.push_back(0);
-            header.push_back(uint8_t('m'));
-            header.push_back(uint8_t('d'));
-            header.push_back(uint8_t('a'));
-            header.push_back(uint8_t('t'));
+            if (auto& omafv2 = aSegment.omafv2)
+            {
+                uint32_t imda = omafv2->imdaId.get();
+                header.push_back(uint8_t('i'));
+                header.push_back(uint8_t('m'));
+                header.push_back(uint8_t('d'));
+                header.push_back(uint8_t('a'));
+                header.push_back(uint8_t((imda >> 24) & 0xff));
+                header.push_back(uint8_t((imda >> 16) & 0xff));
+                header.push_back(uint8_t((imda >> 8) & 0xff));
+                header.push_back(uint8_t((imda >> 0) & 0xff));
+            }
+            else
+            {
+                header.push_back(uint8_t('m'));
+                header.push_back(uint8_t('d'));
+                header.push_back(uint8_t('a'));
+                header.push_back(uint8_t('t'));
+            }
             auto mdatOffset = aOut.tellp();
             aOut.write(reinterpret_cast<const char*>(&header[0]), std::streamsize(header.size()));
             uint64_t size = header.size();
+
             for (auto trackId : trackIds)
             {
                 SegmentMoofInfo moofInfo  = {aSegment.tracks.find(trackId)->second.trackInfo,
@@ -378,7 +516,7 @@ namespace StreamSegmenter
             aOut.write(reinterpret_cast<const char*>(&header[0]), std::streamsize(4));
 
             aOut.seekp(moofOffset);
-            writeMoof(aOut, trackIds, aSegment, segmentMoofInfos, frames);
+            writeMoof(aOut, trackIds, aSegment, segmentMoofInfos, frames, aConfig);
             aOut.seekp(afterMdat);
         }
 
@@ -388,37 +526,11 @@ namespace StreamSegmenter
 
             aInitSegment.ftyp->fileTypeBox->writeBox(stream);
 
-            // writeMoov();
-#if 0
+            if (aInitSegment.meta)
             {
-                MovieBox moov;
-                MovieHeaderBox& mvhd = moov.getMovieHeaderBox();
-                mvhd.setTimeScale(1000000);
-                mvhd.setNextTrackID(2);
-                UniquePtr<TrackBox> trackBox(CUSTOM_NEW(TrackBox, ()));
-
-                auto& tkhd = trackBox->getTrackHeaderBox();
-                tkhd.setTrackID(1);
-                tkhd.setWidth(2048);
-                tkhd.setHeight(2048);
-
-
-                // MediaBox& mdia = trackBox->getMediaBox();
-                // MediaHeaderBox& mdhd = mdia.getMediaHeaderBox();
-                // HandlerBox& hdlr = mdia.getHandlerBox();
-                // MediaInformationBox& minf = mdia.getMediaInformationBox();
-                // SampleTableBox& stbl = minf.getSampleTableBox();
-                // SampleDescriptionBox& stsd = stbl.getSampleDescriptionBox();
-                // UniquePtr<SampleEntryBox> mp4v(CUSTOM_NEW(SacmpleEntryBox, ("mp4v")));
-                // stsd.addSampleEntry(std::move(mp4v));
-                // VideoMediaHeaderBox& vmhd = minf.getVideoMediaHeaderBox();
-                // hdlr.setName("vide");
-                // mdhd.setTimeScale(1000000);
-
-                // moov.addTrackBox(std::move(trackBox));
-                // moov.writeBox(stream);
+                aInitSegment.meta->metaBox->writeBox(stream);
             }
-#endif
+
             aInitSegment.moov->movieBox->writeBox(stream);
 
             auto data = stream.getStorage();
@@ -434,6 +546,10 @@ namespace StreamSegmenter
             , trackHeaderBox(std::move(aOther.trackHeaderBox))
             , trackReferences(std::move(aOther.trackReferences))
             , alternateGroup(std::move(aOther.alternateGroup))
+            , obsp(std::move(aOther.obsp))
+            , alte(std::move(aOther.alte))
+            , googleVRType(std::move(aOther.googleVRType))
+            , omafv2(std::move(aOther.omafv2))
         {
             // nothing
         }
@@ -611,7 +727,7 @@ namespace StreamSegmenter
             return uint32_t(height) << 16;
         }
 
-        void VisualSampleEntry::makePovdBoxes(std::unique_ptr<SampleEntryBox>& box) const
+        void VisualSampleEntry::makeAdditionalBoxes(std::unique_ptr<SampleEntryBox>& box) const
         {
             if (projectionFormat)
             {
@@ -698,10 +814,37 @@ namespace StreamSegmenter
                     povdBox->setRotationBox(std::move(rotnBox));
                 }
 
+                if (ovly)
+                {
+                    auto ovlyBox            = makeCustomUnique<OverlayConfigBox, OverlayConfigBox>();
+                    auto& ovlyStruct        = ovlyBox->getOverlayStruct();
+                    ovlyStruct.numFlagBytes = ovly->numFlagBytes;
+                    for (auto overlay : ovly->overlays)
+                    {
+                        ovlyStruct.overlays.push_back(overlay);
+                    }
+                    povdBox->setOverlayConfigBox(std::move(ovlyBox));
+                }
+
                 rinf->addProjectedOmniVideoBox(std::move(povdBox));
 
                 box->sampleEntryBox->setType("resv");
                 box->sampleEntryBox->addRestrictedSchemeInfoBox(std::move(rinf));
+            }
+            else
+            {
+                if (ovly)
+                {
+                    OverlayConfigBox ovlyBox;
+                    auto& ovlyStruct        = ovlyBox.getOverlayStruct();
+                    ovlyStruct.numFlagBytes = ovly->numFlagBytes;
+                    for (auto overlay : ovly->overlays)
+                    {
+                        ovlyStruct.overlays.push_back(overlay);
+                    }
+                    dynamic_cast<VisualSampleEntryBox&>(*(box->sampleEntryBox))
+                        .setOverlayConfigBox(ISOBMFF::Optional<OverlayConfigBox>(ovlyBox));
+                }
             }
         }
 
@@ -733,7 +876,7 @@ namespace StreamSegmenter
 
                 auto wrappedSampleEntry =
                     Utils::make_unique<SampleEntryBox>(Utils::static_cast_unique_ptr<::SampleEntryBox>(std::move(box)));
-                makePovdBoxes(wrappedSampleEntry);
+                makeAdditionalBoxes(wrappedSampleEntry);
                 return wrappedSampleEntry;
             }
             else
@@ -773,7 +916,7 @@ namespace StreamSegmenter
 
             auto wrappedSampleEntry =
                 Utils::make_unique<SampleEntryBox>(Utils::static_cast_unique_ptr<::SampleEntryBox>(std::move(box)));
-            makePovdBoxes(wrappedSampleEntry);
+            makeAdditionalBoxes(wrappedSampleEntry);
             return wrappedSampleEntry;
         }
 
@@ -796,6 +939,14 @@ namespace StreamSegmenter
             return 0;
         }
 
+        std::unique_ptr<HandlerBox> TimedMetadataSampleEntry::makeHandlerBox() const
+        {
+            auto handlerBox = Utils::make_unique<HandlerBox>(makeCustomUnique<::HandlerBox, ::HandlerBox>());
+            handlerBox->handlerBox->setHandlerType("meta");
+            handlerBox->handlerBox->setName("DataHandler");
+            return handlerBox;
+        }
+
         std::unique_ptr<SampleEntryBox> URIMetadataSampleEntry::makeSampleEntryBox() const
         {
             auto box = makeCustomUnique<::UriMetaSampleEntryBox, ::SampleEntryBox>();
@@ -813,28 +964,62 @@ namespace StreamSegmenter
             return Utils::make_unique<SampleEntryBox>(Utils::static_cast_unique_ptr<::SampleEntryBox>(std::move(box)));
         }
 
-        std::unique_ptr<HandlerBox> URIMetadataSampleEntry::makeHandlerBox() const
-        {
-            auto handlerBox = Utils::make_unique<HandlerBox>(makeCustomUnique<::HandlerBox, ::HandlerBox>());
-            handlerBox->handlerBox->setHandlerType("meta");
-            handlerBox->handlerBox->setName("DataHandler");
-            return handlerBox;
-        }
-
         std::unique_ptr<SampleEntryBox> InitialViewingOrientationSampleEntry::makeSampleEntryBox() const
         {
             auto box = makeCustomUnique<::InitialViewingOrientation, ::SampleEntryBox>();
-            box->setDataReferenceIndex(
-                1);  // segmenter seems to support currently only one sample description entry per track
+            // segmenter seems to support currently only one sample description entry per track
+            box->setDataReferenceIndex(1);
             return Utils::make_unique<SampleEntryBox>(Utils::static_cast_unique_ptr<::SampleEntryBox>(std::move(box)));
         }
 
-        std::unique_ptr<HandlerBox> InitialViewingOrientationSampleEntry::makeHandlerBox() const
+        std::unique_ptr<SampleEntryBox> OverlaySampleEntry::makeSampleEntryBox() const
         {
-            auto handlerBox = Utils::make_unique<HandlerBox>(makeCustomUnique<::HandlerBox, ::HandlerBox>());
-            handlerBox->handlerBox->setHandlerType("meta");
-            handlerBox->handlerBox->setName("DataHandler");
-            return handlerBox;
+            auto box = makeCustomUnique<::OverlaySampleEntryBox, ::SampleEntryBox>();
+
+            // segmenter seems to support currently only one sample description entry per track
+            box->setDataReferenceIndex(1);
+
+            // maybe I should implement copy constructor,,,
+            BitStream copyStream;
+            overlayStruct.write(copyStream);
+            box->getOverlayConfig().getOverlayStruct().parse(copyStream);
+
+            return Utils::make_unique<SampleEntryBox>(Utils::static_cast_unique_ptr<::SampleEntryBox>(std::move(box)));
+        }
+
+        std::unique_ptr<SampleEntryBox> DynamicViewpointSampleEntry::makeSampleEntryBox() const
+        {
+            auto box = makeCustomUnique<::DynamicViewpointSampleEntryBox, ::SampleEntryBox>();
+
+            // segmenter seems to support currently only one sample description entry per track
+            box->setDataReferenceIndex(1);
+            box->setSampleEntry(dynamicViewpointSampleEntry);
+
+            return Utils::make_unique<SampleEntryBox>(Utils::static_cast_unique_ptr<::SampleEntryBox>(std::move(box)));
+        }
+
+        std::unique_ptr<SampleEntryBox> InitialViewpointSampleEntry::makeSampleEntryBox() const
+        {
+            auto box = makeCustomUnique<::InitialViewpointSampleEntryBox, ::SampleEntryBox>();
+
+            // segmenter seems to support currently only one sample description entry per track
+            box->setDataReferenceIndex(1);
+            box->setSampleEntry(initialViewpointSampleEntry);
+
+            return Utils::make_unique<SampleEntryBox>(Utils::static_cast_unique_ptr<::SampleEntryBox>(std::move(box)));
+        }
+
+        std::unique_ptr<SampleEntryBox> RecommendedViewportSampleEntry::makeSampleEntryBox() const
+        {
+            auto box = makeCustomUnique<::RecommendedViewportSampleEntryBox, ::SampleEntryBox>();
+
+            // segmenter seems to support currently only one sample description entry per track
+            box->setDataReferenceIndex(1);
+
+            box->getSphereRegionConfig().setFrom(sphereRegionConfig);
+            box->getRecommendedViewportInfo().setFrom(recommendedViewportInfo);
+
+            return Utils::make_unique<SampleEntryBox>(Utils::static_cast_unique_ptr<::SampleEntryBox>(std::move(box)));
         }
 
         FrameData StreamSegmenter::Segmenter::HevcExtractorSampleConstructor::toFrameData() const
@@ -846,8 +1031,8 @@ namespace StreamSegmenter
             // unsigned int((lengthSizeMinusOne + 1) * 8) data_offset;
             // unsigned int((lengthSizeMinusOne + 1) * 8) data_length;
 
-            sampleStream.write8Bits(trackId);
-            sampleStream.write8Bits(sampleOffset);
+            sampleStream.write8Bits(static_cast<uint8_t>(trackId));
+            sampleStream.write8Bits(static_cast<uint8_t>(sampleOffset));
 
             // @note HevcDecoderConfigurationRecord.lengthSizeMinusOne is 3 so this should be correct
             //       but to be completely compatible, code should decide if it needs to write 1,2 or 4 bytes
@@ -953,6 +1138,95 @@ namespace StreamSegmenter
             fillTrackHeaderBox(*trackHeaderBox->trackHeaderBox, aTrackMediaDescription);
         }
 
+        void EntityToGroupSpec::baseFill(EntityToGroupBox& boxToFill) const
+        {
+            boxToFill.entityToGroupBox->setGroupId(groupId);
+            for (auto& id : entityIds)
+            {
+                boxToFill.entityToGroupBox->addEntityId(id);
+            }
+        }
+
+        EntityToGroupSpec::~EntityToGroupSpec() = default;
+
+        std::unique_ptr<EntityToGroupBox> AltrEntityGroupSpec::makeEntityToGroupBox() const
+        {
+            auto box = makeCustomUnique<::AlternateItemsGroupBox, ::EntityToGroupBox>();
+
+            auto segmenterBox =
+                Utils::make_unique<EntityToGroupBox>(Utils::static_cast_unique_ptr<::EntityToGroupBox>(std::move(box)));
+
+            baseFill(*segmenterBox);
+
+            return segmenterBox;
+        }
+
+        std::unique_ptr<EntityToGroupBox> OvbgEntityGroupSpec::makeEntityToGroupBox() const
+        {
+            auto box     = makeCustomUnique<::OverlayAndBackgroundGroupingBox, ::EntityToGroupBox>();
+            auto& boxRef = *box;
+
+            auto segmenterBox =
+                Utils::make_unique<EntityToGroupBox>(Utils::static_cast_unique_ptr<::EntityToGroupBox>(std::move(box)));
+
+            baseFill(*segmenterBox);
+
+            boxRef.setSphereDistanceInMm(sphereDistanceInMm);
+
+            for (auto flags : entityFlags)
+            {
+                OverlayAndBackgroundGroupingBox::GroupingFlags boxFlags;
+                boxFlags.overlayFlag    = flags.overlayFlag;
+                boxFlags.backgroundFlag = flags.backgroundFlag;
+                boxFlags.overlaySubset  = flags.overlaySubset;
+                boxRef.addGroupingFlags(boxFlags);
+            }
+
+            return segmenterBox;
+        }
+
+        std::unique_ptr<EntityToGroupBox> OvalEntityGroupSpec::makeEntityToGroupBox() const
+        {
+            auto box     = makeCustomUnique<::OverlaySwitchAlternativesBox, ::EntityToGroupBox>();
+            auto& boxRef = *box;
+
+            auto segmenterBox =
+                Utils::make_unique<EntityToGroupBox>(Utils::static_cast_unique_ptr<::EntityToGroupBox>(std::move(box)));
+
+            baseFill(*segmenterBox);
+
+            for (auto& refId : refOverlayIds)
+            {
+                boxRef.addRefOverlayId(refId);
+            }
+
+            return segmenterBox;
+        }
+
+        std::unique_ptr<EntityToGroupBox> VipoEntityGroupSpec::makeEntityToGroupBox() const
+        {
+            auto box     = makeCustomUnique<::ViewpointEntityGroupBox, ::EntityToGroupBox>();
+            auto& boxRef = *box;
+
+            auto segmenterBox =
+                Utils::make_unique<EntityToGroupBox>(Utils::static_cast_unique_ptr<::EntityToGroupBox>(std::move(box)));
+
+            baseFill(*segmenterBox);
+
+            boxRef.setViewpointId(viewpointId);
+            boxRef.setLabel({viewpointLabel.begin(), viewpointLabel.end()});
+            boxRef.setViewpointPos(viewpointPos);
+            boxRef.setViewpointGroup(viewpointGroup);
+            boxRef.setViewpointGlobalCoordinateSysRotation(viewpointGlobalCoordinateSysRotation);
+
+            boxRef.setViewpointGpsPosition(viewpointGpsPosition);
+            boxRef.setViewpointGeomagneticInfo(viewpointGeomagneticInfo);
+            boxRef.setViewpointSwitchingList(viewpointSwitchingList);
+            boxRef.setViewpointLooping(viewpointLooping);
+
+            return segmenterBox;
+        }
+
         TrackDescriptions trackDescriptionsOfMp4(const MP4Access& aMp4)
         {
             TrackDescriptions trackDescriptions;
@@ -1030,6 +1304,17 @@ namespace StreamSegmenter
                 aMovieHeaderBox.setCreationTime(creationTime);
                 aMovieHeaderBox.setModificationTime(modificationTime);
                 aMovieHeaderBox.setDuration(std::uint32_t((duration / aTimescale).asDouble()));
+
+                if (aMovieDescription.fragmentDuration.num > 0) {
+                    auto duration = std::uint64_t((aMovieDescription.fragmentDuration / aTimescale).asDouble());
+                    if (duration <= std::numeric_limits<std::uint32_t>::max()) {
+                        MovieExtendsHeaderBox mehd {0};
+                        mehd.setFragmentDuration(duration);
+                    } else {
+                        MovieExtendsHeaderBox mehd {1};
+                        mehd.setFragmentDuration(duration);
+                    }
+                }
             }
 
             void updateMediaInformationBox(MediaInformationBox& aBox, const TrackDescription& aTrackDescription)
@@ -1075,6 +1360,7 @@ namespace StreamSegmenter
 
             // Patch boxes: remove samples, add MovieExtendsBox
             UniquePtr<MovieExtendsBox> movieExtendsBoxOut(CUSTOM_NEW(MovieExtendsBox, ()));
+
             auto ftypOut = makeCustomUnique<::FileTypeBox, ::FileTypeBox>();
             if (aMovieDescription.fileType)
             {
@@ -1093,6 +1379,38 @@ namespace StreamSegmenter
                 ftypOut->addCompatibleBrand("iso2");
                 ftypOut->addCompatibleBrand("mp41");
                 ftypOut->addCompatibleBrand("mp42");
+            }
+
+            // File level metabox populating... refactor to own methdod maybeh
+            UniquePtr<::MetaBox, ::MetaBox> metaOut;
+
+            if (aMovieDescription.fileMeta)
+            {
+                metaOut = makeCustomUnique<::MetaBox, ::MetaBox>();
+
+                GroupsListBox entityGroups;
+
+                for (auto& group : aMovieDescription.fileMeta->altrGroups)
+                {
+                    entityGroups.addGroup(std::move(group.makeEntityToGroupBox()->entityToGroupBox));
+                }
+
+                for (auto& group : aMovieDescription.fileMeta->ovalGroups)
+                {
+                    entityGroups.addGroup(std::move(group.makeEntityToGroupBox()->entityToGroupBox));
+                }
+
+                for (auto& group : aMovieDescription.fileMeta->ovbgGroups)
+                {
+                    entityGroups.addGroup(std::move(group.makeEntityToGroupBox()->entityToGroupBox));
+                }
+
+                for (auto& group : aMovieDescription.fileMeta->vipoGroups)
+                {
+                    entityGroups.addGroup(std::move(group.makeEntityToGroupBox()->entityToGroupBox));
+                }
+
+                metaOut->setGrplBox(ISOBMFF::Optional<GroupsListBox>(entityGroups));
             }
 
             fillMovieHaderBox(moovOut->getMovieHeaderBox(), aMovieDescription, {1, 1000});
@@ -1133,6 +1451,22 @@ namespace StreamSegmenter
                     }
                 }
 
+                if (trackDescription.trackMeta.dtsCtsOffset.num)
+                {
+                    EditBox edts;
+                    std::shared_ptr<EditListBox> editListBox(new EditListBox);
+                    EditListBox::EntryVersion0 shift{};
+                    auto mediaTs           = mediaBoxOut.getMediaHeaderBox().getTimeScale();
+                    shift.mSegmentDuration = 0;
+                    shift.mMediaTime =
+                        std::int32_t((FrameTime{mediaTs, 1} * trackDescription.trackMeta.dtsCtsOffset).asDouble());
+                    shift.mMediaRateInteger  = 1;
+                    shift.mMediaRateFraction = 0;
+                    editListBox->addEntry(shift);
+                    edts.setEditListBox(editListBox);
+                    trackOut->setEditBox(edts);
+                }
+
                 if (trackDescription.trackReferences.size())
                 {
                     trackOut->setHasTrackReferences(true);
@@ -1152,6 +1486,13 @@ namespace StreamSegmenter
                 if (trackDescription.obsp)
                 {
                     TrackGroupTypeBox trgr("obsp", trackDescription.obsp->groupId.get());
+                    trackOut->getTrackGroupBox().addTrackGroupTypeBox(trgr);
+                    trackOut->setHasTrackGroup(true);
+                }
+
+                if (trackDescription.alte)
+                {
+                    TrackGroupTypeBox trgr("alte", trackDescription.alte->groupId.get());
                     trackOut->getTrackGroupBox().addTrackGroupTypeBox(trgr);
                     trackOut->setHasTrackGroup(true);
                 }
@@ -1200,8 +1541,28 @@ namespace StreamSegmenter
                 // copyBox(mediaInformationBoxIn.getSoundMediaHeaderBox(),
                 //         mediaInformationBoxOut.getSoundMediaHeaderBox());
 
-                std::shared_ptr<DataEntryUrlBox> dataEntryBox(new DataEntryUrlBox(DataEntryUrlBox::SelfContained));
-                mediaInformationBoxOut.getDataInformationBox().addDataEntryBox(dataEntryBox);
+                auto& dinf = mediaInformationBoxOut.getDataInformationBox();
+                if (auto& omafv2 = trackDescription.omafv2)
+                {
+                    switch (omafv2->dataReferenceKind)
+                    {
+                    case DataReferenceKind::Imdt:
+                    {
+                        auto imdt = makeCustomShared<DataEntryImdaBox>();
+                        imdt->setImdaRefIdentifier(omafv2->imdaId.get());
+                        dinf.addDataEntryBox(imdt);
+                    }
+                    break;
+                    case DataReferenceKind::Snim:
+                        auto snim = makeCustomShared<DataEntrySeqNumImdaBox>();
+                        dinf.addDataEntryBox(snim);
+                        break;
+                    }
+                } else
+                {
+                    auto dataEntryBox = makeCustomShared<DataEntryUrlBox>(DataEntryUrlBox::SelfContained);
+                    dinf.addDataEntryBox(dataEntryBox);
+                }
 
                 SampleDescriptionBox& sampleDescriptionBox = sampleTableBoxOut.getSampleDescriptionBox();
                 for (auto& sampleEntryBox : trackDescription.sampleEntryBoxes)
@@ -1231,6 +1592,11 @@ namespace StreamSegmenter
 
             initSegment.moov.reset(new MovieBox{std::move(moovOut)});
             initSegment.ftyp.reset(new FileTypeBox{std::move(ftypOut)});
+
+            if (metaOut)
+            {
+                initSegment.meta.reset(new MetaBox{std::move(metaOut)});
+            }
 
             return initSegment;
         }
@@ -1359,7 +1725,11 @@ namespace StreamSegmenter
         {
         }
 
-        Utils::Optional<SidxInfo> writeSidx(std::ostream&, Utils::Optional<std::ostream::pos_type>) override
+        void updateSubsegmentSize(int, std::streampos) override
+        {
+        }
+
+        ISOBMFF::Optional<SidxInfo> writeSidx(std::ostream&, ISOBMFF::Optional<std::ostream::pos_type>) override
         {
             return {};
         }
@@ -1394,13 +1764,89 @@ namespace StreamSegmenter
         mSubsegmentSizes.push_back(aSubsegmentSize);
     }
 
+    void SidxWriterImpl::updateSubsegmentSize(int aRelative, std::streampos aSubsegmentSize)
+    {
+        *std::next(mSubsegmentSizes.rbegin(), aRelative) += aSubsegmentSize;
+    }
+
     void SidxWriterImpl::setFirstSubsegmentOffset(std::streampos aFirstSubsegmentOffset)
     {
         mFirstSubsegmentOffset = aFirstSubsegmentOffset;
     }
 
-    Utils::Optional<SidxInfo> SidxWriterImpl::writeSidx(std::ostream& aOutput,
-                                                        Utils::Optional<std::ostream::pos_type> aPosition)
+    std::vector<char> patchSidxSegmentSizes(const char* aBegin,
+                                            const char* aEnd,
+                                            const std::vector<uint32_t> aAdjustments,
+                                            size_t aReserveTotal)
+    {
+        SegmentIndexBox sidx;
+        sidx.setSpaceReserve(aReserveTotal); // needs to be set for the parsing side as well; look at SegmentIndexBox::parseBox
+        BitStream bsIn = BitStream({aBegin, aEnd});
+        sidx.parseBox(bsIn);
+        auto& references = sidx.getReferences();
+        for (size_t referenceIndex = 0; referenceIndex < std::min(references.size(), aAdjustments.size()); ++referenceIndex)
+        {
+            references[referenceIndex].referencedSize += aAdjustments[referenceIndex];
+        }
+        BitStream bsOut;
+        sidx.writeBox(bsOut);
+        auto storage = bsOut.getStorage();
+        return {storage.begin(), storage.end()};
+    }
+
+    std::vector<char> generateSidx(uint32_t aReferenceId,
+                                   FrameTime aEarliestPresentationTime,
+                                   uint64_t aFirstOffset,
+                                   std::vector<SidxReference> aReferences,
+                                   size_t aReserveTotal)
+    {
+        SegmentIndexBox sidx(1);
+        sidx.setReferenceId(aReferenceId);
+        sidx.setFirstOffset(aFirstOffset);
+        sidx.setSpaceReserve(aReserveTotal);
+
+        std::vector<FrameTime> times;
+        times.push_back(aEarliestPresentationTime);
+        size_t subsegmentDurationBase = times.size();
+        for (auto& ref : aReferences)
+        {
+            times.push_back({ref.subsegmentDuration.cast<FrameTime>()});
+        }
+        size_t sapDeltaTimeBase = times.size();
+        for (auto& ref : aReferences)
+        {
+            times.push_back(ref.sapDeltaTime.cast<FrameTime>());
+        }
+        std::vector<FrameTime*> timePtrs;
+        for (auto& time : times)
+        {
+            timePtrs.push_back(&time);
+        }
+        shareDenominators(timePtrs.begin(), timePtrs.end());
+
+        sidx.setEarliestPresentationTime(times[0].num);
+        sidx.setTimescale(times[0].den);
+
+        for (size_t index = 0; index < aReferences.size(); ++index)
+        {
+            auto& ref = aReferences.at(index);
+            SegmentIndexBox::Reference siRef{};
+            siRef.referenceType      = ref.referenceType;
+            siRef.referencedSize     = ref.referencedSize;
+            siRef.subsegmentDuration = times[index + subsegmentDurationBase].num;
+            siRef.startsWithSAP      = ref.startsWithSAP;
+            siRef.sapType            = ref.sapType;
+            siRef.sapDeltaTime       = times[index + sapDeltaTimeBase].num;
+            sidx.addReference(siRef);
+        }
+        BitStream bsOut;
+        sidx.writeBox(bsOut);
+        auto storage = bsOut.getStorage();
+        return {storage.begin(), storage.end()};
+    }
+
+    ISOBMFF::Optional<SidxInfo> SidxWriterImpl::writeSidx(std::ostream& aOutput,
+                                                          ISOBMFF::Optional<std::ostream::pos_type> aPosition)
     {
         auto& output      = mOutput ? *mOutput : aOutput;
         auto origPosition = output.tellp();
@@ -1412,13 +1858,17 @@ namespace StreamSegmenter
 
         BitStream bs;
 
-        auto& firstSegment = mSubsegments.front();
-        auto earliest      = firstSegment.tracks.begin()->second.trackInfo.t0;
-        for (auto trackInfo : firstSegment.tracks)
+        FrameTime earliest;
+        if (mSubsegments.size())
         {
-            if (trackInfo.second.trackInfo.t0 < earliest)
+            auto& firstSegment = mSubsegments.front();
+            earliest           = firstSegment.tracks.begin()->second.trackInfo.t0;
+            for (auto& trackInfo : firstSegment.tracks)
             {
-                earliest = trackInfo.second.trackInfo.t0;
+                if (trackInfo.second.trackInfo.t0 < earliest)
+                {
+                    earliest = trackInfo.second.trackInfo.t0;
+                }
             }
         }
 
@@ -1431,7 +1881,7 @@ namespace StreamSegmenter
 
         SegmentIndexBox sidx(1);
         sidx.setSpaceReserve(mExpectedSize);
-        uint32_t timescale = timescaleOfTrackSegments(firstSegment.tracks);
+        uint32_t timescale = mSubsegments.size() ? timescaleOfTrackSegments(mSubsegments.front().tracks) : 0;
         sidx.setReferenceId(1);
         sidx.setTimescale(timescale);
         sidx.setEarliestPresentationTime(std::uint64_t(earliest.minimize().num));
@@ -1470,8 +1920,11 @@ namespace StreamSegmenter
 
         flush(bs, output);
 
-        auto size = output.tellp() - origPosition;
-        output.seekp(origPosition);
+        auto size = output.tellp() - beginPosition;
+        if (aPosition)
+        {
+            output.seekp(origPosition);
+        }
 
         SidxInfo sidxInfo{};
         sidxInfo.position = beginPosition;
@@ -1480,9 +1933,9 @@ namespace StreamSegmenter
     }
 
 
-    Writer* Writer::create()
+    Writer* Writer::create(WriterMode mode)
     {
-        return new WriterImpl;
+        return new WriterImpl(mode);
     }
 
     void Writer::destruct(Writer* aWriter)
@@ -1490,8 +1943,9 @@ namespace StreamSegmenter
         delete aWriter;
     }
 
-    WriterImpl::WriterImpl()
+    WriterImpl::WriterImpl(WriterMode aMode)
         : mSidxWriter(new SidxWriterNone)
+        , mMode(aMode)
     {
         // nothing
     }
@@ -1514,23 +1968,90 @@ namespace StreamSegmenter
         Segmenter::writeInitSegment(aOut, aInitSegment);
     }
 
-    void WriterImpl::writeSubsegments(std::ostream& aOut, const std::list<Segment> aSubsegments)
+    StreamSegmenter::Segmenter::WriterConfig WriterImpl::writerConfig() const
     {
-        if (mWriteSegmentHeader)
+        StreamSegmenter::Segmenter::WriterConfig config;
+        switch (mMode)
         {
-            writeSegmentHeader(aOut);
-        }
-        for (auto& subsegment : aSubsegments)
+        case StreamSegmenter::Segmenter::CLASSIC:
         {
-            mSidxWriter->addSubsegment(subsegment);
+            config.set<StreamSegmenter::Segmenter::CLASSIC>({});
         }
-        auto sidxInfo = mSidxWriter->writeSidx(aOut, {});
-        for (auto& subsegment : aSubsegments)
+        break;
+        case StreamSegmenter::Segmenter::OMAFV2:
+        {
+            OmafV2Config omafv2Config {};
+            omafv2Config.writeSegmentHeader = mWriteSegmentHeader;
+            config.set<StreamSegmenter::Segmenter::OMAFV2>(omafv2Config);
+        }
+        break;
+        }
+        return config;
+    }
+
+    void WriterImpl::writeSubsegments(std::ostream& aOut, const std::list<Segment> aSubsegments, WriterFlags aFlags)
+    {
+        Utils::Optional<SidxInfo> sidxInfo;
+        bool metadata  = int(aFlags) & int(WriterFlags::METADATA);
+        bool mediadata = int(aFlags) & int(WriterFlags::MEDIADATA);
+        bool sidx      = int(aFlags) & int(WriterFlags::SIDX);
+        bool skipSidx  = int(aFlags) & int(WriterFlags::SKIPSIDX);
+        bool append    = int(aFlags) & int(WriterFlags::APPEND);
+
+        if (metadata)
+        {
+            if (mWriteSegmentHeader)
+            {
+                writeSegmentHeader(aOut, writerConfig());
+            }
+
+            // metadata is written first; so we need to add subsegments here
+            for (auto& subsegment : aSubsegments)
+            {
+                mSidxWriter->addSubsegment(subsegment);
+            }
+        }
+        if (sidx)
+        {
+            sidxInfo = mSidxWriter->writeSidx(aOut, {});
+        }
+        int relativeSubsegmentIndex = int(aSubsegments.size()) - 1;
+        for (const StreamSegmenter::Segmenter::Segment& subsegment : aSubsegments)
         {
             auto before = aOut.tellp();
-            writeTrackRunWithData(aOut, subsegment);
+            Optional<OffsetInfo> offsetInfo;
+            if (metadata)
+            {
+                if (!subsegment.omafv2)
+                {
+                    offsetInfo = OffsetInfo{};
+                }
+                writeTrackRun(aOut, subsegment, writerConfig(), offsetInfo);
+            }
+            if (mediadata)
+            {
+                writeMedia(aOut, subsegment, writerConfig(), offsetInfo);
+            }
             auto after = aOut.tellp();
-            mSidxWriter->addSubsegmentSize(after - before);
+            if (offsetInfo)
+            {
+                aOut.seekp(offsetInfo->moofOffset);
+                writeTrackRun(aOut, subsegment, writerConfig(), offsetInfo);
+                aOut.seekp(after);
+            }
+
+            if ((metadata || mediadata) && !skipSidx)
+            {
+                if (append)
+                {
+                    mSidxWriter->updateSubsegmentSize(relativeSubsegmentIndex, after - before);
+                }
+                else
+                {
+                    mSidxWriter->addSubsegmentSize(after - before);
+                }
+            }
+            --relativeSubsegmentIndex;
         }
         if (sidxInfo)
         {
@@ -1541,9 +2062,9 @@ namespace StreamSegmenter
         // assert(!aSubsegments.size() || aOut.tellp() - afterSidxPosition == subsegmentOffsets.front());
     }
 
-    void WriterImpl::writeSegment(std::ostream& aOut, const Segment aSegment)
+    void WriterImpl::writeSegment(std::ostream& aOut, const Segment aSegment, WriterFlags aFlags)
     {
-        writeSubsegments(aOut, {aSegment});
+        writeSubsegments(aOut, {aSegment}, aFlags);
     }
 
 
@@ -1585,6 +2106,12 @@ namespace StreamSegmenter
 
         BitStream stream;
         aInitSegment.ftyp->fileTypeBox->writeBox(stream);
+
+        if (aInitSegment.meta)
+        {
+            aInitSegment.meta->metaBox->writeBox(stream);
+        }
+
         flush(stream, mOut);
 
         mMdatHeaderOffset = mOut.tellp();
@@ -1621,7 +2148,11 @@ namespace StreamSegmenter
             for (auto& frameProxy : segment.frames)
             {
                 Frame frame = *frameProxy;
-                mOut.write(reinterpret_cast<char*>(&frame.data[0]), static_cast<std::streamsize>(frame.data.size()));
+                if (frame.data.size())
+                {
+                    mOut.write(reinterpret_cast<char*>(&frame.data[0]),
+                               static_cast<std::streamsize>(frame.data.size()));
+                }
                 info.sampleSizes.push_back(static_cast<uint32_t>(frame.data.size()));
                 stts.addSampleDelta(std::uint32_t((frame.info.duration * scaler).asDouble()));
                 info.duration += std::uint32_t((frame.info.duration * scaler).asDouble());
@@ -1667,7 +2198,7 @@ namespace StreamSegmenter
 
     void MovieWriterImpl::finalize()
     {
-        if (!mFinalized)
+        if (!mFinalized && mInitSegment)
         {
             mFinalized = true;
 
@@ -1707,7 +2238,8 @@ namespace StreamSegmenter
                 stbl.getChunkOffsetBox().setChunkOffsets({info.chunkOffsets.begin(), info.chunkOffsets.end()});
                 stbl.getSampleSizeBox().setSampleCount(static_cast<uint32_t>(info.sampleSizes.size()));
                 stbl.getSampleSizeBox().setEntrySize({info.sampleSizes.begin(), info.sampleSizes.end()});
-                if (info.compositionOffsets.size() != 1 || info.compositionOffsets.front().mSampleOffset != 0)
+                if (info.compositionOffsets.size() > 1 ||
+                    (info.compositionOffsets.size() && info.compositionOffsets.front().mSampleOffset != 0))
                 {
                     CompositionOffsetBox ctts;
                     for (auto ct : info.compositionOffsets)

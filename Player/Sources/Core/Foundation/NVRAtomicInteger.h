@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -28,68 +28,66 @@ OMAF_NS_BEGIN
 
 class AtomicInteger
 {
-    public:
+public:
+    OMAF_INLINE OMAF_EXPLICIT AtomicInteger(int32_t value);
+    OMAF_INLINE ~AtomicInteger();
 
-        OMAF_INLINE OMAF_EXPLICIT AtomicInteger(int32_t value);
-        OMAF_INLINE ~AtomicInteger();
+    // Atomically sets the value to the given updated value if the current value equals compare value and returns the
+    // previous value.
+    OMAF_INLINE int32_t compareAndSet(int32_t value, int32_t compare);
 
-        // Atomically sets the value to the given updated value if the current value equals compare value and returns the previous value.
-        OMAF_INLINE int32_t compareAndSet(int32_t value, int32_t compare);
-    
-        // Atomically sets to the given value and returns the previous value.
-        OMAF_INLINE int32_t getAndSet(int32_t value);
-    
-        // Sets to the given value.
-        OMAF_INLINE void_t set(int32_t value);
-    
-        // Returns the current value.
-        OMAF_INLINE int32_t get();
-    
-        // Atomically increments by one the current value and returns the updated value.
-        OMAF_INLINE int32_t incrementAndGet();
-    
-        // Atomically decrements by one the current value and returns the updated value.
-        OMAF_INLINE int32_t decrementAndGet();
+    // Atomically sets to the given value and returns the previous value.
+    OMAF_INLINE int32_t getAndSet(int32_t value);
 
-        // Atomically adds value to the current value and returns the previous value.
-        OMAF_INLINE int32_t getAndAdd(int32_t value);
-    
-        // Atomically subtracts value from the current value and returns the previous value.
-        OMAF_INLINE int32_t getAndSubtract(int32_t value);
-    
-    
-        // Sets to the given value.
-        OMAF_INLINE int32_t operator = (int32_t value);
-    
-        // Returns the current value.
-        OMAF_INLINE operator int32_t () const OMAF_VOLATILE;
+    // Sets to the given value.
+    OMAF_INLINE void_t set(int32_t value);
 
-        // Atomically increments by one the current value and returns the updated value.
-        OMAF_INLINE int32_t operator ++ ();
-    
-        // Atomically decrements by one the current value and returns the updated value.
-        OMAF_INLINE int32_t operator -- ();
+    // Returns the current value.
+    OMAF_INLINE int32_t get();
 
-        // Atomically adds value to the current value and returns the previous value.
-        OMAF_INLINE int32_t operator += (int32_t value);
-    
-        // Atomically subtracts value from the current value and returns the previous value.
-        OMAF_INLINE int32_t operator -= (int32_t value);
+    // Atomically increments by one the current value and returns the updated value.
+    OMAF_INLINE int32_t incrementAndGet();
 
-        // Compares if values are equals.
-        OMAF_INLINE bool_t operator == (int32_t value);
-    
-        // Compares if values are non-equals.
-        OMAF_INLINE bool_t operator != (int32_t value);
+    // Atomically decrements by one the current value and returns the updated value.
+    OMAF_INLINE int32_t decrementAndGet();
 
-    private:
+    // Atomically adds value to the current value and returns the previous value.
+    OMAF_INLINE int32_t getAndAdd(int32_t value);
 
-        OMAF_NO_DEFAULT(AtomicInteger);
-        OMAF_NO_ASSIGN(AtomicInteger);
+    // Atomically subtracts value from the current value and returns the previous value.
+    OMAF_INLINE int32_t getAndSubtract(int32_t value);
 
-    private:
 
-        OMAF_VOLATILE int32_t mValue;
+    // Sets to the given value.
+    OMAF_INLINE int32_t operator=(int32_t value);
+
+    // Returns the current value.
+    OMAF_INLINE operator int32_t() const OMAF_VOLATILE;
+
+    // Atomically increments by one the current value and returns the updated value.
+    OMAF_INLINE int32_t operator++();
+
+    // Atomically decrements by one the current value and returns the updated value.
+    OMAF_INLINE int32_t operator--();
+
+    // Atomically adds value to the current value and returns the previous value.
+    OMAF_INLINE int32_t operator+=(int32_t value);
+
+    // Atomically subtracts value from the current value and returns the previous value.
+    OMAF_INLINE int32_t operator-=(int32_t value);
+
+    // Compares if values are equals.
+    OMAF_INLINE bool_t operator==(int32_t value);
+
+    // Compares if values are non-equals.
+    OMAF_INLINE bool_t operator!=(int32_t value);
+
+private:
+    OMAF_NO_DEFAULT(AtomicInteger);
+    OMAF_NO_ASSIGN(AtomicInteger);
+
+private:
+    OMAF_VOLATILE int32_t mValue;
 };
 
 OMAF_NS_END

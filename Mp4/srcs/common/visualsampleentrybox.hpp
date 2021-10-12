@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -67,6 +67,9 @@ public:
         return nullptr;
     }
 
+    void setOverlayConfigBox(const ISOBMFF::Optional<OverlayConfigBox>& anOvly);
+    const ISOBMFF::Optional<OverlayConfigBox> getOverlayConfigBox() const;
+
     /** @brief Check if Stereoscopic3DBox is present
      *  @return TRUE if Stereoscopic3DBox is present, FALSE otherwise */
     bool isStereoscopic3DBoxPresent() const
@@ -92,19 +95,20 @@ public:
 
     /** @brief Creates the bitstream that represents the box in the ISOBMFF file
      *  @param [out] bitstr Bitstream that contains the box data. */
-    virtual void writeBox(ISOBMFF::BitStream& bitstr);
+    void writeBox(ISOBMFF::BitStream& bitstr) override;
 
     /** @brief Parses a VisualSampleEntryBox bitstream and fills in the necessary member variables
      *  @param [in]  bitstr Bitstream that contains the box data */
-    virtual void parseBox(ISOBMFF::BitStream& bitstr);
+    void parseBox(ISOBMFF::BitStream& bitstr) override;
 
-    virtual bool isVisual() const override;
+    bool isVisual() const override;
 
 private:
-    std::uint16_t mWidth;                     ///< Sample display width
-    std::uint16_t mHeight;                    ///< Sample display height
-    String mCompressorName;                   ///< Compressor name used, e.g. "HEVC Coding"
-    std::shared_ptr<CleanApertureBox> mClap;  ///< Clean Aperture data structure
+    std::uint16_t mWidth;                       ///< Sample display width
+    std::uint16_t mHeight;                      ///< Sample display height
+    String mCompressorName;                     ///< Compressor name used, e.g. "HEVC Coding"
+    std::shared_ptr<CleanApertureBox> mClap;    ///< Clean Aperture data structure
+    ISOBMFF::Optional<OverlayConfigBox> mOvly;  ///< Overlay config box
 };
 
 #endif

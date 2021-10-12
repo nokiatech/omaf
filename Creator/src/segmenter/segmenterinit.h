@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,11 +21,13 @@
 #include <streamsegmenter/segmenterapi.hpp>
 #include <streamsegmenter/track.hpp>
 
-#include "metadata.h"
+#include "async/future.h"
 #include "controller/common.h"
+#include "metadata.h"
+#include "segmentercommon.h"
 
-#include "common/optional.h"
 #include "common/exceptions.h"
+#include "common/optional.h"
 #include "processor/processor.h"
 
 namespace VDD
@@ -36,11 +38,8 @@ namespace VDD
         UnsupportedCodecException();
     };
 
-    enum class OperatingMode
-    {
-        None,
-        OMAF
-    };
+    // Use a particular sample entry
+    using SampleEntryTag = ValueTag<std::shared_ptr<StreamSegmenter::Segmenter::SampleEntry>>;
 
     class SegmenterInit : public Processor
     {
@@ -50,6 +49,8 @@ namespace VDD
             StreamSegmenter::TrackMeta meta;
             std::map<std::string, std::set<TrackId>> trackReferences;
             PipelineOutput pipelineOutput;
+            Optional<ISOBMFF::OverlayStruct> overlays;
+            Optional<TrackGroupId> alte;
         };
 
         struct Config
@@ -64,13 +65,26 @@ namespace VDD
 
             bool writeToBitstream = true;
 
-            /** Needed to collect metadata from other tracks before creating the extractor track
+            /** Needed to collect metadata from other tracks before creating the
+             * extractor track
              */
-            bool packedSubPictures = false;  //TODO or some better way?
+            bool packedSubPictures = false;
 
-            OperatingMode mode = OperatingMode::OMAF;
+            OutputMode mode = OutputMode::OMAFV1;
 
-            std::list<StreamId> streamIds;// stream ids is just for gatekeeping; what streams to process and what to skip. No need to have exact mapping to tracks
+            std::list<StreamId> streamIds;  // stream ids is just for gatekeeping; what
+                                            // streams to process and what to skip. No
+                                            // need to have exact mapping to tracks
+
+            // Promise as this information is available later
+            Optional<Future<Optional<StreamSegmenter::Segmenter::MetaSpec>>> fileMeta;
+
+            // if we know the media duration up front, we can write it to the header
+            Optional<StreamSegmenter::RatU64> duration;
+
+            // What to stick in front of frame segments. NOTE: dropping header is not supported by
+            // mp4vr, so before that support is added, this will result in duplicate header.
+            Optional<SegmentHeader> frameSegmentHeader;
         };
 
         SegmenterInit(Config aConfig);
@@ -79,9 +93,10 @@ namespace VDD
         /** SegmenterInit requires the data to be available in CPU memory */
         StorageType getPreferredStorageType() const override;
 
-        std::vector<Views> process(const Views& data) override;
+        std::vector<Streams> process(const Streams &data) override;
 
-        /** Prepare init segment, used only in case we don't use this class as asyncnode but as a passive component,
+        /** Prepare init segment, used only in case we don't use this class as
+         * asyncnode but as a passive component,
          *  serving the main mp4 producer node (e.g. non-fragmented output)
          */
         Optional<StreamSegmenter::Segmenter::InitSegment> prepareInitSegment();
@@ -101,14 +116,28 @@ namespace VDD
         std::string mOmafVideoTrackBrand = "";
         std::string mOmafAudioTrackBrand = "";
 
-    private: 
-        void addH264VideoTrack(TrackId aTrackId, CodedFrameMeta& aMeta);
-        void addH265VideoTrack(TrackId aTrackId, CodedFrameMeta& aMeta);
-        void addAACTrack(TrackId aTrackId, CodedFrameMeta& aMeta, const TrackConfig& aTrackConfig);
-        void addTimeMetadataTrack(TrackId aTrackId, const CodedFrameMeta& aMeta);
-        void addH265ExtractorTrack(TrackId aTrackId, CodedFrameMeta& aMeta);
+    private:
+        void addH264VideoTrack(TrackId aTrackId, const Meta& aMeta);
+        void addH265VideoTrack(TrackId aTrackId, const Meta& aMeta);
+        void addAACTrack(TrackId aTrackId, const Meta& aMeta, const TrackConfig &aTrackConfig);
+        // TOOD: merge addInvoTimeMetadataTrack with addGenericTimedMetadataTrack; might even work
+        // now as-is if InitialViewingOrientationSampleEntry is property set
+        void addInvoTimeMetadataTrack(TrackId aTrackId, const Meta& aMeta);
+        void addGenericTimedMetadataTrack(TrackId aTrackId, const Meta& aMeta);
+        void addH265ExtractorTrack(TrackId aTrackId, const Meta& aMeta);
         StreamSegmenter::Segmenter::InitSegment makeInitSegment(bool aFragmented);
 
-        void fillOmafStructures(TrackId aTrackId, CodedFrameMeta& aMeta, StreamSegmenter::Segmenter::HevcVideoSampleEntry& aSampleEntry, StreamSegmenter::TrackMeta& aTrackMeta);
+        void fillOmafStructures(TrackId aTrackId, const CodedFrameMeta &aMeta,
+                                StreamSegmenter::Segmenter::HevcVideoSampleEntry &aSampleEntry,
+                                StreamSegmenter::TrackMeta &aTrackMeta);
+
+        void updateTrackDescription(StreamSegmenter::Segmenter::TrackDescription& aTrackDescription,
+                                    const SegmenterInit::TrackConfig& aTrackConfig,
+                                    const Meta&) const;
     };
-}
+
+    void appendScalTrafIndexMap(TrackToScalTrafIndexMap& aMap,
+                                const SegmenterInit::Config& aSegmenterInitConfig,
+                                TrackId aExtractorTrackId);
+
+}  // namespace VDD

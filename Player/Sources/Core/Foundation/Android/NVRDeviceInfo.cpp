@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -53,6 +53,9 @@ OMAF_NS_BEGIN
     // Google Pixel and Pixel XL have Snapdragon 82x, but the information is not available
     static const size_t GOOGLE_S820_MODEL_COUNT = 2;
     static const FixedString32 GOOGLE_S820_MODELS[GOOGLE_S820_MODEL_COUNT] = {"sailfish", "marlin"};
+
+    // Oculus Quest has Snapdragon 835
+    static const FixedString32 QUEST = "monterey";
 
     namespace DeviceInfo
     {
@@ -308,6 +311,7 @@ OMAF_NS_BEGIN
                 || device.findFirst(EXYNOS_8895) != Npos
                 || device.findFirst(HI_3660) != Npos
                 || device.findFirst(SNAPDRAGON_835) != Npos
+                || device.findFirst(QUEST) != Npos
                 || device.findFirst(EXYNOS_9810) != Npos)
             {
                 return true;
@@ -336,6 +340,7 @@ OMAF_NS_BEGIN
             else if (device.findFirst(EXYNOS_8895) != Npos
                     || device.findFirst(HI_3660) != Npos
                     || device.findFirst(SNAPDRAGON_835) != Npos
+                    || device.findFirst(QUEST) != Npos
                     || device.findFirst(EXYNOS_8890) != Npos
                     || device.findFirst(EXYNOS_9810) != Npos)
             {
@@ -350,7 +355,8 @@ OMAF_NS_BEGIN
             if (device.findFirst(EXYNOS_8895) != Npos
                 || device.findFirst(EXYNOS_9810) != Npos
                 || device.findFirst(HI_3660) != Npos
-                || device.findFirst(SNAPDRAGON_835) != Npos)
+                || device.findFirst(SNAPDRAGON_835) != Npos
+                || device.findFirst(QUEST) != Npos)
             {
                 return LayeredVASTypeSupport::FULL_STEREO;
             }
@@ -369,7 +375,8 @@ OMAF_NS_BEGIN
             if (device.findFirst(EXYNOS_8895) != Npos
                 || device.findFirst(EXYNOS_9810) != Npos
                 || device.findFirst(HI_3660) != Npos
-                || device.findFirst(SNAPDRAGON_835) != Npos)
+                || device.findFirst(SNAPDRAGON_835) != Npos
+                || device.findFirst(QUEST) != Npos)
             {
                 return 6;
             }
@@ -394,7 +401,8 @@ OMAF_NS_BEGIN
                 return 4*4096*2048*30;
             }
             else if (device.findFirst(SNAPDRAGON_820) != Npos
-                 || device.findFirst(SNAPDRAGON_835) != Npos)
+                 || device.findFirst(SNAPDRAGON_835) != Npos
+                 || device.findFirst(QUEST) != Npos)
             {
                 return 2*4096*2048*30;    //2xUHD @30 fps
             }

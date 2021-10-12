@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,6 +18,7 @@
 #include <cstdint>
 #include "bbox.hpp"
 #include "coverageinformationbox.hpp"
+#include "overlayconfigbox.hpp"
 #include "projectionformatbox.hpp"
 #include "regionwisepackingbox.hpp"
 #include "rotationbox.hpp"
@@ -33,17 +34,21 @@ public:
 
     ProjectionFormatBox& getProjectionFormatBox();
 
-    RegionWisePackingBox& getRegionWisePackingBox();
+    RegionWisePackingBox& getRegionWisePackingBox() const;
     void setRegionWisePackingBox(UniquePtr<RegionWisePackingBox>);
     bool hasRegionWisePackingBox() const;
 
-    CoverageInformationBox& getCoverageInformationBox();
+    CoverageInformationBox& getCoverageInformationBox() const;
     void setCoverageInformationBox(UniquePtr<CoverageInformationBox>);
     bool hasCoverageInformationBox() const;
 
-    RotationBox& getRotationBox();
+    RotationBox& getRotationBox() const;
     void setRotationBox(UniquePtr<RotationBox>);
     bool hasRotationBox() const;
+
+    OverlayConfigBox& getOverlayConfigBox() const;
+    void setOverlayConfigBox(UniquePtr<OverlayConfigBox>);
+    bool hasOverlayConfigBox() const;
 
     /** @see Box::writeBox()
      */
@@ -53,16 +58,12 @@ public:
      */
     virtual void parseBox(ISOBMFF::BitStream& bitstr);
 
-
-    /** @brief Dump box data to logInfo() in human readable format.
-     */
-    void dump() const;
-
 private:
     ProjectionFormatBox mProjectionFormatBox;
     UniquePtr<RegionWisePackingBox> mRegionWisePackingBox;
     UniquePtr<CoverageInformationBox> mCoverageInformationBox;
     UniquePtr<RotationBox> mRotationBox;
+    UniquePtr<OverlayConfigBox> mOverlayConfigBox;
 };
 
 #endif

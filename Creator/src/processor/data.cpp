@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -62,11 +62,8 @@ namespace VDD
             "RawTestFormat3" };
 
         // Indexed by CodedFormat
-        std::vector<std::string> codedFormatNames{
-            "None",
-            "H264",
-            "H265",
-            "AAC" };
+        std::vector<std::string> codedFormatNames{"None", "H264",          "H265",
+                                                  "AAC",  "TimedMetadata", "H265Extractor"};
 
         RawFormatDescription formatDescriptions[] = {
             // None
@@ -274,10 +271,17 @@ namespace VDD
         numPlanes = holder.size();
         for (size_t c = 0; c < numPlanes; ++c)
         {
-            address[c] = &holder[c][0] + (static_cast<const unsigned char*>(aOther.address[c]) -
-                                          static_cast<const unsigned char*>(&aOther.holder[c][0]));
-            assert(address[c] >= &holder[c][0]);
-            assert(address[c] < &holder[c][0] + holder[c].size());
+            if (holder[c].size())
+            {
+                address[c] = &holder[c][0] + (static_cast<const unsigned char*>(aOther.address[c]) -
+                                              static_cast<const unsigned char*>(&aOther.holder[c][0]));
+                assert(address[c] >= &holder[c][0]);
+                assert(address[c] < &holder[c][0] + holder[c].size());
+            }
+            else
+            {
+                address[c] = nullptr;
+            }
             size[c] = aOther.size[c];
             rowStride[c] = aOther.rowStride[c];
             pixelBitOffset[c] = aOther.pixelBitOffset[c];
@@ -295,8 +299,11 @@ namespace VDD
         for (size_t c = 0; c < numPlanes; ++c)
         {
             address[c] = aOther.address[c];
-            assert(address[c] >= &holder[c][0]);
-            assert(address[c] < &holder[c][0] + holder[c].size());
+            if (holder[c].size())
+            {
+                assert(address[c] >= &holder[c][0]);
+                assert(address[c] < &holder[c][0] + holder[c].size());
+            }
             size[c] = aOther.size[c];
             aOther.size[c] = 0;
             rowStride[c] = aOther.rowStride[c];
@@ -314,7 +321,7 @@ namespace VDD
         numPlanes = holder.size();
         for (size_t c = 0; c < numPlanes; ++c)
         {
-            address[c] = &holder[c][0];
+            address[c] = holder[c].size() ? &holder[c][0] : nullptr;
             size[c] = holder[c].size();
             rowStride[c] = 0;
             pixelBitOffset[c] = 0;
@@ -334,7 +341,7 @@ namespace VDD
         numPlanes = holder.size();
         for (size_t c = 0; c < numPlanes; ++c)
         {
-            address[c] = &holder[c][0];
+            address[c] = holder[c].size() ? &holder[c][0] : nullptr;
             size[c] = holder[c].size();
             rowStride[c] = c < aRowStrides.size() ? aRowStrides[c] : 0;
             rowSubOffset[c] = c < aRowSubOffsets.size() ? aRowSubOffsets[c] : 0;
@@ -664,6 +671,13 @@ namespace VDD
         mStreamId = aOther.mStreamId;
     }
 
+    Data Data::withStreamId(StreamId aStreamId) const
+    {
+        Data data(*this);
+        data.mStreamId = aStreamId;
+        return data;
+    }
+
     Data& Data::operator=(const Data& aOther)
     {
         std::unique_lock<std::mutex> lock(sDataStorageMutex);
@@ -897,11 +911,6 @@ namespace VDD
 
     StreamId Data::getStreamId() const
     {
-        return mStreamId;
-    }
-    StreamId Data::setStreamId(StreamId aStreamId)
-    {
-        mStreamId = aStreamId;
         return mStreamId;
     }
 }

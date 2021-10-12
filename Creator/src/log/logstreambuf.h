@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -26,9 +26,6 @@ namespace VDD
     public:
         LogStreamBuf(LogStream&);
         ~LogStreamBuf();
-
-        LogStreamBuf(const LogStreamBuf&) = delete;
-        void operator=(const LogStreamBuf&) = delete;
 
         int overflow(int ch) override;
 

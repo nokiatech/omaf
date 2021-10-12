@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -34,7 +34,7 @@ namespace VDD
 
         StorageType getPreferredStorageType() const override;
 
-        std::vector<Views> process(const Views&) override;
+        std::vector<Streams> process(const Streams&) override;
 
     private:
         Config mConfig;

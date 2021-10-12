@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,11 +18,11 @@
 
 #if OMAF_PLATFORM_WINDOWS
 
-    #define OMAF_GL_CONTEXT_WGL 1
+#define OMAF_GL_CONTEXT_WGL 1
 
 #elif OMAF_PLATFORM_ANDROID
 
-    #define OMAF_GL_CONTEXT_EGL 1
+#define OMAF_GL_CONTEXT_EGL 1
 
 #endif
 
@@ -35,7 +35,7 @@ namespace GLContext
         uint32_t fbo;
         uint32_t colorRbo;
         uint32_t depthStencilRbo;
-        
+
         uint32_t width;
         uint32_t height;
 
@@ -43,15 +43,15 @@ namespace GLContext
         // Eg. GLKit for iOS / Mac OS creates FBO for you, so you have query it manually and pass forward.
         bool_t isInternal;
     };
-    
+
     void_t create(uint32_t width, uint32_t height);
     void_t createInternal();
-    
+
     void_t destroy();
-    
+
     bool_t isValid();
-    
+
     const Framebuffer* getDefaultFramebuffer();
-}
+}  // namespace GLContext
 
 OMAF_NS_END

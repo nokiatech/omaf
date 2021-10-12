@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -78,15 +78,15 @@ typedef unsigned long long uint64_t;
 
 #ifndef OMAF_NULL
 
-    #if defined(__cplusplus)
+#if defined(__cplusplus)
 
-        #define OMAF_NULL 0
+#define OMAF_NULL 0
 
-    #else
+#else
 
-        #define OMAF_NULL ((void_t*)0)
+#define OMAF_NULL ((void_t*) 0)
 
-    #endif
+#endif
 
 #endif
 
@@ -98,14 +98,14 @@ namespace OMAF
         {
             INVALID = -1,
 
-            LESS, // left < right
-            EQUAL, // left == right
-            GREATER, // left > right
+            LESS,     // left < right
+            EQUAL,    // left == right
+            GREATER,  // left > right
 
             COUNT,
         };
     }
-}
+}  // namespace OMAF
 
 namespace OMAF
 {
@@ -113,33 +113,31 @@ namespace OMAF
     {
         struct UnionCast
         {
-            union
-            {
+            union {
                 uint32_t integer;
                 float32_t float32;
             };
         };
-        
+
         UnionCast cast;
         cast.integer = value;
-        
+
         return cast.float32;
     }
-    
+
     inline float64_t castUInt64ToFloat64(uint64_t value)
     {
         struct UnionCast
         {
-            union
-            {
+            union {
                 uint64_t integer;
                 float64_t float64;
             };
         };
-        
+
         UnionCast cast;
         cast.integer = value;
-        
+
         return cast.float64;
     }
-}
+}  // namespace OMAF

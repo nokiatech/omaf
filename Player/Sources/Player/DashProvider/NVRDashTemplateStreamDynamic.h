@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -20,42 +20,39 @@
 #include "DashProvider/NVRDashSegmentStream.h"
 
 OMAF_NS_BEGIN
-    class DashTemplateStreamDynamic : public DashSegmentStream
-    {
-    public:
+class DashTemplateStreamDynamic : public DashSegmentStream
+{
+public:
+    DashTemplateStreamDynamic(uint32_t bandwidth,
+                              DashComponents dashComponents,
+                              uint32_t aInitializationSegmentId,
+                              DashSegmentStreamObserver *observer);
 
-        DashTemplateStreamDynamic(
-                uint32_t bandwidth,
-                DashComponents dashComponents,
-                uint32_t aInitializationSegmentId,
-                DashSegmentStreamObserver *observer);
+    virtual ~DashTemplateStreamDynamic();
 
-        virtual ~DashTemplateStreamDynamic();
+    virtual uint32_t calculateSegmentId(uint64_t &ptsUs);
+    virtual bool_t hasFixedSegmentSize() const;
 
-        virtual uint32_t calculateSegmentId(uint64_t ptsUs);
-        virtual bool_t hasFixedSegmentSize() const;
-    protected:
+protected:
+    virtual void_t downloadStopped();
 
-        virtual void_t downloadStopped();
+    virtual bool_t waitForStreamHead();
+    virtual dash::mpd::ISegment *getNextSegment(uint32_t &segmentId);
+    virtual void_t downloadAborted();
 
-        virtual bool_t waitForStreamHead();
-        virtual dash::mpd::ISegment* getNextSegment(uint32_t &segmentId);
-        virtual void_t downloadAborted();
-    private:
-
-        uint32_t initializeSegmentIndex();
-        uint32_t getSegmentIndexForTime(time_t time, bool_t printLog);
+private:
+    uint32_t initializeSegmentIndex();
+    uint32_t getSegmentIndexForTime(time_t time, bool_t printLog);
 
 
-    private:
-        uint32_t mStartIndex;
-        uint32_t mCurrentSegmentIndex;
+private:
+    uint32_t mStartIndex;
+    uint32_t mCurrentSegmentIndex;
 
-        uint32_t mMinDelayInSegments;
-        uint32_t mMinPlaybackDelayMs;
-        uint32_t mMaxBufferSizeMs;
+    uint32_t mMinDelayInSegments;
+    uint32_t mMinPlaybackDelayMs;
+    uint32_t mMaxBufferSizeMs;
 
-        time_t mAvailabilityStartTimeUTCSec;
-
-    };
+    time_t mAvailabilityStartTimeUTCSec;
+};
 OMAF_NS_END

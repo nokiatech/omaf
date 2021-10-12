@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,28 +14,25 @@
  */
 #pragma once
 
-#include "NVREssentials.h"
 #include "DashProvider/NVRDashVideoDownloaderExtractor.h"
+#include "NVREssentials.h"
 
 
 OMAF_NS_BEGIN
 
-    class DashVideoDownloaderExtractorDepId : public DashVideoDownloaderExtractor
-    {
+class DashVideoDownloaderExtractorDepId : public DashVideoDownloaderExtractor
+{
+public:
+    DashVideoDownloaderExtractorDepId();
+    virtual ~DashVideoDownloaderExtractorDepId();
 
-    public:
+public:
+    virtual Error::Enum completeInitialization(DashComponents& aDashComponents,
+                                               SourceDirection::Enum aUriSourceDirection,
+                                               sourceid_t aSourceIdBase);
+    virtual bool_t isReadyToSignalEoS(MP4MediaStream& aStream) const;
 
-        DashVideoDownloaderExtractorDepId();
-        virtual ~DashVideoDownloaderExtractorDepId();
-
-    public:
-
-        virtual Error::Enum completeInitialization(DashComponents& aDashComponents, BasicSourceInfo& aSourceInfo);
-        virtual bool_t isReadyToSignalEoS(MP4MediaStream& aStream) const;
-
-    protected:
-
-        virtual void_t checkVASVideoStreams(uint64_t currentPTS);
-
-    };
+protected:
+    virtual void_t checkVASVideoStreams(uint64_t currentPTS);
+};
 OMAF_NS_END

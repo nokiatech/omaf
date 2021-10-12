@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,17 +16,17 @@
 
 #include "Math/OMAFMathTypes.h"
 
-#include "Math/OMAFMathFunctions.h"
 #include "Math/OMAFMathConstants.h"
+#include "Math/OMAFMathFunctions.h"
 
 namespace OMAF
 {
-    static const Color4 Color4BlackColor = { 0.0f, 0.0f, 0.0f, 1.0f };
-    static const Color4 Color4WhiteColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+    static const Color4 Color4BlackColor = {0.0f, 0.0f, 0.0f, 1.0f};
+    static const Color4 Color4WhiteColor = {1.0f, 1.0f, 1.0f, 1.0f};
 
-    static const Color4 Color4RedColor = { 1.0f, 0.0f, 0.0f, 1.0f };
-    static const Color4 Color4GreenColor = { 0.0f, 1.0f, 0.0f, 1.0f };
-    static const Color4 Color4BlueColor = { 0.0f, 0.0f, 1.0f, 1.0f };
+    static const Color4 Color4RedColor = {1.0f, 0.0f, 0.0f, 1.0f};
+    static const Color4 Color4GreenColor = {0.0f, 1.0f, 0.0f, 1.0f};
+    static const Color4 Color4BlueColor = {0.0f, 0.0f, 1.0f, 1.0f};
 
     OMAF_INLINE Color4 makeColor4(float32_t r, float32_t g, float32_t b, float32_t a);
     OMAF_INLINE Color4 makeColor4(const float32_t v[4]);
@@ -38,58 +38,56 @@ namespace OMAF
 
     OMAF_INLINE uint32_t toABGR(const Color4& color);
 
-    OMAF_INLINE Color4 operator + (const Color4& l, const Color4& r);
-    OMAF_INLINE Color4 operator - (const Color4& l, const Color4& r);
-    OMAF_INLINE Color4 operator * (const Color4& l, const Color4& r);
-    OMAF_INLINE Color4 operator / (const Color4& l, const Color4& r);
+    OMAF_INLINE Color4 operator+(const Color4& l, const Color4& r);
+    OMAF_INLINE Color4 operator-(const Color4& l, const Color4& r);
+    OMAF_INLINE Color4 operator*(const Color4& l, const Color4& r);
+    OMAF_INLINE Color4 operator/(const Color4& l, const Color4& r);
 
-    OMAF_INLINE void_t operator += (Color4& l, const Color4& r);
-    OMAF_INLINE void_t operator -= (Color4& l, const Color4& r);
-    OMAF_INLINE void_t operator *= (Color4& l, const Color4& r);
-    OMAF_INLINE void_t operator /= (Color4& l, const Color4& r);
+    OMAF_INLINE void_t operator+=(Color4& l, const Color4& r);
+    OMAF_INLINE void_t operator-=(Color4& l, const Color4& r);
+    OMAF_INLINE void_t operator*=(Color4& l, const Color4& r);
+    OMAF_INLINE void_t operator/=(Color4& l, const Color4& r);
 
-    OMAF_INLINE Color4 operator + (const Color4& c, float32_t s);
-    OMAF_INLINE Color4 operator - (const Color4& c, float32_t s);
-    OMAF_INLINE Color4 operator * (const Color4& c, float32_t s);
-    OMAF_INLINE Color4 operator / (const Color4& c, float32_t s);
+    OMAF_INLINE Color4 operator+(const Color4& c, float32_t s);
+    OMAF_INLINE Color4 operator-(const Color4& c, float32_t s);
+    OMAF_INLINE Color4 operator*(const Color4& c, float32_t s);
+    OMAF_INLINE Color4 operator/(const Color4& c, float32_t s);
 
-    OMAF_INLINE void_t operator += (Color4& c, float32_t s);
-    OMAF_INLINE void_t operator -= (Color4& c, float32_t s);
-    OMAF_INLINE void_t operator *= (Color4& c, float32_t s);
-    OMAF_INLINE void_t operator /= (Color4& c, float32_t s);
+    OMAF_INLINE void_t operator+=(Color4& c, float32_t s);
+    OMAF_INLINE void_t operator-=(Color4& c, float32_t s);
+    OMAF_INLINE void_t operator*=(Color4& c, float32_t s);
+    OMAF_INLINE void_t operator/=(Color4& c, float32_t s);
 
-    OMAF_INLINE bool_t operator == (const Color4& l, const Color4& r);
-    OMAF_INLINE bool_t operator != (const Color4& l, const Color4& r);
-}
+    OMAF_INLINE bool_t operator==(const Color4& l, const Color4& r);
+    OMAF_INLINE bool_t operator!=(const Color4& l, const Color4& r);
+}  // namespace OMAF
 
 namespace OMAF
 {
     Color4 makeColor4(float32_t r, float32_t g, float32_t b, float32_t a)
     {
-        Color4 result = { r, g, b, a };
+        Color4 result = {r, g, b, a};
 
         return result;
     }
 
     Color4 makeColor4(const float32_t v[4])
     {
-        Color4 result = { v[0], v[1], v[2], v[3] };
+        Color4 result = {v[0], v[1], v[2], v[3]};
 
         return result;
     }
 
     Color4 makeColor4(const Color4& c, float32_t alpha)
     {
-        Color4 result = { c.r, c.g, c.b, alpha };
+        Color4 result = {c.r, c.g, c.b, alpha};
 
         return result;
     }
 
     bool_t equals(const Color4& l, const Color4& r, float32_t epsilon)
     {
-        return (fabsf(l.r - r.r) <= epsilon &&
-                fabsf(l.g - r.g) <= epsilon &&
-                fabsf(l.b - r.b) <= epsilon &&
+        return (fabsf(l.r - r.r) <= epsilon && fabsf(l.g - r.g) <= epsilon && fabsf(l.b - r.b) <= epsilon &&
                 fabsf(l.a - r.a) <= epsilon);
     }
 
@@ -114,28 +112,28 @@ namespace OMAF
     }
 
 
-    Color4 operator + (const Color4& l, const Color4& r)
+    Color4 operator+(const Color4& l, const Color4& r)
     {
         return makeColor4(l.r + r.r, l.g + r.g, l.b + r.b, l.a + r.a);
     }
 
-    Color4 operator - (const Color4& l, const Color4& r)
+    Color4 operator-(const Color4& l, const Color4& r)
     {
         return makeColor4(l.r - r.r, l.g - r.g, l.b - r.b, l.a - r.a);
     }
 
-    Color4 operator * (const Color4& l, const Color4& r)
+    Color4 operator*(const Color4& l, const Color4& r)
     {
         return makeColor4(l.r * r.r, l.g * r.g, l.b * r.b, l.a * r.a);
     }
 
-    Color4 operator / (const Color4& l, const Color4& r)
+    Color4 operator/(const Color4& l, const Color4& r)
     {
         return makeColor4(l.r / r.r, l.g / r.g, l.b / r.b, l.a / r.a);
     }
 
 
-    void_t operator += (Color4& l, const Color4& r)
+    void_t operator+=(Color4& l, const Color4& r)
     {
         l.r += r.r;
         l.g += r.g;
@@ -143,7 +141,7 @@ namespace OMAF
         l.a += r.a;
     }
 
-    void_t operator -= (Color4& l, const Color4& r)
+    void_t operator-=(Color4& l, const Color4& r)
     {
         l.r -= r.r;
         l.g -= r.g;
@@ -151,7 +149,7 @@ namespace OMAF
         l.a -= r.a;
     }
 
-    void_t operator *= (Color4& l, const Color4& r)
+    void_t operator*=(Color4& l, const Color4& r)
     {
         l.r *= r.r;
         l.g *= r.g;
@@ -159,7 +157,7 @@ namespace OMAF
         l.a *= r.a;
     }
 
-    void_t operator /= (Color4& l, const Color4& r)
+    void_t operator/=(Color4& l, const Color4& r)
     {
         l.r /= r.r;
         l.g /= r.g;
@@ -168,28 +166,28 @@ namespace OMAF
     }
 
 
-    Color4 operator + (const Color4& c, float32_t s)
+    Color4 operator+(const Color4& c, float32_t s)
     {
         return makeColor4(c.r + s, c.g + s, c.b + s, c.a + s);
     }
 
-    Color4 operator - (const Color4& c, float32_t s)
+    Color4 operator-(const Color4& c, float32_t s)
     {
         return makeColor4(c.r - s, c.g - s, c.b - s, c.a - s);
     }
 
-    Color4 operator * (const Color4& c, float32_t s)
+    Color4 operator*(const Color4& c, float32_t s)
     {
         return makeColor4(c.r * s, c.g * s, c.b * s, c.a * s);
     }
 
-    Color4 operator / (const Color4& c, float32_t s)
+    Color4 operator/(const Color4& c, float32_t s)
     {
         return makeColor4(c.r / s, c.g / s, c.b / s, c.a / s);
     }
 
 
-    void_t operator += (Color4& c, float32_t s)
+    void_t operator+=(Color4& c, float32_t s)
     {
         c.r += s;
         c.g += s;
@@ -197,7 +195,7 @@ namespace OMAF
         c.a += s;
     }
 
-    void_t operator -= (Color4& c, float32_t s)
+    void_t operator-=(Color4& c, float32_t s)
     {
         c.r -= s;
         c.g -= s;
@@ -205,7 +203,7 @@ namespace OMAF
         c.a -= s;
     }
 
-    void_t operator *= (Color4& c, float32_t s)
+    void_t operator*=(Color4& c, float32_t s)
     {
         c.r *= s;
         c.g *= s;
@@ -213,7 +211,7 @@ namespace OMAF
         c.a *= s;
     }
 
-    void_t operator /= (Color4& c, float32_t s)
+    void_t operator/=(Color4& c, float32_t s)
     {
         c.r /= s;
         c.g /= s;
@@ -222,13 +220,13 @@ namespace OMAF
     }
 
 
-    bool_t operator == (const Color4& l, const Color4& r)
+    bool_t operator==(const Color4& l, const Color4& r)
     {
         return equals(l, r);
     }
 
-    bool_t operator != (const Color4& l, const Color4& r)
+    bool_t operator!=(const Color4& l, const Color4& r)
     {
         return !equals(l, r);
     }
-}
+}  // namespace OMAF

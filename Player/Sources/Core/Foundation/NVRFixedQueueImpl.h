@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,156 +17,156 @@
 #include "Foundation/NVRMemoryUtilities.h"
 
 OMAF_NS_BEGIN
-    template <typename T, size_t N>
-    typename FixedQueue<T, N>::Iterator FixedQueue<T, N>::InvalidIterator(OMAF_NULL);
-    
-    template <typename T, size_t N>
-    FixedQueue<T, N>::FixedQueue()
+template <typename T, size_t N>
+typename FixedQueue<T, N>::Iterator FixedQueue<T, N>::InvalidIterator(OMAF_NULL);
+
+template <typename T, size_t N>
+FixedQueue<T, N>::FixedQueue()
     : mHead(0)
     , mTail(N - 1)
     , mSize(0)
-    {
-    }
-    
-    template <typename T, size_t N>
-    FixedQueue<T, N>::FixedQueue(const FixedQueue<T, N>& queue)
-    {
-        for (size_t i = 0; i < queue.getSize(); ++i)
-        {
-            size_t index = (queue.mHead + i) % N;
-            
-            Construct<T>(&mData[index]);
-            mData[index] = queue.mData[index];
-        }
-        
-        mHead = queue.mHead;
-        mTail = queue.mTail;
-        mSize = queue.mSize;
-    }
-    
-    template <typename T, size_t N>
-    FixedQueue<T, N>::~FixedQueue()
-    {
-        clear();
-    }
-    
-    template <typename T, size_t N>
-    size_t FixedQueue<T, N>::getCapacity() const
-    {
-        return N;
-    }
-    
-    template <typename T, size_t N>
-    size_t FixedQueue<T, N>::getSize() const
-    {
-        return mSize;
-    }
-    
-    template <typename T, size_t N>
-    bool_t FixedQueue<T, N>::isEmpty() const
-    {
-        return (mSize == 0);
-    }
-    
-    template <typename T, size_t N>
-    void_t FixedQueue<T, N>::clear()
-    {
-        if(mSize > 0)
-        {
-            for (size_t i = 0; i < mSize; ++i)
-            {
-                size_t index = (mHead + i) % N;
-                
-                Destruct<T>(&mData[index]);
-            }
-        }
-        
-        mSize = 0;
-        
-        mHead = 0;
-        mTail = (N - 1);
-    }
-    
-    template <typename T, size_t N>
-    void_t FixedQueue<T, N>::push(const T& object)
-    {
-        OMAF_ASSERT(mSize + 1 <= N, "");
-        
-        if (mSize + 1 <= N)
-        {
-            mTail = (mTail + 1) % N;
-            
-            Construct<T>(&mData[mTail]);
-            mData[mTail] = object;
+{
+}
 
-            mSize++;
-        }
-    }
-    
-    template <typename T, size_t N>
-    void_t FixedQueue<T, N>::pop()
+template <typename T, size_t N>
+FixedQueue<T, N>::FixedQueue(const FixedQueue<T, N>& queue)
+{
+    for (size_t i = 0; i < queue.getSize(); ++i)
     {
-        OMAF_ASSERT(mSize > 0, "");
-        
-        if (mSize > 0)
-        {
-            Destruct<T>(&mData[mHead]);
-        
-            mHead = (mHead + 1) % N;
-            
-            mSize--;
-        }
+        size_t index = (queue.mHead + i) % N;
+
+        Construct<T>(&mData[index]);
+        mData[index] = queue.mData[index];
     }
-    
-    template <typename T, size_t N>
-    T& FixedQueue<T, N>::front()
+
+    mHead = queue.mHead;
+    mTail = queue.mTail;
+    mSize = queue.mSize;
+}
+
+template <typename T, size_t N>
+FixedQueue<T, N>::~FixedQueue()
+{
+    clear();
+}
+
+template <typename T, size_t N>
+size_t FixedQueue<T, N>::getCapacity() const
+{
+    return N;
+}
+
+template <typename T, size_t N>
+size_t FixedQueue<T, N>::getSize() const
+{
+    return mSize;
+}
+
+template <typename T, size_t N>
+bool_t FixedQueue<T, N>::isEmpty() const
+{
+    return (mSize == 0);
+}
+
+template <typename T, size_t N>
+void_t FixedQueue<T, N>::clear()
+{
+    if (mSize > 0)
     {
-        if(mSize > 0)
+        for (size_t i = 0; i < mSize; ++i)
         {
-            return *(mData + mHead);
+            size_t index = (mHead + i) % N;
+
+            Destruct<T>(&mData[index]);
         }
-
-        OMAF_ASSERT(false, "");
-
-        return *(T*)OMAF_NULL;
     }
-    
-    template <typename T, size_t N>
-    const T& FixedQueue<T, N>::front() const
+
+    mSize = 0;
+
+    mHead = 0;
+    mTail = (N - 1);
+}
+
+template <typename T, size_t N>
+void_t FixedQueue<T, N>::push(const T& object)
+{
+    OMAF_ASSERT(mSize + 1 <= N, "");
+
+    if (mSize + 1 <= N)
     {
-        if(mSize > 0)
-        {
-            return *(mData + mHead);
-        }
+        mTail = (mTail + 1) % N;
 
-        OMAF_ASSERT(false, "");
+        Construct<T>(&mData[mTail]);
+        mData[mTail] = object;
 
-        return *(T*)OMAF_NULL;
+        mSize++;
     }
-    
-    template <typename T, size_t N>
-    T& FixedQueue<T, N>::back()
+}
+
+template <typename T, size_t N>
+void_t FixedQueue<T, N>::pop()
+{
+    OMAF_ASSERT(mSize > 0, "");
+
+    if (mSize > 0)
     {
-        if(mSize > 0)
-        {
-            return *(mData + mTail);
-        }
+        Destruct<T>(&mData[mHead]);
 
-        OMAF_ASSERT(false, "");
-        
-        return *(T*)OMAF_NULL;
+        mHead = (mHead + 1) % N;
+
+        mSize--;
     }
-    
-    template <typename T, size_t N>
-    const T& FixedQueue<T, N>::back() const
+}
+
+template <typename T, size_t N>
+T& FixedQueue<T, N>::front()
+{
+    if (mSize > 0)
     {
-        if(mSize > 0)
-        {
-            return *(mData + mTail);
-        }
-
-        OMAF_ASSERT(false, "");
-        
-        return *(T*)OMAF_NULL;
+        return *(mData + mHead);
     }
+
+    OMAF_ASSERT(false, "");
+
+    return *(T*) OMAF_NULL;
+}
+
+template <typename T, size_t N>
+const T& FixedQueue<T, N>::front() const
+{
+    if (mSize > 0)
+    {
+        return *(mData + mHead);
+    }
+
+    OMAF_ASSERT(false, "");
+
+    return *(T*) OMAF_NULL;
+}
+
+template <typename T, size_t N>
+T& FixedQueue<T, N>::back()
+{
+    if (mSize > 0)
+    {
+        return *(mData + mTail);
+    }
+
+    OMAF_ASSERT(false, "");
+
+    return *(T*) OMAF_NULL;
+}
+
+template <typename T, size_t N>
+const T& FixedQueue<T, N>::back() const
+{
+    if (mSize > 0)
+    {
+        return *(mData + mTail);
+    }
+
+    OMAF_ASSERT(false, "");
+
+    return *(T*) OMAF_NULL;
+}
 OMAF_NS_END

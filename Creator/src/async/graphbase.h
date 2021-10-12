@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,6 +21,7 @@
 
 #include "asyncnode.h"
 #include "common/exceptions.h"
+#include "common/utils.h"
 
 /**
  * Graph and AsyncNode enable an asynchronous graph where data flows from one node to another. While
@@ -29,7 +30,7 @@
  */
 
 namespace VDD {
-    using AsyncPushCallback = std::function<void(const Views& views)>;
+    using AsyncPushCallback = std::function<void(const Streams& streams)>;
 
     class AsyncNode;
     class AsyncSource;
@@ -53,6 +54,15 @@ namespace VDD {
 
     using GraphErrors = std::list<GraphError>;
 
+    // issue .stop() when existing scope
+    struct GraphStopGuard {
+        GraphStopGuard(GraphBase& aGraph);
+        ~GraphStopGuard();
+
+    private:
+        GraphBase& mGraph;
+    };
+
     class GraphBase
     {
     public:
@@ -69,6 +79,10 @@ namespace VDD {
          */
         virtual void abort() = 0;
 
+        /** @brief stop background threads (if applicable). Sometimes this is useful to ensure no
+            background work is being done before running destructors. */
+        virtual void stop();
+
         /* future improvement */
         /* for example job management goes through this */
 
@@ -77,6 +91,7 @@ namespace VDD {
 
         /* Produce a nice graph you can visualize with http://www.graphviz.org/ */
         void graphviz(std::ostream& aStream) const;
+        void graphviz(const char* aFilename) const; // same but to given file; nicer in debugger
 
         void addGraphvizNode(std::string aId, std::string aLabel);
         void addGraphvizEdge(std::string aFrom, std::string aTo);
@@ -91,6 +106,12 @@ namespace VDD {
         const AsyncNode* findNodeById(AsyncNodeId aNodeId) const;
         AsyncNode* findNodeById(AsyncNodeId aNodeId);
 
+        // Indicate that an error has been signaled (e.g. thrown)
+        void setErrorSignaled();
+
+        // Has an error been signaled? Then perhaps we can not signal this error.
+        bool hasErrorSignaled() const;
+
     private:
         /* A way to tell the graph that this node exists in the graph */
         friend class AsyncNode;
@@ -103,6 +124,15 @@ namespace VDD {
         void registerSource(AsyncSource* mSource);
         void unregisterSource(AsyncSource* mSource);
 
+        void replaceConnectionsTo(AsyncProcessor& aNodeToReplace, AsyncProcessor& aReplacement);
+        friend void replaceConnectionsTo(AsyncProcessor& aNodeToReplace, AsyncProcessor& aReplacement);
+
+        void replaceConnectionsFrom(AsyncProcessor& aNodeToReplace, AsyncProcessor& aReplacement);
+        friend void replaceConnectionsFrom(AsyncProcessor& aNodeToReplace, AsyncProcessor& aReplacement);
+
+        void eliminate(AsyncProcessor& aNodeToEliminate);
+        friend void eliminate(AsyncProcessor& aNodeToEliminate);
+
         // Node: mOwnNodes must be last so that destruction work properly
         std::set<AsyncNode*> mNodes;
         std::set<AsyncNode*> mActiveNodes;
@@ -113,16 +143,23 @@ namespace VDD {
         std::map<std::string, std::string> mGraphvizNodes;
         std::multimap<std::string, std::string> mGraphvizEdges;
 
+        bool mErrorSignaled;
+
     protected:
         // override this if you need to ensure thread-shafety
         virtual void setNodeInactive(AsyncNode* mNode);
 
-        virtual void nodeHasOutput(AsyncNode* aNode, const Views& aViews) = 0;
+        virtual void nodeHasOutput(AsyncNode* aNode, const Streams& aStreams) = 0;
 
         // Do you need to provide some additional information to the produce graph?
         virtual std::string additionalGraphvizInformation(const AsyncNode*) const { return ""; }
 
-        const std::list<AsyncCallback>& getNodeCallbacks(AsyncNode* aNode);
+        std::list<AsyncCallback>& getNodeCallbacks(AsyncNode* aNode);
+        const std::list<AsyncCallback>& getNodeCallbacks(AsyncNode* aNode) const;
+
+        // makes use of getNodeCallbacks
+        friend void replaceInputOutput(AsyncProcessor& aOriginal, AsyncProcessor& aReplacementIn,
+                                       AsyncProcessor& aReplacementOut);
 
         // override this if you need to ensure thread-shafety
         virtual const std::set<AsyncNode*>& getActiveNodes();
@@ -139,9 +176,44 @@ namespace VDD {
         return ptr;
     }
 
+    // usage: connect(..).ASYNC_HERE;
+#ifdef _DEBUG
+#define ASYNC_HERE setLabel(VDD_SHORT_HERE)
+#else
+    // use a smaller identifier for non-debug builds
+#define ASYNC_HERE setLabel(STRING__LINE__)
+#endif
+
     /** Connect output from one node to the input of another */
-    void connect(AsyncNode& aFrom, AsyncProcessor& aTo, ViewMask aViewMask = allViews);
+    AsyncCallback& connect(AsyncNode& aFrom, AsyncProcessor& aTo, StreamFilter aStreamFilter = allStreams);
 
     /** Connect output from one node to a function */
-    void connect(AsyncNode& aFrom, const std::string& aName, const AsyncPushCallback aCallback, ViewMask aViewMask = allViews);
+    AsyncCallback& connect(AsyncNode& aFrom, const std::string& aName, const AsyncPushCallback aCallback, StreamFilter aStreamFilter = allStreams);
+
+    /** Insert aReplacement node into the graph, replacing all connections to aNodeToReplace with a
+     * connection to aReplacement. It will not touch the connections going out from aNodeToReplace.
+     *
+     * This function is similar to 'connect' in that it doesn't perform any management tasks related
+     * to ownership. */
+    void replaceConnectionsTo(AsyncProcessor& aNodeToReplace, AsyncProcessor& aReplacement);
+
+    /** Insert aReplacement node into the graph, replacing all connections from aNodeToReplace with a
+     * connection from aReplacement. It will not touch the connections coming in to aNodeToReplace.
+     *
+     * This function is similar to 'connect' in that it doesn't perform any management tasks related
+     * to ownership. */
+    void replaceConnectionsFrom(AsyncProcessor& aNodeToReplace, AsyncProcessor& aReplacement);
+
+    /** Given a graph like: -->aOriginal-->
+        modify it to be: -->aReplacementIn    aReplacementOut-->
+
+        aReplacementIn or aReplacementOut may be the same as aOriginal.
+    */
+    void replaceInputOutput(AsyncProcessor& aOriginal, AsyncProcessor& aReplacementIn,
+                            AsyncProcessor& aReplacementOut);
+
+    /** Moves all connections to aNodeToEliminate to nodes it is connected to.
+     *
+     * If the node is owned by the graph, the node is also removed. */
+    void eliminate(AsyncProcessor& aNodeToEliminate);
 }

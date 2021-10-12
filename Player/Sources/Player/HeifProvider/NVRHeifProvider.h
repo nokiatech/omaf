@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,28 +17,24 @@
 #include "NVRNamespace.h"
 #include "Platform/OMAFDataTypes.h"
 
-#include "Provider/NVRProviderBase.h"
 #include "NVRHeifMediaStreamManager.h"
+#include "Provider/NVRProviderBase.h"
 
 
 OMAF_NS_BEGIN
 
 class MP4MediaStreamManager;
 
-class HeifProvider
-: public ProviderBase
+class HeifProvider : public ProviderBase
 {
 public:
-    
     HeifProvider();
     virtual ~HeifProvider();
 
-public: // CoreProvider
-    
+public:  // CoreProvider
     virtual const CoreProviderSourceTypes& getSourceTypes();
 
-public: // VideoProvider
-    
+public:  // VideoProvider
     virtual bool_t isSeekable();
 
     virtual bool_t isSeekableByFrame();
@@ -47,20 +43,22 @@ public: // VideoProvider
 
     virtual Error::Enum next();
 
-protected: // ProviderBase
-    
-    virtual uint64_t selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources& required, CoreProviderSources& optional);
+protected:  // ProviderBase
+    virtual uint64_t selectSources(HeadTransform headTransform,
+                                   float32_t fovHorizontal,
+                                   float32_t fovVertical,
+                                   CoreProviderSources& required,
+                                   CoreProviderSources& optional);
 
     virtual MP4AudioStream* getAudioStream();
 
 private:
-    
     virtual void_t parserThreadCallback();
     void_t handlePendingUserRequest();
     Error::Enum openFile(PathName& uri);
-    
+
 private:
-    HeifMediaStreamManager* mMediaStreamManager;
+    HeifMediaStreamManager* mImageStreamManager;
     bool_t mRequestImageChange;
 };
 

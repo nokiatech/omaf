@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,9 +15,12 @@
 #ifndef METABOX_HPP
 #define METABOX_HPP
 
+#include "api/isobmff/commontypes.h"
+
 #include "customallocator.hpp"
 #include "datainformationbox.hpp"
 #include "fullbox.hpp"
+#include "groupslistbox.hpp"
 #include "handlerbox.hpp"
 #include "itemdatabox.hpp"
 #include "iteminfobox.hpp"
@@ -114,6 +117,13 @@ public:
      */
     const DataInformationBox& getDataInformationBox() const;
 
+    /** @brief Adds a DataInformationBox if it doesn't exist; returns a reference to the DataInformationBox
+     *
+     * @return Reference to the contained DataInformationBox. If a parsed file did not contain
+     *         a DataInformationBox, the box is an empty one.
+     */
+    DataInformationBox& addDataInformationBox();
+
     /**
      * @return Reference to the contained ItemDataBox. If a parsed file did not contain
      *         an ItemDataBox, the box is an empty one.
@@ -198,6 +208,9 @@ public:
      */
     void setXmlBox(const XmlBox& xmlBox);
 
+    const ISOBMFF::Optional<GroupsListBox>& getGrplBox() const;
+    void setGrplBox(const ISOBMFF::Optional<GroupsListBox>& grplBox);
+
     /**
      * @brief Serialize box data to the ISOBMFF::BitStream.
      * @see Box::writeBox()
@@ -231,6 +244,9 @@ private:
     // supported "other" boxes:
     bool mHasXmlBox;
     XmlBox mXmlBox;
+
+    // all new additional boxes can be declared as optionals
+    ISOBMFF::Optional<GroupsListBox> mGrplBox;
 };
 
 #endif /* end of include guard: METABOX_HPP */

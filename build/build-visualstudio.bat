@@ -2,7 +2,7 @@
 @echo off
 REM This file is part of Nokia OMAF implementation
 REM
-REM Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+REM Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 REM
 REM Contact: omaf@nokia.com
 REM
@@ -20,10 +20,10 @@ goto :endofhelpers
  	echo Run select one of the build environments and type of build that will be done
     echo:
  	echo "build-visualstudio.bat vs2017"       Builds VS2017 release binaries
-    echo "build-visualstudio.bat vs2015 debug" Builds VS2015 debug binaries
+    echo "build-visualstudio.bat vs2019 debug" Builds VS2019 debug binaries
  	echo: 
  	echo Build args:
- 	echo "vs2015 || vs2017  (required arg)"
+ 	echo "vs2017 || vs2019  (required arg)"
  	echo "debug  || release (defaults to release)"
  	echo "skipmp4           skip building mp4 libraries (must be built for creator / player)"
  	echo "skipcreator       skip building creator app"
@@ -42,7 +42,7 @@ goto :endofhelpers
     )
     goto :eof
 
-REM %1 src dir %2 vs2015 or vs2017 %3 Release or Debug %4 build directory to create
+REM %1 src dir %2 vs2019 or vs2017 %3 Release or Debug %4 build directory to create
 :cmakebuildvisualstudio
     @echo on
     call :recreatedir %4
@@ -73,7 +73,7 @@ REM %1 src dir %2 vs2015 or vs2017 %3 Release or Debug %4 build directory to cre
     @echo off
     goto :eof
 
-REM %1 VS2015 or VS2017 depending on build
+REM %1 VS2019 or VS2017 depending on build
 :copydashartifacts
     @echo on
     REM Copy libdash
@@ -83,7 +83,7 @@ REM %1 VS2015 or VS2017 depending on build
     @echo off
     goto :eof
 
-REM %1 VS2015 or VS2017 depending on build
+REM %1 VS2019 or VS2017 depending on build
 :copyheifartifacts
     @echo on
     REM Copy heif
@@ -107,7 +107,7 @@ set ORIGCD=%CD%
 set BUILDTYPE=Release
 
 set VS2017=NO
-set VS2015=NO
+set VS2019=NO
 
 set BUILDMP4=YES
 set BUILDCREATOR=YES
@@ -118,7 +118,7 @@ for %%i in (%*) do (
     SET ISRECOGNIZED=NO
     call :check %%1 debug BUILDTYPE Debug ISRECOGNIZED
     call :check %%1 release BUILDTYPE Release ISRECOGNIZED
-    call :check %%1 vs2015 VS2015 YES ISRECOGNIZED
+    call :check %%1 vs2019 VS2019 YES ISRECOGNIZED
     call :check %%1 vs2017 VS2017 YES ISRECOGNIZED
     call :check %%1 skipmp4 BUILDMP4 NO ISRECOGNIZED
     call :check %%1 skipcreator BUILDCREATOR NO ISRECOGNIZED
@@ -132,15 +132,15 @@ for %%i in (%*) do (
     shift /1
 )
 
-if '%VS2017%%VS2015%' == 'NONO' (
+if '%VS2017%%VS2019%' == 'NONO' (
     call :usage
     goto :exit
 )
 
-if '%VS2015%' == 'YES' (
-    SET GENERATOR="Visual Studio 14 2015 Win64"
-    SET VSVER=vs2015
-    SET VSVERCAPS=VS2015
+if '%VS2019%' == 'YES' (
+    SET GENERATOR="Visual Studio 16 2019"
+    SET VSVER=vs2019
+    SET VSVERCAPS=VS2019
 )
 
 if '%VS2017%' == 'YES' (

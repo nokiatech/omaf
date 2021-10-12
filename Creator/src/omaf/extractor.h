@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,13 +18,10 @@
 #include <vector>
 #include "parser/h265datastructs.hpp"
 #include "processor/meta.h"
+#include "processor/streamfilter.h"
 
 namespace VDD {
-
-    typedef std::uint32_t StreamId;
-    static const StreamId StreamIdUninitialized = 0xffffffff;
-
-    struct Extractor 
+    struct Extractor
     {
         Extractor() : idx(0), streamId(StreamIdUninitialized), nuhTemporalIdPlus1(0) {}
 
@@ -61,6 +58,6 @@ namespace VDD {
         std::uint8_t nuhTemporalIdPlus1;
     };
 
-    typedef std::vector<Extractor> Extractors;
+    using Extractors = std::vector<Extractor>;
 
 }

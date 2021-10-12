@@ -1,51 +1,49 @@
-                     Nokia Omnidirectional Media Format (OMAF) License
-                                             Version 1.0
+                    Nokia Omnidirectional Media Format (OMAF) License 
+                                        Version 2.0
 
-Copyright (c) 2018, Nokia Technologies Ltd.
-All rights reserved.
+Copyright (c) 2018-2021, Nokia Technologies Ltd.
+All rights reserved. 
 
-Definitions.
-Specification means a draft or final version of the ISO/IEC (the International Organization
-for Standardization / the International Electrotechnical Commission) International Standard
-23090-2:2017 "Omnidirectional Media Format".
+Definitions. 
+Specification means a draft or final version of the ISO/IEC (the International Organization 
+for Standardization / the International Electrotechnical Commission) International Standard 
+23090-2:2021 "Omnidirectional Media Format". 
 
-Software means any source code, object code or binary files provided by Nokia excluding THIRD
-PARTY MATERIALS that, when used, fully or partly, generates files complying with the
-Specification and/or read files complying with the Specification.
+Software means any source code, object code or binary files provided by Nokia excluding THIRD 
+PARTY MATERIALS that, when used, fully or partly, generates files complying with the 
+Specification and/or read files complying with the Specification. 
 
-Licensed Field means the non-commercial purposes of evaluation, testing and academic research
-in each non-commercial case to use, run, modify (in a way that still complies with the
-Specification) and copy the Software to (a) generate, using one or more encoded pictures or videos as
-inputs, a set of files complying with the Specification and including the one or more encoded pictures 
-or videos that were given as inputs; and/or (b) read and/or playback a set of files complying with the 
-Specification, resulting into one or more encoded pictures or videos included in the files as outputs. 
-No right or license, express or implied, is granted to any part of the Software except and solely to 
-the extent as expressly set forth herein. Notwithstanding the foregoing, no licenses, express or implied, 
-under any patent rights of Nokia are granted herein. You agree not to remove any copyright notices 
-included in the Software. The Software may be subject to other third party rights
+Licensed Field means the non-commercial purposes of evaluation, testing and academic research 
+in each non-commercial case to use, run, modify (in a way that still complies with the 
+Specification) and copy the Software to (a) generate, using one or more encoded pictures or videos as 
+inputs, a set of files complying with the Specification and including the one or more encoded pictures  
+or videos that were given as inputs; and/or (b) read and/or playback a set of files complying with the  
+Specification, resulting into one or more encoded pictures or videos included in the files as outputs.  
+No right or license, express or implied, is granted to any part of the Software except and solely to  
+the extent as expressly set forth herein. Notwithstanding the foregoing, no licenses, express or implied,  
+under any patent rights of Nokia are granted herein. You agree not to remove any copyright notices  
+included in the Software. The Software may be subject to other third party rights 
 
-License Grant.
-Nokia Technologies Ltd (ìNokiaî) hereby grants to you a non-sub licensable, perpetual, worldwide,
-non-exclusive, no-charge, royalty-free, irrevocable (except as stated in this license) license,
-under its copyrights only to the Software within the Licensed Field. 
+License Grant. 
+Nokia Technologies Ltd (‚ÄúNokia‚Äù) hereby grants to you a non-sub licensable, perpetual, worldwide, 
+non-exclusive, no-charge, royalty-free, irrevocable (except as stated in this license) license, 
+under its copyrights only to the Software within the Licensed Field.  
 
-Termination.
-If you, directly, or indirectly via a controlled affiliate or subsidiary, agent, or exclusive
-licensee, file a Claim (as defined below) of patent infringement against any entity alleging
-that the Software in whole or in part constitutes direct or contributory patent infringement,
-or inducement of patent infringement (a ìClaimî), provided that the Software also allegedly
-infringes the patents asserted in the Claim, then this license, including any patent and other
-rights granted to you under this license, shall automatically terminate retroactively as of the
-date you first received the license grant.
+Termination. 
+If you, directly, or indirectly via a controlled affiliate or subsidiary, agent, or exclusive 
+licensee, file a Claim (as defined below) of patent infringement against any entity alleging 
+that the Software in whole or in part constitutes direct or contributory patent infringement, 
+or inducement of patent infringement (a ‚ÄúClaim‚Äù), provided that the Software also allegedly 
+infringes the patents asserted in the Claim, then this license, including any patent and other 
+rights granted to you under this license, shall automatically terminate retroactively as of the 
+date you first received the license grant. 
 
-No Warranty.
-THIS SOFTWARE IS PROVIDED BY NOKIA AND ITS AFFILIATES "AS IS" AND ANY EXPRESS OR IMPLIED
-WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NOKIA OR ITS AFFILIATES BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
-BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-
+No Warranty. 
+THIS SOFTWARE IS PROVIDED BY NOKIA AND ITS AFFILIATES "AS IS" AND ANY EXPRESS OR IMPLIED 
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS 
+FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NOKIA OR ITS AFFILIATES BE LIABLE FOR 
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT 
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR 
+BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 

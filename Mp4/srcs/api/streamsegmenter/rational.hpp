@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -59,11 +59,14 @@ namespace StreamSegmenter
 
         Rational<T> minimize() const;
         Rational<T> per1() const;
+        Rational<T> floor() const;
+        Rational<T> ceil() const;
 
         template <typename U>
         U cast() const;
 
         double asDouble() const;
+        T asBase() const;
 
         T num, den;
     };
@@ -126,6 +129,12 @@ namespace StreamSegmenter
     double Rational<T>::asDouble() const
     {
         return double(num) / den;
+    }
+
+    template <typename T>
+    T Rational<T>::asBase() const
+    {
+        return num / den;
     }
 
     template <typename T>
@@ -319,6 +328,32 @@ namespace StreamSegmenter
     Rational<T> Rational<T>::per1() const
     {
         return Rational<T>(den, num);
+    }
+
+    template <typename T>
+    Rational<T> Rational<T>::floor() const
+    {
+        if (num >= 0 || num % den == 0)
+        {
+            return {(num - num % den) / den, 1};
+        }
+        else
+        {
+            return {(num - den - num % den) / den, 1};
+        }
+    }
+
+    template <typename T>
+    Rational<T> Rational<T>::ceil() const
+    {
+        if (num % den == 0 || num < 0)
+        {
+            return {(den + num - (den + num % den)) / den, 1};
+        }
+        else if (num >= 0)
+        {
+            return {(num + (den - num % den)) / den, 1};
+        }
     }
 
     template <typename T>

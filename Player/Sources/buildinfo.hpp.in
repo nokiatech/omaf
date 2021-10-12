@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,11 +18,13 @@
 
 namespace BuildInfo
 {
-	static const char* Version = "@SDK_VERSION@";
-	static const char* Time = NVRSDK_BUILD_TIMESTAMP;
-	static const int VersionMajor = @SDK_VERSION_MAJOR@;
-	static const int VersionMinor = @SDK_VERSION_MINOR@;
-	static const int VersionRevision = @SDK_VERSION_REVISION@;
+    static const char* Version = "@SDK_VERSION@";
+    static const char* Time = NVRSDK_BUILD_TIMESTAMP;
+    static const int VersionMajor = @SDK_VERSION_MAJOR@;
+    static const int VersionMinor = @SDK_VERSION_MINOR@;
+
+    // revision might not have even single number or it might start with 0 creating invalid octals
+    static const int VersionRevision = 1@SDK_VERSION_REVISION@;
 }
 
 #define NVRSDK_BUILD_VERSION "@SDK_VERSION@"

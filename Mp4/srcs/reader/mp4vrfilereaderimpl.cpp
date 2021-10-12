@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,16 +13,28 @@
  * written consent of Nokia.
  */
 #include "mp4vrfilereaderimpl.hpp"
+
+#include <limits.h>
+
+#include <algorithm>
+#include <bitset>
+#include <cassert>
+#include <cstring>
+#include <fstream>
+
 #include "api/reader/mp4vrfiledatatypes.h"
 #include "audiosampleentrybox.hpp"
 #include "avcconfigurationbox.hpp"
 #include "avcdecoderconfigrecord.hpp"
 #include "avcsampleentry.hpp"
+#include "buildinfo.hpp"
 #include "cleanaperturebox.hpp"
 #include "customallocator.hpp"
+#include "dynamicviewpointsampleentrybox.hpp"
 #include "hevcdecoderconfigrecord.hpp"
 #include "hevcsampleentry.hpp"
 #include "initialviewingorientationsampleentry.hpp"
+#include "initialviewpointsampleentrybox.hpp"
 #include "log.hpp"
 #include "mediadatabox.hpp"
 #include "metabox.hpp"
@@ -31,18 +43,11 @@
 #include "moviefragmentbox.hpp"
 #include "mp4audiosampleentrybox.hpp"
 #include "mp4vrfilereaderutil.hpp"
+#include "overlaysampleentrybox.hpp"
 #include "segmentindexbox.hpp"
 #include "segmenttypebox.hpp"
 #include "urimetasampleentrybox.hpp"
-
-#include "buildinfo.hpp"
-
-#include <limits.h>
-#include <algorithm>
-#include <bitset>
-#include <cassert>
-#include <cstring>
-#include <fstream>
+#include "recommendedviewportsampleentry.hpp"
 
 #if defined(__GNUC__) && defined(__DEPRECATED)
 #undef __DEPRECATED
@@ -52,6 +57,54 @@
 namespace MP4VR
 {
     const char* ident = "$Id: MP4VR version " MP4VR_BUILD_VERSION " $";
+
+    namespace
+    {
+
+        ISOBMFF::Optional<ImdaId> getImdaIdFromDataEntries(const Vector<std::shared_ptr<const DataEntryBox>>& aDataEntries,
+                                                           const MovieFragmentBox& aMoofBox)
+        {
+            ISOBMFF::Optional<ImdaId> imdaId;
+            for (auto entry : aDataEntries)
+            {
+                if (auto imda = std::dynamic_pointer_cast<const DataEntryImdaBox>(entry))
+                {
+                    imdaId = {imda->getImdaRefIdentifier()};
+                }
+                else if (auto snim = std::dynamic_pointer_cast<const DataEntrySeqNumImdaBox>(entry))
+                {
+                    imdaId = {ImdaId(aMoofBox.getMovieFragmentHeaderBox().getSequenceNumber())};
+                }
+            }
+
+            return imdaId;
+        }
+
+        ISOBMFF::Optional<ImdaId> getImdaIdFromMoofMeta(const MovieFragmentBox& aMoofBox)
+        {
+            ISOBMFF::Optional<ImdaId> imdaId;
+
+            if (auto metaBox = aMoofBox.getMetaBox())
+            {
+                Vector<std::shared_ptr<const DataEntryBox>> entries =
+                    metaBox->getDataInformationBox().getDataReferenceBox().getDataEntries();
+
+                imdaId = getImdaIdFromDataEntries(entries, aMoofBox);
+            }
+
+            return imdaId;
+        }
+
+        Vector<std::shared_ptr<const DataEntryBox>> getSnimDataEntries(const TrackBox& aTrak)
+        {
+            const MediaBox& mdia                                = aTrak.getMediaBox();
+            const MediaInformationBox& minf                     = mdia.getMediaInformationBox();
+            const DataInformationBox& dinf                      = minf.getDataInformationBox();
+            const DataReferenceBox& dref                        = dinf.getDataReferenceBox();
+            Vector<std::shared_ptr<const DataEntryBox>> entries = dref.getDataEntries();
+            return entries;
+        }
+    }  // namespace
 
     CustomAllocator::CustomAllocator()
     {
@@ -482,6 +535,8 @@ namespace MP4VR
 
         try
         {
+            InitSegmentProperties& initSegmentProperties = mInitSegmentPropertiesMap[initSegmentId];
+
             while (!error && !io.stream->peekEof())
             {
                 String boxType;
@@ -519,7 +574,7 @@ namespace MP4VR
                                 logInfo() << " " << brand << std::endl;
                             }
 
-                            mInitSegmentPropertiesMap[initSegmentId].ftyp = ftyp;
+                            initSegmentProperties.ftyp = ftyp;
                         }
                     }
                     else if (boxType == "sidx")
@@ -534,8 +589,7 @@ namespace MP4VR
                             {
                                 earliestPTSRead = true;
                             }
-                            makeSegmentIndex(sidx, mInitSegmentPropertiesMap[initSegmentId].segmentIndex,
-                                             io.stream->tell());
+                            makeSegmentIndex(sidx, initSegmentProperties.segmentIndex, io.stream->tell());
                         }
                     }
                     else if (boxType == "moov")
@@ -552,12 +606,12 @@ namespace MP4VR
                         {
                             MovieBox moov;
                             moov.parseBox(bitstream);
-                            mInitSegmentPropertiesMap[initSegmentId].moovProperties = extractMoovProperties(moov);
-                            mInitSegmentPropertiesMap[initSegmentId].trackProperties =
-                                fillTrackProperties(initSegmentId, segmentId, moov);
-                            mInitSegmentPropertiesMap[initSegmentId].movieTimeScale =
-                                moov.getMovieHeaderBox().getTimeScale();
-                            mMatrix = moov.getMovieHeaderBox().getMatrix();
+                            initSegmentProperties.moovProperties  = extractMoovProperties(moov);
+                            initSegmentProperties.trackProperties = fillTrackProperties(initSegmentId, segmentId, moov);
+                            initSegmentProperties.trackReferences =
+                                trackGroupsOfTrackProperties(initSegmentProperties.trackProperties);
+                            initSegmentProperties.movieTimeScale = moov.getMovieHeaderBox().getTimeScale();
+                            mMatrix                              = moov.getMovieHeaderBox().getMatrix();
                         }
                     }
                     else if (boxType == "moof")
@@ -565,6 +619,15 @@ namespace MP4VR
                         logWarning() << "Skipping root level 'moof' box - not allowed in Initialization Segment"
                                      << std::endl;
                         error = skipBox(io);
+                    }
+                    else if (boxType == "meta")
+                    {
+                        error = readBox(io, bitstream);
+                        if (!error)
+                        {
+                            initSegmentProperties.meta = MetaBox();
+                            initSegmentProperties.meta->parseBox(bitstream);
+                        }
                     }
                     else if (boxType == "mdat")
                     {
@@ -637,6 +700,32 @@ namespace MP4VR
         return (isInitSegment) ? ErrorCode::OK : ErrorCode::INVALID_SEGMENT;
     }
 
+    int32_t MP4VRFileReaderImpl::iterateBoxes(
+        SegmentIO& aIo,
+        std::function<ISOBMFF::Optional<int32_t>(String boxType, BitStream& bitstream)> aHandler)
+    {
+        int32_t iterateError = ErrorCode::OK;
+        while (!iterateError && !aIo.stream->peekEof())
+        {
+            String boxType;
+            std::int64_t boxSize = 0;
+            BitStream bitstream;
+            iterateError = readBoxParameters(aIo, boxType, boxSize);
+            if (!iterateError)
+            {
+                if (auto handlerError = aHandler(boxType, bitstream))
+                {
+                    iterateError = *handlerError;
+                }
+                else
+                {
+                    iterateError = skipBox(aIo);
+                }
+            }
+        }
+        return iterateError;
+    }
+
     int32_t MP4VRFileReaderImpl::parseSegment(StreamInterface* streamInterface,
                                               uint32_t initSegmentId,
                                               uint32_t segmentId,
@@ -677,18 +766,25 @@ namespace MP4VR
         int32_t error = ErrorCode::OK;
         try
         {
-            while (!error && !io.stream->peekEof())
-            {
-                String boxType;
-                std::int64_t boxSize = 0;
-                BitStream bitstream;
-                error = readBoxParameters(io, boxType, boxSize);
-                if (!error)
+            auto initialOffset = io.stream->tell();
+            error = iterateBoxes(io, [&](String boxType, BitStream& /* bitstream */) {
+                ISOBMFF::Optional<int32_t> iterateError;
+                if (boxType == "imda")
                 {
+                    iterateError = parseImda(segmentProperties);
+                }
+                return iterateError;
+            });
+            if (error == ErrorCode::OK)
+            {
+                io.stream->clear();
+                io.stream->seek(initialOffset);
+                error = iterateBoxes(io, [&](String boxType, BitStream& bitstream) {
+                    ISOBMFF::Optional<int32_t> iterateError;
                     if (boxType == "styp")
                     {
-                        error = readBox(io, bitstream);
-                        if (!error)
+                        iterateError = readBox(io, bitstream);
+                        if (!*iterateError)
                         {
                             SegmentTypeBox styp;
                             styp.parseBox(bitstream);
@@ -703,8 +799,8 @@ namespace MP4VR
                     }
                     else if (boxType == "sidx")
                     {
-                        error = readBox(io, bitstream);
-                        if (!error)
+                        iterateError = readBox(io, bitstream);
+                        if (!*iterateError)
                         {
                             SegmentIndexBox sidx;
                             sidx.parseBox(bitstream);
@@ -727,8 +823,8 @@ namespace MP4VR
                         // we need to save moof start byte for possible trun dataoffset depending on its flags.
                         const StreamInterface::offset_t moofFirstByte = io.stream->tell();
 
-                        error = readBox(io, bitstream);
-                        if (!error)
+                        iterateError = readBox(io, bitstream);
+                        if (!*iterateError)
                         {
                             MovieFragmentBox moof(
                                 mInitSegmentPropertiesMap.at(initSegmentId).moovProperties.fragmentSampleDefaults);
@@ -772,14 +868,17 @@ namespace MP4VR
                     else if (boxType == "mdat")
                     {
                         // skip mdat as its handled elsewhere
-                        error = skipBox(io);
+                    }
+                    else if (boxType == "imda")
+                    {
+                        // handled already
                     }
                     else
                     {
                         logWarning() << "Skipping root level box of unknown type '" << boxType << "'" << std::endl;
-                        error = skipBox(io);
                     }
-                }
+                    return iterateError;
+                });
             }
         }
         catch (Exception& exc)
@@ -816,6 +915,47 @@ namespace MP4VR
             invalidateSegment(initSegmentId, segmentId);
         }
         return error;
+    }
+
+    int32_t MP4VRFileReaderImpl::parseImda(SegmentProperties& aSegmentProperties)
+    {
+        SegmentIO& io = aSegmentProperties.io;
+        const std::int64_t startLocation = io.stream->tell();
+
+        std::int64_t boxSize;
+        int32_t error = readBytes(io, 4, boxSize);
+        if (error)
+        {
+            return error;
+        }
+
+        String boxTypeStr(4, 0);
+        io.stream->read(&boxTypeStr[0], StreamInterface::offset_t(boxTypeStr.size()));
+        if (!io.stream->good())
+        {
+            return MP4VRFileReaderInterface::FILE_READ_ERROR;
+        }
+
+        // ensured by the called of parseImda
+        assert(FourCCInt(boxTypeStr) == FourCCInt("imda"));
+
+        std::int64_t imda;
+        error = readBytes(io, 4, imda);
+        if (error)
+        {
+            return error;
+        }
+
+        if (aSegmentProperties.imda.count(imda))
+        {
+            return ErrorCode::INVALID_SEGMENT;
+        }
+        aSegmentProperties.imda[imda] = ImdaInfo{startLocation + 4 + 4 + 4, startLocation + boxSize};
+
+        // skip the rest
+        seekInput(io, startLocation + boxSize);
+
+        return MP4VRFileReaderInterface::OK;
     }
 
     int32_t MP4VRFileReaderImpl::invalidateSegment(uint32_t initSegmentId, uint32_t segmentId)
@@ -1008,144 +1148,152 @@ namespace MP4VR
             error = ErrorCode::FILE_HEADER_ERROR;
         }
 
-        while (!error && !io.stream->peekEof())
-        {
-            String boxType;
-            std::int64_t boxSize = 0;
-            BitStream bitstream;
-            error = readBoxParameters(io, boxType, boxSize);
-            if (!error)
+        error = iterateBoxes(io, [&](String boxType, BitStream& bitstream) {
+            ISOBMFF::Optional<int32_t> iterateError;
+            if (boxType == "ftyp")
             {
-                if (boxType == "ftyp")
+                if (ftypFound == true)
                 {
-                    if (ftypFound == true)
+                    return ISOBMFF::Optional<int32_t>(ErrorCode::FILE_READ_ERROR);
+                }
+                ftypFound = true;
+
+                iterateError = readBox(io, bitstream);
+                if (!*iterateError)
+                {
+                    FileTypeBox ftyp;
+                    ftyp.parseBox(bitstream);
+
+                    // Check supported brands
+                    Set<String> supportedBrands;
+
+                    if (ftyp.checkCompatibleBrand("nvr1"))
                     {
-                        return ErrorCode::FILE_READ_ERROR;
+                        supportedBrands.insert("[nvr1] ");
                     }
-                    ftypFound = true;
 
-                    error = readBox(io, bitstream);
-                    if (!error)
+                    logInfo() << "Compatible brands found:" << std::endl;
+                    for (auto brand : supportedBrands)
                     {
-                        FileTypeBox ftyp;
-                        ftyp.parseBox(bitstream);
+                        logInfo() << " " << brand << std::endl;
+                    }
 
-                        // Check supported brands
-                        Set<String> supportedBrands;
+                    mInitSegmentPropertiesMap[initSegmentId].ftyp = ftyp;
+                }
+            }
+            else if (boxType == "styp")
+            {
+                iterateError = readBox(io, bitstream);
+                if (!*iterateError)
+                {
+                    SegmentTypeBox styp;
+                    styp.parseBox(bitstream);
 
-                        if (ftyp.checkCompatibleBrand("nvr1"))
-                        {
-                            supportedBrands.insert("[nvr1] ");
-                        }
+                    // Check supported brands
+                    Set<String> supportedBrands;
 
-                        logInfo() << "Compatible brands found:" << std::endl;
-                        for (auto brand : supportedBrands)
-                        {
-                            logInfo() << " " << brand << std::endl;
-                        }
-
-                        mInitSegmentPropertiesMap[initSegmentId].ftyp = ftyp;
+                    logInfo() << "Compatible brands found:" << std::endl;
+                    for (auto brand : supportedBrands)
+                    {
+                        logInfo() << " " << brand << std::endl;
                     }
                 }
-                else if (boxType == "styp")
+            }
+            else if (boxType == "sidx")
+            {
+                iterateError = readBox(io, bitstream);
+                if (!*iterateError)
                 {
-                    error = readBox(io, bitstream);
-                    if (!error)
+                    SegmentIndexBox sidx;
+                    sidx.parseBox(bitstream);
+                }
+            }
+            else if (boxType == "moov")
+            {
+                if (moovFound == true)
+                {
+                    return ISOBMFF::Optional<int32_t>(ErrorCode::FILE_READ_ERROR);
+                }
+                moovFound = true;
+
+                iterateError = readBox(io, bitstream);
+                if (!*iterateError)
+                {
+                    MovieBox moov;
+                    moov.parseBox(bitstream);
+                    mInitSegmentPropertiesMap[initSegmentId].moovProperties = extractMoovProperties(moov);
+                    mInitSegmentPropertiesMap[initSegmentId].trackProperties =
+                        fillTrackProperties(initSegmentId, segmentId, moov);
+                    mInitSegmentPropertiesMap[initSegmentId].trackReferences =
+                        trackGroupsOfTrackProperties(mInitSegmentPropertiesMap[initSegmentId].trackProperties);
+                    mInitSegmentPropertiesMap[initSegmentId].movieTimeScale = moov.getMovieHeaderBox().getTimeScale();
+                    addSegmentSequence(initSegmentId, segmentId, 0);
+                    mMatrix = moov.getMovieHeaderBox().getMatrix();
+                }
+            }
+            else if (boxType == "moof")
+            {
+                // we need to save moof start byte for possible trun dataoffset depending on its flags.
+                const StreamInterface::offset_t moofFirstByte = io.stream->tell();
+
+                iterateError = readBox(io, bitstream);
+                if (!*iterateError)
+                {
+                    MovieFragmentBox moof(
+                        mInitSegmentPropertiesMap.at(initSegmentId).moovProperties.fragmentSampleDefaults);
+                    moof.setMoofFirstByteOffset(static_cast<uint64_t>(moofFirstByte));
+                    moof.parseBox(bitstream);
+
+                    ContextIdPresentationTimeTSMap earliestPTSTSForTrack;
+                    addToTrackProperties(initSegmentId, segmentId, moof, earliestPTSTSForTrack);
+
+                    // Check sample dataoffsets against fragment data size
+                    SegmentProperties& segmentProperties =
+                        mInitSegmentPropertiesMap[initSegmentId].segmentPropertiesMap[segmentId];
+                    for (auto& trackFragmentBox : moof.getTrackFragmentBoxes())
                     {
-                        SegmentTypeBox styp;
-                        styp.parseBox(bitstream);
+                        auto trackId         = ContextId(trackFragmentBox->getTrackFragmentHeaderBox().getTrackId());
+                        TrackInfo& trackInfo = segmentProperties.trackInfos[trackId];
 
-                        // Check supported brands
-                        Set<String> supportedBrands;
-
-                        logInfo() << "Compatible brands found:" << std::endl;
-                        for (auto brand : supportedBrands)
+                        if (trackInfo.samples.size())
                         {
-                            logInfo() << " " << brand << std::endl;
-                        }
-                    }
-                }
-                else if (boxType == "sidx")
-                {
-                    error = readBox(io, bitstream);
-                    if (!error)
-                    {
-                        SegmentIndexBox sidx;
-                        sidx.parseBox(bitstream);
-                    }
-                }
-                else if (boxType == "moov")
-                {
-                    if (moovFound == true)
-                    {
-                        return ErrorCode::FILE_READ_ERROR;
-                    }
-                    moovFound = true;
-
-                    error = readBox(io, bitstream);
-                    if (!error)
-                    {
-                        MovieBox moov;
-                        moov.parseBox(bitstream);
-                        mInitSegmentPropertiesMap[initSegmentId].moovProperties = extractMoovProperties(moov);
-                        mInitSegmentPropertiesMap[initSegmentId].trackProperties =
-                            fillTrackProperties(initSegmentId, segmentId, moov);
-                        mInitSegmentPropertiesMap[initSegmentId].movieTimeScale =
-                            moov.getMovieHeaderBox().getTimeScale();
-                        addSegmentSequence(initSegmentId, segmentId, 0);
-                        mMatrix = moov.getMovieHeaderBox().getMatrix();
-                    }
-                }
-                else if (boxType == "moof")
-                {
-                    // we need to save moof start byte for possible trun dataoffset depending on its flags.
-                    const StreamInterface::offset_t moofFirstByte = io.stream->tell();
-
-                    error = readBox(io, bitstream);
-                    if (!error)
-                    {
-                        MovieFragmentBox moof(
-                            mInitSegmentPropertiesMap.at(initSegmentId).moovProperties.fragmentSampleDefaults);
-                        moof.setMoofFirstByteOffset(static_cast<uint64_t>(moofFirstByte));
-                        moof.parseBox(bitstream);
-
-                        ContextIdPresentationTimeTSMap earliestPTSTSForTrack;
-                        addToTrackProperties(initSegmentId, segmentId, moof, earliestPTSTSForTrack);
-
-                        // Check sample dataoffsets against fragment data size
-                        SegmentProperties& segmentProperties =
-                            mInitSegmentPropertiesMap[initSegmentId].segmentPropertiesMap[segmentId];
-                        for (auto& trackFragmentBox : moof.getTrackFragmentBoxes())
-                        {
-                            auto trackId = ContextId(trackFragmentBox->getTrackFragmentHeaderBox().getTrackId());
-                            TrackInfo& trackInfo = segmentProperties.trackInfos[trackId];
-
-                            if (trackInfo.samples.size())
+                            auto& sample = *trackInfo.samples.rbegin();
+                            // ignore missing data for samples
+                            if (sample.dataOffset)
                             {
-                                int64_t sampleDataEndOffset = static_cast<int64_t>(
-                                    trackInfo.samples.rbegin()->dataOffset + trackInfo.samples.rbegin()->dataLength);
+                                int64_t sampleDataEndOffset =
+                                    static_cast<int64_t>(*sample.dataOffset + sample.dataLength);
                                 if (sampleDataEndOffset > io.size || sampleDataEndOffset < 0)
                                 {
                                     throw RuntimeError(
-                                        "MP4VRFileReaderImpl::readStream sample data offset outside of movie fragment "
+                                        "MP4VRFileReaderImpl::readStream sample data offset outside of movie "
+                                        "fragment "
                                         "data");
                                 }
                             }
                         }
                     }
                 }
-                else if (boxType == "mdat")
+            }
+            else if (boxType == "meta")
+            {
+                iterateError = readBox(io, bitstream);
+                if (!*iterateError)
                 {
-                    // skip mdat as its handled elsewhere
-                    error = skipBox(io);
-                }
-                else
-                {
-                    logWarning() << "Skipping root level box of unknown type '" << boxType << "'" << std::endl;
-                    error = skipBox(io);
+                    mInitSegmentPropertiesMap[initSegmentId].meta = MetaBox();
+                    mInitSegmentPropertiesMap[initSegmentId].meta->parseBox(bitstream);
                 }
             }
-        }
+            else if (boxType == "mdat")
+            {
+                // skip mdat as its handled elsewhere
+            }
+            else
+            {
+                logWarning() << "Skipping root level box of unknown type '" << boxType << "'" << std::endl;
+            }
+            return iterateError;
+        });
 
         if (!error && (!ftypFound || !moovFound))
         {
@@ -1592,6 +1740,45 @@ namespace MP4VR
         sequenceToSegment.insert(std::make_pair(sequence, segmentId));
     }
 
+    FourCCTrackReferenceInfoMap
+    MP4VRFileReaderImpl::trackGroupsOfTrackProperties(const TrackPropertiesMap& aTrackProperties) const
+    {
+        FourCCTrackReferenceInfoMap trgrMap;
+
+        for (const auto& trackIdProperties : aTrackProperties)
+        {
+            ContextId refTrackId                   = trackIdProperties.first;
+            const TrackProperties& trackProperties = trackIdProperties.second;
+
+            // why dereference trgrMap so often? if we created the element up-front, we'd end up with empty track group
+            // data structures
+
+            auto scalIt = trackProperties.referenceTrackIds.find("scal");
+            if (scalIt != trackProperties.referenceTrackIds.end())
+            {
+                const ContextIdVector& scal = scalIt->second;
+                for (ContextId reference : scal)
+                {
+                    // problem? Maybe we could use solely this information to find the tracks.
+                    TrackReferenceInfo& info = trgrMap["alte"][reference];
+                    info.extractorTrackIds.insert(refTrackId);
+                }
+            }
+
+            for (const auto& fourCCTrackGroupInfo : trackProperties.trackGroupInfoMap)
+            {
+                FourCCInt fourcc           = fourCCTrackGroupInfo.first;
+                const TrackGroupInfo& info = fourCCTrackGroupInfo.second;
+                for (std::uint32_t id : info.ids)
+                {
+                    trgrMap[fourcc][ContextId(id)].trackIds.insert(refTrackId);
+                }
+            }
+        }
+
+        return trgrMap;
+    }
+
     TrackPropertiesMap MP4VRFileReaderImpl::fillTrackProperties(InitSegmentId initSegmentId,
                                                                 SegmentId segmentId,
                                                                 MovieBox& moovBox)
@@ -1612,7 +1799,9 @@ namespace MP4VR
                 initTrackInfo.sampleEntryType == "hvc2" || initTrackInfo.sampleEntryType == "avc1" ||
                 initTrackInfo.sampleEntryType == "avc3" || initTrackInfo.sampleEntryType == "mp4a" ||
                 initTrackInfo.sampleEntryType == "urim" || initTrackInfo.sampleEntryType == "mp4v" ||
-                initTrackInfo.sampleEntryType == "invo")
+                initTrackInfo.sampleEntryType == "invo" || initTrackInfo.sampleEntryType == "dyol" ||
+                initTrackInfo.sampleEntryType == "dyvp" || initTrackInfo.sampleEntryType == "invp" ||
+                initTrackInfo.sampleEntryType == "rcvp")
             {
                 ContextId contextId               = ContextId(trackBox->getTrackHeaderBox().getTrackID());
                 InitSegmentTrackId initSegTrackId = std::make_pair(initSegmentId, contextId);
@@ -1635,9 +1824,10 @@ namespace MP4VR
 
                 trackProperties.trackFeature      = getTrackFeatures(trackBox);
                 trackProperties.referenceTrackIds = getReferenceTrackIds(trackBox);
-                trackProperties.trackGroupIds     = getTrackGroupIds(trackBox);
+                trackProperties.trackGroupInfoMap = getTrackGroupInfoMap(trackBox);
                 trackProperties.alternateTrackIds = getAlternateTrackIds(trackBox, moovBox);
                 trackProperties.alternateGroupId  = trackBox->getTrackHeaderBox().getAlternateGroup();
+                trackProperties.dataEntries       = getSnimDataEntries(*trackBox);
                 if (trackBox->getEditBox().get() && trackBox->getEditBox()->getEditListBox())
                 {
                     trackProperties.editBox = trackBox->getEditBox();
@@ -1649,13 +1839,15 @@ namespace MP4VR
 
                 trackPropertiesMap.insert(std::make_pair(initSegTrackId.second, std::move(trackProperties)));
             }
+            else
+            {
+                // otherwise later on we assume initTrackInfo field for this track exists when it in actuality doesn't.
+            }
         }
 
         // Some TrackFeatures are easiest to set after first round of properties have already been filled.
         for (auto& trackProperties : trackPropertiesMap)
         {
-            InitSegmentTrackId initSegTrackId = std::make_pair(initSegmentId, trackProperties.first);
-
             if (trackProperties.second.trackFeature.hasFeature(TrackFeatureEnum::Feature::IsVideoTrack))
             {
                 for (auto& associatedTrack : trackProperties.second.referenceTrackIds["vdep"])
@@ -1732,13 +1924,35 @@ namespace MP4VR
         addSegmentSequence(initSegmentId, segmentId, mNextSequence);
         mNextSequence = mNextSequence.get() + 1;
 
-        std::uint64_t trackFragmentSampleDataOffset = 0;
-        bool firstTrackFragment                     = true;
+        ISOBMFF::Optional<std::uint64_t> trackFragmentSampleDataOffset = 0;
+        bool firstTrackFragment                                        = true;
+        ISOBMFF::Optional<ImdaId> metaImda                             = getImdaIdFromMoofMeta(moofBox);
 
         Vector<TrackFragmentBox*> trackFragmentBoxes = moofBox.getTrackFragmentBoxes();
         for (auto& trackFragmentBox : trackFragmentBoxes)
         {
             auto trackId = ContextId(trackFragmentBox->getTrackFragmentHeaderBox().getTrackId());
+
+            // maybe it's possible trackInfos gets updates in this loop, so we cannot use a direct pointer
+            ISOBMFF::Optional<ContextId> baseTrackId;
+
+            // wow
+            if (initSegmentProperties.trackProperties.at(trackId).trackGroupInfoMap.count("alte") &&
+                initSegmentProperties.trackProperties.at(trackId).trackGroupInfoMap.at("alte").ids.size())
+            {
+                ContextId trackGroup = ContextId(
+                    initSegmentProperties.trackProperties.at(trackId).trackGroupInfoMap.at("alte").ids.front());
+                if (initSegmentProperties.trackReferences.count("alte") &&
+                    initSegmentProperties.trackReferences.at("alte").count(trackGroup) &&
+                    initSegmentProperties.trackReferences.at("alte").at(trackGroup).extractorTrackIds.size())
+                {
+                    // for this purpose (item id base definition) it doesn't matter which track we choose
+                    baseTrackId =
+                        *initSegmentProperties.trackReferences.at("alte").at(trackGroup).extractorTrackIds.begin();
+                    // maybe the track doesn't exist? then it's uncleanly caught by a later .at using the track
+                }
+            }
+
             SegmentId precedingSegmentId;
             // item id base in case of adding multiple subsegments?!
             TrackInfo& trackInfo      = segmentProperties.trackInfos[trackId];
@@ -1761,21 +1975,37 @@ namespace MP4VR
                 }
             }
             ItemId segmentItemIdBase =
-                hasSamples ? trackInfo.itemIdBase
-                           : getPrecedingItemId(initSegmentId, SegmentTrackId(segmentId, ContextId(trackId)));
+                baseTrackId && segmentProperties.trackInfos.count(*baseTrackId) // HACK. why doesn't baseTrackId exist?
+                    ? segmentProperties.trackInfos.at(*baseTrackId).itemIdBase
+                    : hasSamples ? trackInfo.itemIdBase
+                                 : getPrecedingItemId(initSegmentId, SegmentTrackId(segmentId, ContextId(trackId)));
             InitSegmentTrackId initSegTrackId  = std::make_pair(initSegmentId, trackId);
             const InitTrackInfo& initTrackInfo = getInitTrackInfo(initSegTrackId);
             uint32_t sampleDescriptionIndex = trackFragmentBox->getTrackFragmentHeaderBox().getSampleDescriptionIndex();
 
             Vector<TrackRunBox*> trackRunBoxes = trackFragmentBox->getTrackRunBoxes();
-            for (const auto trackRunBox : trackRunBoxes)
+            ISOBMFF::Optional<ImdaId> mdiaImda = getImdaIdFromDataEntries(initSegmentProperties.trackProperties.at(trackId).dataEntries, moofBox);
+            ISOBMFF::Optional<ImdaId> imda = mdiaImda ? mdiaImda : metaImda ? metaImda : ISOBMFF::Optional<ImdaId>{};
+            for (const TrackRunBox* trackRunBox : trackRunBoxes)
             {
                 ItemId trackrunItemIdBase =
                     trackInfo.samples.size() > 0 ? trackInfo.samples.back().sampleId + 1 : segmentItemIdBase;
                 // figure out what is the base data offset for the samples in this trun box:
-                std::uint64_t baseDataOffset = 0;
-                if ((trackFragmentBox->getTrackFragmentHeaderBox().getFlags() &
-                     TrackFragmentHeaderBox::BaseDataOffsetPresent) != 0)
+                Optional<std::uint64_t> baseDataOffset = {0};
+                if (imda)
+                {
+                    if (segmentProperties.imda.count(*imda))
+                    {
+                        const ImdaInfo& imdaInfo = segmentProperties.imda.at(*imda);
+                        baseDataOffset           = std::uint64_t(imdaInfo.begin);
+                    }
+                    else
+                    {
+                        baseDataOffset = {};
+                    }
+                }
+                else if ((trackFragmentBox->getTrackFragmentHeaderBox().getFlags() &
+                          TrackFragmentHeaderBox::BaseDataOffsetPresent) != 0)
                 {
                     baseDataOffset = trackFragmentBox->getTrackFragmentHeaderBox().getBaseDataOffset();
                 }
@@ -1796,9 +2026,9 @@ namespace MP4VR
                         baseDataOffset = trackFragmentSampleDataOffset;
                     }
                 }
-                if ((trackRunBox->getFlags() & TrackRunBox::DataOffsetPresent) != 0)
+                if ((trackRunBox->getFlags() & TrackRunBox::DataOffsetPresent) != 0 && baseDataOffset)
                 {
-                    baseDataOffset += std::uint32_t(trackRunBox->getDataOffset());
+                    *baseDataOffset += std::uint32_t(trackRunBox->getDataOffset());
                 }
 
                 // @note: if we need to support more than one trun for track we need to calculate last sample PTS +
@@ -1821,8 +2051,16 @@ namespace MP4VR
             {
                 // update sample data offset in case it is needed to read next track fragment data offsets (base offset
                 // not defined)
-                trackFragmentSampleDataOffset =
-                    trackInfo.samples.rbegin()->dataOffset + trackInfo.samples.rbegin()->dataLength;
+                auto& sample = *trackInfo.samples.rbegin();
+                if (sample.dataOffset && trackFragmentSampleDataOffset)
+                {
+                    *trackFragmentSampleDataOffset =
+                        *sample.dataOffset + sample.dataLength;
+                }
+                else
+                {
+                    trackFragmentSampleDataOffset = {};
+                }
             }
             firstTrackFragment = false;
         }
@@ -1832,7 +2070,7 @@ namespace MP4VR
                                                     const InitSegmentProperties& initSegmentProperties,
                                                     const InitTrackInfo& initTrackInfo,
                                                     const TrackProperties& trackProperties,
-                                                    const std::uint64_t baseDataOffset,
+                                                    const ISOBMFF::Optional<std::uint64_t> baseDataOffset,
                                                     const uint32_t sampleDescriptionIndex,
                                                     ItemId itemIdBase,
                                                     ItemId trackrunItemIdBase,
@@ -1867,7 +2105,7 @@ namespace MP4VR
         }
 
         std::int64_t durationTS        = 0;
-        std::uint64_t sampleDataOffset = baseDataOffset;
+        auto sampleDataOffset = baseDataOffset;
         for (std::uint32_t sampleIndex = 0; sampleIndex < sampleCount; ++sampleIndex)
         {
             SampleInfo sampleInfo{};
@@ -1877,7 +2115,10 @@ namespace MP4VR
             // sampleInfo.compositionTimes is filled at end of segment parsing (in ::parseSegment)
             sampleInfo.dataOffset = sampleDataOffset;
             sampleInfo.dataLength = samples.at(sampleIndex).version0.sampleSize;
-            sampleDataOffset += sampleInfo.dataLength;
+            if (sampleDataOffset)
+            {
+                *sampleDataOffset += sampleInfo.dataLength;
+            }
             if (initTrackInfo.sampleSizeInPixels.count(sampleDescriptionIndex))
             {
                 sampleInfo.width  = initTrackInfo.sampleSizeInPixels.at(sampleDescriptionIndex).width;
@@ -2051,23 +2292,25 @@ namespace MP4VR
         return trackReferenceMap;
     }
 
-    TypeToIdsMap MP4VRFileReaderImpl::getTrackGroupIds(TrackBox* trackBox) const
+    TrackGroupInfoMap MP4VRFileReaderImpl::getTrackGroupInfoMap(TrackBox* trackBox) const
     {
-        Map<FourCCInt, IdVector> trackGroupMap;
+        TrackGroupInfoMap trackGroupInfoMap;
 
         if (trackBox->getHasTrackGroup())
         {
-            const Vector<TrackGroupTypeBox>& trackGroupTypeBoxes =
-                trackBox->getTrackGroupBox().getTrackGroupTypeBoxes();
+            const auto& trackGroupTypeBoxes = trackBox->getTrackGroupBox().getTrackGroupTypeBoxes();
             for (unsigned int i = 0; i < trackGroupTypeBoxes.size(); i++)
             {
                 IdVector trackGroupID;
-                trackGroupID.push_back(trackGroupTypeBoxes.at(i).getTrackGroupId());
-                trackGroupMap[trackGroupTypeBoxes.at(i).getType()] = trackGroupID;
+                const TrackGroupTypeBox& box = trackGroupTypeBoxes.at(i);
+                trackGroupID.push_back(box.getTrackGroupId());
+                TrackGroupInfo trackGroupInfo{};
+                trackGroupInfo.ids = trackGroupID;
+                trackGroupInfoMap[box.getType()] = trackGroupInfo;
             }
         }
 
-        return trackGroupMap;
+        return trackGroupInfoMap;
     }
 
     TypeToIdsMap MP4VRFileReaderImpl::getSampleGroupIds(TrackBox* trackBox) const
@@ -2222,9 +2465,13 @@ namespace MP4VR
                 sampleInfo.dataOffset = chunkOffsets.at(chunkIndex - 1);
                 previousChunkIndex    = chunkIndex;
             }
+            else if (auto offset = sampleInfoVector.back().dataOffset)
+            {
+                sampleInfo.dataOffset = *offset + sampleInfoVector.back().dataLength;
+            }
             else
             {
-                sampleInfo.dataOffset = sampleInfoVector.back().dataOffset + sampleInfoVector.back().dataLength;
+                sampleInfo.dataOffset = {};
             }
 
             sampleInfo.sampleDuration = sampleDeltas.at(sampleIndex);
@@ -2312,6 +2559,25 @@ namespace MP4VR
         return moovProperties;
     }
 
+    template <typename SampleEntryBox, typename GetPropertyMap>
+    void MP4VRFileReaderImpl::fillSampleProperties(
+        InitSegmentTrackId initSegTrackId,
+        const SampleDescriptionBox& stsdBox,
+        GetPropertyMap getPropertyMap)
+    {
+        const Vector<SampleEntryBox*> sampleEntries = stsdBox.getSampleEntries<SampleEntryBox>();
+        unsigned int index                          = 1;
+
+        // There is 3 level of inheritance in overlay configuration, so some better API could be good to have
+        // currently if one queries first for video track, then for metadata track and in the end read metadata
+        // sample for certain time, client will be able to eventually resolve overlay paramters...
+        for (auto& entry : sampleEntries)
+        {
+            getPropertyMap(getInitTrackInfo(initSegTrackId)).insert(std::make_pair(index, entry->getSampleEntry()));
+            ++index;
+        }
+    }
+
     void MP4VRFileReaderImpl::fillSampleEntryMap(TrackBox* trackBox, InitSegmentId initSegmentId)
     {
         InitSegmentTrackId initSegTrackId =
@@ -2364,7 +2630,7 @@ namespace MP4VR
                             std::make_pair(index, makeSphericalVideoV1Property(trackBox->getSphericalVideoV1Box())));
                 }
 
-                fillRinfBoxInfoForSampleEntry(getInitTrackInfo(initSegTrackId), index, *entry);
+                fillAdditionalBoxInfoForSampleEntry(getInitTrackInfo(initSegTrackId), index, *entry);
                 getInitTrackInfo(initSegTrackId)
                     .nalLengthSizeMinus1.insert(std::make_pair(
                         index, entry->getHevcConfigurationBox().getConfiguration().getLengthSizeMinus1()));
@@ -2414,7 +2680,7 @@ namespace MP4VR
                             std::make_pair(index, makeSphericalVideoV1Property(trackBox->getSphericalVideoV1Box())));
                 }
 
-                fillRinfBoxInfoForSampleEntry(getInitTrackInfo(initSegTrackId), index, *entry);
+                fillAdditionalBoxInfoForSampleEntry(getInitTrackInfo(initSegTrackId), index, *entry);
                 getInitTrackInfo(initSegTrackId)
                     .nalLengthSizeMinus1.insert(std::make_pair(
                         index, entry->getAvcConfigurationBox().getConfiguration().getLengthSizeMinus1()));
@@ -2445,12 +2711,61 @@ namespace MP4VR
                 ++index;
             }
         }
+
+        // Process directly written OverlaySampleEntries 'dyol' metadata sample entry (also read from povd for video
+        // tracks)
+        {
+            const Vector<OverlaySampleEntryBox*> sampleEntries = stsdBox.getSampleEntries<OverlaySampleEntryBox>();
+            unsigned int index                                 = 1;
+
+            // There is 3 level of inheritance in overlay configuration, so some better API could be good to have
+            // currently if one queries first for video track, then for metadata track and in the end read metadata
+            // sample for certain time, client will be able to eventually resolve overlay paramters...
+            for (auto& entry : sampleEntries)
+            {
+                auto& ovly = entry->getOverlayConfig();
+                OverlayConfigProperty ovlyProp;
+                ovlyProp.readFromCommon(ovly.getOverlayStruct());
+                getInitTrackInfo(initSegTrackId).ovlyProperties.insert(std::make_pair(index, ovlyProp));
+                ++index;
+            }
+        }
+
+        fillSampleProperties<DynamicViewpointSampleEntryBox>(initSegTrackId, stsdBox,
+                                                             [](InitTrackInfo& i) { return i.dyvpProperties; });
+
+        fillSampleProperties<InitialViewpointSampleEntryBox>(initSegTrackId, stsdBox,
+                                                             [](InitTrackInfo& i) { return i.invpProperties; });
+
+        {
+            const auto sampleEntries = stsdBox.getSampleEntries<RecommendedViewportSampleEntryBox>();
+            unsigned int index       = 1;
+
+            for (auto& entry : sampleEntries)
+            {
+                RecommendedViewportProperty property {};
+                property.recommendedViewportInfo = entry->getRecommendedViewportInfo().get();
+                property.sphereRegionConfig = entry->getSphereRegionConfig().get();
+                getInitTrackInfo(initSegTrackId).rcvpProperties.insert(std::make_pair(index, property));
+                ++index;
+            }
+        }
     }
 
-    void MP4VRFileReaderImpl::fillRinfBoxInfoForSampleEntry(InitTrackInfo& trackInfo,
-                                                            unsigned int index,
-                                                            const SampleEntryBox& entry)
+    void MP4VRFileReaderImpl::fillAdditionalBoxInfoForSampleEntry(InitTrackInfo& trackInfo,
+                                                                  unsigned int index,
+                                                                  const SampleEntryBox& entry)
     {
+        auto& visualEntry = dynamic_cast<const VisualSampleEntryBox&>(entry);
+        if (visualEntry.getOverlayConfigBox())
+        {
+            auto ovly = visualEntry.getOverlayConfigBox();
+            OverlayConfigProperty ovlyProp;
+            ovlyProp.readFromCommon(ovly->getOverlayStruct());
+
+            trackInfo.ovlyProperties.insert(std::make_pair(index, ovlyProp));
+        }
+
         auto rinfBox = entry.getRestrictedSchemeInfoBox();
         if (rinfBox)
         {
@@ -2477,12 +2792,22 @@ namespace MP4VR
                 {
                     auto rotation = povdBox.getRotationBox().getRotation();
                     trackInfo.rotnProperties.insert(
-                        std::make_pair(index, Rotation{rotation.yaw, rotation.pitch, rotation.roll}));
+                        std::make_pair(index, RotationProperty{rotation.yaw, rotation.pitch, rotation.roll}));
                 }
                 else
                 {
                     // default rotation if box not present
-                    trackInfo.rotnProperties.insert(std::make_pair(index, Rotation{0, 0, 0}));
+                    trackInfo.rotnProperties.insert(std::make_pair(index, RotationProperty{0, 0, 0}));
+                }
+
+                if (povdBox.hasOverlayConfigBox())
+                {
+                    auto& ovly = povdBox.getOverlayConfigBox();
+
+                    OverlayConfigProperty ovlyProp;
+                    ovlyProp.readFromCommon(ovly.getOverlayStruct());
+
+                    trackInfo.ovlyProperties.insert(std::make_pair(index, ovlyProp));
                 }
             }
 
@@ -2614,7 +2939,7 @@ namespace MP4VR
     uint64_t MP4VRFileReaderImpl::readNalLength(char* buffer) const
     {
         uint64_t refNalLength = 0;
-        size_t i = 0;
+        size_t i              = 0;
         refNalLength |= ((uint32_t)((uint8_t)(buffer[i++]))) << 24;
         refNalLength |= (((uint32_t)((uint8_t)(buffer[i++]))) << 16) & 0x00ff0000;
         refNalLength |= (((uint32_t)((uint8_t)(buffer[i++]))) << 8) & 0x0000ff00;
@@ -2624,9 +2949,9 @@ namespace MP4VR
 
     void MP4VRFileReaderImpl::writeNalLength(uint64_t length, char* buffer) const
     {
-        buffer[0] = (char)((0xff000000 & length) >> 24);
-        buffer[1] = (char)((0x00ff0000 & length) >> 16);
-        buffer[2] = (char)((0x0000ff00 & length) >> 8);
-        buffer[3] = (char)((uint8_t)length);
+        buffer[0] = (char) ((0xff000000 & length) >> 24);
+        buffer[1] = (char) ((0x00ff0000 & length) >> 16);
+        buffer[2] = (char) ((0x0000ff00 & length) >> 8);
+        buffer[3] = (char) ((uint8_t) length);
     }
 }  // namespace MP4VR

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,10 +18,10 @@ OMAF_NS_BEGIN
 OMAF_LOG_ZONE(PerformanceLogger)
 #if OMAF_ENABLE_PERFORMANCE_LOGGING
 PerformanceLogger::PerformanceLogger(const char_t* logName, uint32_t minFilterMS, bool_t startOnCreate)
-: mName(logName)
-, mMinFilterMS(minFilterMS)
-, mStartTimeInMS(OMAF_UINT32_MAX)
-, mLastIntervalTimeMS(0)
+    : mName(logName)
+    , mMinFilterMS(minFilterMS)
+    , mStartTimeInMS(OMAF_UINT32_MAX)
+    , mLastIntervalTimeMS(0)
 {
     if (startOnCreate)
     {

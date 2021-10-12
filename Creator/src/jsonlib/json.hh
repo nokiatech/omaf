@@ -2035,7 +2035,6 @@ JSON_API std::ostream& operator<<(std::ostream&, const Value& root);
  */
 #if JSON_USE_EXCEPTION
 
-// @todo <= add detail about condition in exception
 # define JSON_ASSERT(condition)                                                \
   {if (!(condition)) {Json::throwLogicError( "assert json failed" );}}
 

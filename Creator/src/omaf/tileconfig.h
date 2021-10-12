@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -37,18 +37,28 @@ namespace VDD {
          */
         StreamId               streamId;
         /*
-         * Mp4 track id. Not the same as stream id, as stream Id is unique, track id is overlapping (e.g. for different qualities)
+         * Track group id. This is unique for each tile index.
          */
-        TrackId                trackId;
+        TrackGroupId           trackGroupId;
         /*
          * The tile index
          */
-        int64_t                tileIndex;
+        TileIndex              tileIndex;
+        /*
+         * Track id. This is unique for each tile, much like StreamId.
+         */
+        TrackId                trackId;
     };
+
+    typedef std::vector<OmafTileSetConfiguration> OmafTileSets;
+
+    using TileIndexTrackGroupIdMap = std::map<TileIndex, TrackGroupId>;
+
+    using TileXY = std::pair<size_t, size_t>;
 
     struct Projection
     {
-        OmafProjectionType projection;
+        Optional<OmafProjectionType> projection;
         // in future could have custom faceorder and transform here
     };
 
@@ -60,7 +70,7 @@ namespace VDD {
 
     struct TileSingle
     {
-        StreamAndTrack ids;
+        StreamAndTrackGroup ids;
 
         int ctuIndex;
     };

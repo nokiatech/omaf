@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,18 +18,18 @@
 
 #if OMAF_PLATFORM_ANDROID
 
-    #include "Foundation/Android/NVRCompatibility.h"
+#include "Foundation/Android/NVRCompatibility.h"
 
 #elif OMAF_PLATFORM_WINDOWS
 
-    #include "Foundation/Windows/NVRCompatibility.h"
+#include "Foundation/Windows/NVRCompatibility.h"
 
 #elif OMAF_PLATFORM_UWP
 
-    #include "Foundation/UWP/NVRCompatibility.h"
+#include "Foundation/UWP/NVRCompatibility.h"
 
 #else
 
-    #error Unknown platform
+#error Unknown platform
 
 #endif

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,8 +17,10 @@
 
 #include <cstdint>
 #include <vector>
-#include "commontypes.hpp"
+#include "api/isobmff/commontypes.h"
 #include "fullbox.hpp"
+
+using namespace ISOBMFF;
 
 /** @brief his box provides information on the rotation of this track
  *  @details Defined in the OMAF standard. **/
@@ -28,13 +30,6 @@ public:
     RotationBox();
     RotationBox(const RotationBox&);
     virtual ~RotationBox() = default;
-
-    struct Rotation
-    {
-        std::int32_t yaw;
-        std::int32_t pitch;
-        std::int32_t roll;
-    };
 
     Rotation getRotation() const;
     void setRotation(Rotation rot);

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,6 +18,8 @@
 #include <functional>
 #include <map>
 #include <mutex>
+#include <tuple>
+#include <ctime>
 
 #include "audio.h"
 #include "common.h"
@@ -31,20 +33,81 @@
 #include "async/combinenode.h"
 #include "common/utils.h"
 #include "common/optional.h"
-#include "concurrency/threadedpoolprocessor.h"
 #include "config/config.h"
 #include "omaf/tileproducer.h"
-
+#include "omaf/tileproxy.h"
+#include "omaf/tileconfigurations.h"
 
 namespace VDD
 {
     class Log;
 
-    class ControllerConfigure;
+    class ControllerConfigureForwarderForView;
 
     class ControllerOps;
 
     class ConfigValueWithFallback;
+
+    class MediaStepLock;
+
+    class View;
+
+    struct InputVideo
+    {
+        Optional<VideoRole> role;
+        ParsedValue<MediaInputConfig> config;
+        std::string label;
+        std::uint8_t quality;
+        std::uint32_t width;
+        std::uint32_t height;
+        int ctuSize;
+        Optional<size_t> frameLimit;
+        Optional<FrameDuration> duration; // if known; usually is?
+
+        // abr index == 0u -> should be the highest quality (biggest frames) stream of its role
+        // other indices don't matter
+        size_t abrIndex = 0u;
+
+        // which is the primary input video for this output? index to the mInputVideos
+        size_t primaryInputVideoIndex = 0u;
+
+        // In DASH, tile configs specify adaptation sets, and inputs specify Representations. Hence
+        // we need to iterate them independently and can't store the configs to input
+        TileProducer::Config mTileProducerConfig;
+        ParsedValue<MediaInputConfig> mInputConfig;
+        AsyncNode* mMediaSource = nullptr;
+        AsyncProcessor* mTileProducer = nullptr;
+
+        /** @brief Retrieves the set of stream ids produced by this video source by looking inside
+         * mTileProducer */
+        std::set<StreamId> getStreamIds() const;
+    };
+
+    using InputVideos = std::vector<InputVideo>;
+
+    FrameDuration getLongestVideoDuration(const InputVideos&);
+
+    struct ConfigureOutputForVideo
+    {
+        VDMode vdMode;
+        FrameDuration videoTimeScale;
+        VideoGOP mGopInfo;
+        InputVideos mInputVideos;
+        std::function<size_t(void)> newMpdViewId;
+        std::shared_ptr<TileProxyConnector> mTileProxyDash;
+    };
+
+    struct ConfigureOutputValue
+    {
+        StreamId adaptationSetId;
+        RepresentationId representationId;
+        TrackId trackId; // aka entity_id for some purposes
+    };
+
+    struct ConfigureOutputInfo
+    {
+        std::list<ConfigureOutputValue> dashIds;
+    };
 
     class OmafVDController : public ControllerBase
     {
@@ -59,7 +122,20 @@ namespace VDD
         /** @brief moves errors to the client. Can only be called when 'run' is not being run. */
         GraphErrors moveErrors();
 
-    protected:
+        MP4VROutputs& getMP4VROutputs();
+
+        /** @brief Convert InputVideo parameters to a tile */
+        static TileConfigurations::TiledInputVideo tiledVideoInputOfInputVideo(
+            const InputVideo& aInputVideo);
+
+        TrackGroupId newTrackGroupId();
+
+        // note: adds the configuration to mInputVideos
+        static std::tuple<std::string, Optional<VideoRole>> readLabelRole(const VDD::ConfigValue& aVideoInputConfigurationValue);
+
+        /** @brief Validates (by throwing ConfigValueInvalid on failure) by comparing dimensions etc */
+        static void validateABRVideoConfig(const InputVideo& aReferenceVideo, const InputVideo& aCurrentVideo, const ConfigValue& aVideoConfig);
+
         /** Builds the pipeline from a raw frame source (ie. import or tiling or audio) to saving
         segments. If there is no video encoder config, the video encoder is skipped and
         pipeline is built for raw data (ie AAC).
@@ -74,41 +150,35 @@ namespace VDD
 
         @return Return the end of the pipeline, suitable for using with configureMPD
         */
-        AsyncNode* buildPipeline(std::string aName,
-            Optional<DashSegmenterConfig> aDashOutput,
-            PipelineOutput aPipelineOutput,
-            PipelineOutputNodeMap aSources,
-            AsyncProcessor* aMP4VRSink);
+        PipelineInfo buildPipeline(View* aView,
+                                   Optional<DashSegmenterConfig> aDashOutput,
+                                   PipelineOutput aPipelineOutput, PipelineOutputNodeMap aSources,
+                                   AsyncProcessor* aMP4VRSink,
+                                   Optional<PipelineBuildInfo> aPipelineBuildInfo) override;
+
+        /** @brief configureOutputForVideo
+         *
+         * @param aExtractorStreamAndTrackForMP4VR is used only for MP4 output and only in the case there are is no "tile" option for the output
+         */
+        ConfigureOutputInfo configureOutputForVideo(
+            const ConfigureOutputForVideo& aConfig, View& aView, PipelineOutput aOutput,
+            PipelineMode aPipelineMode,
+            std::function<std::unique_ptr<TileProxy>(void)> aTileProxyFactory,
+            std::pair<size_t, size_t> aTilesXY, TileProxy::Config aTileProxyConfig,
+            Optional<StreamAndTrack> aExtractorStreamAndTrackForMP4VR,
+            Optional<PipelineBuildInfo> aPipelineBuildInfo);
+
+        /** Access the entity group read context */
+        const EntityGroupReadContext& getEntityGroupReadContext() const;
+
+        /** Merge new entity mappings to global mappings */
+        void addToLabelEntityIdMapping(const LabelEntityIdMapping& aMapping);
+
+        /** Allow postponing operations until a given time */
+        void postponeOperation(PostponeTo aToPhase, std::function<void(void)> aOperation);
 
     private:
-
-        struct InputVideo
-        {
-            std::string filename;
-            std::string label;
-            std::uint8_t quality;
-            std::uint32_t width;
-            std::uint32_t height;
-            int ctuSize;
-
-            // In DASH, tile configs specify adaptation sets, and inputs specify Representations. Hence we need to iterate them independently and can't store the configs to input
-            TileProducer::Config mTileProducerConfig;
-            AsyncSourceWrapper* mTileProducer = nullptr;
-        };
-
-        enum VDMode
-        {
-            Invalid = -1,
-            MultiQ,
-            MultiRes5K,
-            MultiRes6K,
-            COUNT
-        };
-
-        void readCommonInputVideoParams(const VDD::ConfigValue& aValue, uint32_t& aFrameCount);
-        InputVideo& readInputVideoConfig(const VDD::ConfigValue& aVideoInputConfiguration, uint32_t aFrameCount, std::pair<int, int>& aTiles);
-        void associateTileProducer(InputVideo& aVideo, ExtractorMode aExtractor);
-        void rewriteIdsForTiles(InputVideo& aVideo);
+        std::list<View> mViews;
 
         /** @brief Given an pipeline mode and base layer name, find an existing MP4VR producer for
         * it, or create one if it is missing and MP4 generation is enabled. Arranges left and
@@ -116,14 +186,6 @@ namespace VDD
         *
         * @return nullptr if mp4 output is not enabled, otherwise a pointer to an MP4VRWriter */
         MP4VRWriter* createMP4Output(PipelineMode aMode, std::string aName);
-
-        /** @brief Creates the video passthru pipeline.
-        */
-        void makeVideo();
-
-        void setupMultiQSubpictureAdSets(const ConfigValue& aDashConfig, std::list<StreamId>& aAdSetIds, SegmentDurations& aDashDurations, PipelineOutput aOutput, std::pair<int, int> aTilesXY);
-
-        void setupMultiResSubpictureAdSets(const ConfigValue& aDashConfig, std::list<StreamId>& aAdSetIds, SegmentDurations& aDashDurations, PipelineOutput aOutput);
 
         /** @brief Reads keys in configuration under the "debug" and does some operations based on
         * them.
@@ -137,51 +199,89 @@ namespace VDD
         * "foo.dot" } } (maps to mDotFile) */
         void writeDot();
 
+        /** @brief Process entity groups */
+        void makeEntityGroups();
+
+        void makeTimedMetadata();
+
     private:
-        std::shared_ptr<Log> mLog;
-        std::shared_ptr<VDD::Config> mConfig;
-
-        bool mParallel;
-        std::unique_ptr<GraphBase> mGraph;
-        ThreadedWorkPool mWorkPool;
-        Optional<std::string> mDotFile;
-
-        std::mutex mFramesMutex;
-        std::map<std::string, int> mFrames; // one frame counter per input file label
-
-        std::vector<InputVideo> mInputVideos;
-
-        AsyncProcessorWrapper* mTileProxyDash = nullptr;
-        AsyncProcessorWrapper* mTileProxyMP4 = nullptr;
-
         GraphErrors mErrors;
 
-        /* Graph ops lifting the shared functionality. unique_ptr so we don't need to include the
-         * header. */
-        std::unique_ptr<ControllerOps> mOps;
-
-        DashOmaf mDash;
-
-        /* Incremented to provide unique identifiers for each left/right pair. Actually
-        * incremented a bit too eagerly, but its only downside is the gaps in the identifiers. */
-        size_t mMpdViewCount = 0;
-
-        /* Lower level configuration operations (ie. access to mInputLeft). */
-        std::unique_ptr<ControllerConfigure> mConfigure;
+        bool mParseOnly; // only parse the config, don't run the graph
 
         Optional<MP4VRWriter::Config> mMP4VRConfig;
         MP4VROutputs mMP4VROutputs;
+        std::list<std::function<void(void)>> mPostponedOperations;
+        Optional<uint32_t> mInitialViewpointId;
 
-        StreamId mNextStreamId = 1;
+        // placeholders for adding intermediate configuration boxes just before segmenter
+        std::map<View*, std::list<AsyncProcessor*>> mMediaPipelineEndPlaceholders;
 
-        VDMode mVDMode;
+        // Must be set before starting the pipeline
+        Promise<ISOBMFF::Optional<StreamSegmenter::Segmenter::MetaSpec>> mFileMeta;
 
-        VideoInputMode mVideoInputMode;
-
-        std::string mDashBaseName;
-
-        Projection mProjection;
-
-        friend class ControllerConfigure;
+        friend class ControllerConfigureForwarderForView;
     };
-}
+
+    class ControllerConfigureForwarderForView : public ControllerConfigure
+    {
+    public:
+        ControllerConfigureForwarderForView(ControllerConfigureForwarderForView& aSelf);
+        ControllerConfigureForwarderForView(OmafVDController& aController);
+        ControllerConfigureForwarderForView(OmafVDController& aController, View& aView);
+
+        ~ControllerConfigureForwarderForView() override;
+
+        bool isView() const override;
+
+        /** @brief Generate a new adaptation set id */
+        StreamId newAdaptationSetId() override;
+
+        /** @brief Generate a new track id */
+        TrackId newTrackId() override;
+
+        /** @brief Set the input sources and streams */
+        void setInput(AsyncNode* aInputLeft, AsyncNode* aInputRight, VideoInputMode aInputVideoMode,
+                      FrameDuration aFrameDuration, FrameDuration aTimeScale,
+                      VideoGOP aGopInfo) override;
+
+        /** @brief Is the Controller in mpd-only-mode? */
+        bool isMpdOnly() const override;
+
+        /** @brief Retrieve frame duration */
+        FrameDuration getFrameDuration() const override;
+
+        /** @see OmafVDController::getDashDurations */
+        SegmentDurations getDashDurations() const override;
+
+        /** @brief Builds the audio dash pipeline */
+        Optional<AudioDashInfo> makeAudioDashPipeline(const ConfigValue& aDashConfig,
+                                                      std::string aAudioName, AsyncNode* aAacInput,
+                                                      FrameDuration aTimeScale,
+                                                      Optional<PipelineBuildInfo> aPipelineBuildInfo) override;
+
+        /** @see OmafVDController::buildPipeline */
+        PipelineInfo buildPipeline(Optional<DashSegmenterConfig> aDashOutput,
+                                   PipelineOutput aPipelineOutput, PipelineOutputNodeMap aSources,
+                                   AsyncProcessor* aMP4VRSink,
+                                   Optional<PipelineBuildInfo> aPipelineBuildInfo) override;
+
+        ViewId getViewId() const override;
+
+        Optional<ViewLabel> getViewLabel() const override;
+
+        std::list<AsyncProcessor*> getMediaPlaceholders() override;
+
+        Optional<Future<Optional<StreamSegmenter::Segmenter::MetaSpec>>> getFileMeta() const override;
+
+        void postponeOperation(PostponeTo aToPhase, std::function<void(void)> aOperation) override;
+
+        std::list<EntityIdReference> resolveRefIdLabels(std::list<ParsedValue<RefIdLabel>> aRefIdLabels) override;
+
+        ControllerConfigureForwarderForView* clone() override;
+
+    private:
+        OmafVDController& mController;
+        View* mView; // might be null
+    };
+}  // namespace VDD

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,7 +14,9 @@
  */
 #pragma once
 
+#include <sstream>
 #include "config/config.h"
+#include "processor/meta.h"
 
 namespace VDD
 {
@@ -37,11 +39,13 @@ namespace VDD
 
     // Container is a map-like container
     template <typename Container>
-    auto readMapping(std::string aName, const Container& aContainer) -> std::function<typename Container::mapped_type(const ConfigValue&)>
+    auto readMapping(std::string aName, const Container& aContainer,
+                     std::function<std::string(const ConfigValue&)> aReadValue = readString)
+        -> std::function<typename Container::mapped_type(const ConfigValue&)>
     {
-        return [&](const ConfigValue& aNode)
+        return [=](const ConfigValue& aNode)
         {
-            std::string value = readString(aNode);
+            std::string value = aReadValue(aNode);
             auto it = aContainer.find(value);
             if (it != aContainer.end())
             {
@@ -49,7 +53,20 @@ namespace VDD
             }
             else
             {
-                throw ConfigValueInvalid(value + " isn't a valid " + aName, aNode);
+                std::ostringstream validValues;
+                bool first = true;
+                for (auto x : aContainer)
+                {
+                    if (!first)
+                    {
+                        validValues << ", ";
+                    }
+                    first = false;
+                    validValues << x.first;
+                }
+                throw ConfigValueInvalid(value + " isn't a valid " + aName +
+                                             " (valid values: " + validValues.str() + ")",
+                                         aNode);
             }
         };
     }

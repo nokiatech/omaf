@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -23,7 +23,7 @@ namespace ClearMask
     enum Enum
     {
         INVALID = -1,
-        
+
         NONE = 0,
 
         COLOR_BUFFER = 0x01,
@@ -31,7 +31,7 @@ namespace ClearMask
         STENCIL_BUFFER = 0x04,
 
         ALL = (COLOR_BUFFER | DEPTH_BUFFER | STENCIL_BUFFER),
-        
+
         COUNT
     };
 }

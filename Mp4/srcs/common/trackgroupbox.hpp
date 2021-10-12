@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,6 +15,7 @@
 #ifndef TRACKGROUPBOX_HPP
 #define TRACKGROUPBOX_HPP
 
+#include <functional>
 #include <memory>
 #include <vector>
 #include "bbox.hpp"
@@ -31,7 +32,7 @@ public:
 
     /** @brief Gets Track Group Type Boxes inside TrackGroupBox
      *  @returns Vector<TrackGroupTypeBox> containing Track Group Type Boxes */
-    const Vector<TrackGroupTypeBox>& getTrackGroupTypeBoxes() const;
+    const Vector<std::reference_wrapper<const TrackGroupTypeBox>> getTrackGroupTypeBoxes() const;
 
     /** @brief Adds Track Group Type Box into TrackGroupBox
      *  @param [in]  trackGroupTypeBox TrackGroupTypeBox that contains the box data */
@@ -46,7 +47,7 @@ public:
     virtual void parseBox(ISOBMFF::BitStream& bitstr);
 
 private:
-    Vector<TrackGroupTypeBox> mTrackGroupTypeBoxes;
+    Vector<std::shared_ptr<TrackGroupTypeBox>> mTrackGroupTypeBoxes;
 };
 
 #endif  // TRACKGROUPBOX_HPP

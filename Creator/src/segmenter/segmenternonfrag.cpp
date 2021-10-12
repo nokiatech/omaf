@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -22,11 +22,18 @@ namespace VDD
 
     SegmenterNonFrag::SegmenterNonFrag(Config aConfig)
         : Segmenter(aConfig.segmenterConfig, false)
+        , mConfig(aConfig)
         , mInitSegment(aConfig.initConfig)
     {
+        Utils::ensurePathForFilename(aConfig.fileName);
         mOutputStream.reset(new std::ofstream(aConfig.fileName, std::ios::binary));
+        if (!*mOutputStream)
+        {
+            throw CannotOpenFile(aConfig.fileName);
+        }
 
         mMovieWriter.reset(StreamSegmenter::MovieWriter::create(*mOutputStream));
+        assert(mMovieWriter.get());
 
         mWaitForInitSegment = true;
     }
@@ -36,7 +43,7 @@ namespace VDD
         mMovieWriter->finalize();
     }
 
-    std::vector<Views> SegmenterNonFrag::process(const Views& data)
+    std::vector<Streams> SegmenterNonFrag::process(const Streams& data)
     {
         if (mWaitForInitSegment)
         {
@@ -53,7 +60,7 @@ namespace VDD
         return Segmenter::process(data);
     }
 
-    void SegmenterNonFrag::writeSegment(StreamSegmenter::Segmenter::Segments& aSegments, std::vector<Views>& aFrames)
+    void SegmenterNonFrag::writeSegment(StreamSegmenter::Segmenter::Segments& aSegments, std::vector<Streams>& /* aFrames */)
     {
         for (auto segment : aSegments)
         {
@@ -61,4 +68,8 @@ namespace VDD
         }
     }
 
+    std::string SegmenterNonFrag::getGraphVizDescription()
+    {
+        return "\"" + mConfig.fileName + "\"";
+    }
 }  // namespace VDD

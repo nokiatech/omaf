@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -22,7 +22,7 @@ OMAF_NS_BEGIN
 OMAF_LOG_ZONE(VideoShader);
 
 VideoShader::VideoShader()
-: handle(ShaderID::Invalid)
+    : handle(ShaderID::Invalid)
 {
 }
 
@@ -38,7 +38,11 @@ VideoShader::~VideoShader()
     mShaderConstants.clear();
 }
 
-void_t VideoShader::create(const char_t *vertexShader, const char_t *fragmentShader, VideoPixelFormat::Enum videoTextureFormat, VideoPixelFormat::Enum depthTextureFormat, bool depthTextureVertexShaderFetch)
+void_t VideoShader::create(const char_t* vertexShader,
+                           const char_t* fragmentShader,
+                           VideoPixelFormat::Enum videoTextureFormat,
+                           VideoPixelFormat::Enum depthTextureFormat,
+                           bool depthTextureVertexShaderFetch)
 {
     OMAF_ASSERT(!isValid(), "Already initialized");
 
@@ -97,28 +101,6 @@ void_t VideoShader::create(const char_t *vertexShader, const char_t *fragmentSha
         FixedString1024 extensions;
         FixedString1024 defines;
 
-        // Texture type defines
-        if (videoTextureFormat == VideoPixelFormat::RGB_422_APPLE)
-        {
-            defines.append("#define TEXTURE_RGB_422_APPLE\n");
-        }
-        else if (videoTextureFormat == VideoPixelFormat::YUV_420)
-        {
-            defines.append("#define TEXTURE_YUV_420\n");
-        }
-        else if (videoTextureFormat == VideoPixelFormat::NV12)
-        {
-            defines.append("#define TEXTURE_NV12\n");
-        }
-        else if (videoTextureFormat == VideoPixelFormat::RGB)
-        {
-            defines.append("#define TEXTURE_RGB\n");
-        }
-        else if (videoTextureFormat == VideoPixelFormat::RGBA)
-        {
-            defines.append("#define TEXTURE_RGBA\n");
-        }
-
         // Sampler type
 #if OMAF_PLATFORM_ANDROID
         if (depthTextureFormat != VideoPixelFormat::INVALID)
@@ -150,109 +132,96 @@ void_t VideoShader::create(const char_t *vertexShader, const char_t *fragmentSha
                 #endif
             #endif
 
+            #define TEXTURE_RGB 0
+            #define TEXTURE_RGBA 1
+            #define TEXTURE_RGB_422_APPLE 2
+            #define TEXTURE_YUV_420 3
+            #define TEXTURE_NV12 4
+
+            uniform int uPixelFormat;
+            uniform float uSrcOpacity;
+
             uniform lowp sampler2D uSourceMask;
 
-            #if defined(TEXTURE_YUV_420)
-                uniform lowp SAMPLER_TYPE uSourceY;
-                uniform lowp SAMPLER_TYPE uSourceU;
-                uniform lowp SAMPLER_TYPE uSourceV;
-            #elif defined(TEXTURE_NV12)
-                uniform lowp SAMPLER_TYPE uSourceY;
-                uniform lowp SAMPLER_TYPE uSourceUV;
-            #elif defined(TEXTURE_RGB) || defined(TEXTURE_RGBA) || defined(TEXTURE_RGB_422_APPLE)
-                uniform lowp SAMPLER_TYPE uSource;
-            #endif
+            uniform lowp SAMPLER_TYPE uSourceY;
+            uniform lowp SAMPLER_TYPE uSourceU;
+            uniform lowp SAMPLER_TYPE uSourceV;
+            uniform lowp SAMPLER_TYPE uSourceUV;
+            uniform lowp SAMPLER_TYPE uSource;
 
-            #if defined(TEXTURE_RGB) || defined(TEXTURE_RGBA) || defined(TEXTURE_RGB_422_APPLE)
-                lowp vec4 SampleTextureRGBA(vec2 uv)
-                {
-                    #if defined(ENABLE_SAMPLER_2D_RECT)
-                        uv = vec2(uv.x * textureSize(uSource).x, uv.y * textureSize(uSource).y);
-                    #endif
-                    return texture(uSource, uv);
-                }
-            #endif
+            lowp vec4 SampleTextureRGBA(vec2 uv)
+            {
+                #if defined(ENABLE_SAMPLER_2D_RECT)
+                    uv = vec2(uv.x * textureSize(uSource).x, uv.y * textureSize(uSource).y);
+                #endif
+                return texture(uSource, uv);
+            }
 
-            #if defined(TEXTURE_YUV_420)
-                lowp vec4 SampleTextureY(vec2 uv)
-                {
-                    #if defined(ENABLE_SAMPLER_2D_RECT)
-                        uv = vec2(uv.x * textureSize(uSourceY).x, uv.y * textureSize(uSourceY).y);
-                    #endif
+            lowp vec4 SampleTextureY(vec2 uv)
+            {
+                #if defined(ENABLE_SAMPLER_2D_RECT)
+                    uv = vec2(uv.x * textureSize(uSourceY).x, uv.y * textureSize(uSourceY).y);
+                #endif
 
-                    return texture(uSourceY, uv);
-                }
+                return texture(uSourceY, uv);
+            }
 
-                lowp vec4 SampleTextureU(vec2 uv)
-                {
-                    #if defined(ENABLE_SAMPLER_2D_RECT)
-                        uv = vec2(uv.x * textureSize(uSourceU).x, uv.y * textureSize(uSourceU).y);
-                    #endif
+            lowp vec4 SampleTextureU(vec2 uv)
+            {
+                #if defined(ENABLE_SAMPLER_2D_RECT)
+                    uv = vec2(uv.x * textureSize(uSourceU).x, uv.y * textureSize(uSourceU).y);
+                #endif
 
-                    return texture(uSourceU, uv);
-                }
+                return texture(uSourceU, uv);
+            }
 
-                lowp vec4 SampleTextureV(vec2 uv)
-                {
-                    #if defined(ENABLE_SAMPLER_2D_RECT)
-                        uv = vec2(uv.x * textureSize(uSourceV).x, uv.y * textureSize(uSourceV).y);
-                    #endif
+            lowp vec4 SampleTextureV(vec2 uv)
+            {
+                #if defined(ENABLE_SAMPLER_2D_RECT)
+                    uv = vec2(uv.x * textureSize(uSourceV).x, uv.y * textureSize(uSourceV).y);
+                #endif
 
-                    return texture(uSourceV, uv);
-                }
-            #endif
+                return texture(uSourceV, uv);
+            }
 
-            #if defined(TEXTURE_NV12)
-                lowp vec4 SampleTextureY(vec2 uv)
-                {
-                    #if defined(ENABLE_SAMPLER_2D_RECT)
-                        uv = vec2(uv.x * textureSize(uSourceY).x, uv.y * textureSize(uSourceY).y);
-                    #endif
-
-                    return texture(uSourceY, uv);
-                }
-
-                lowp vec4 SampleTextureUV(vec2 uv)
-                {
-                    #if defined(ENABLE_SAMPLER_2D_RECT)
-                        uv = vec2(uv.x * textureSize(uSourceUV).x, uv.y * textureSize(uSourceUV).y);
-                    #endif
-                    return texture(uSourceUV, uv);
-                }
-            #endif
+            lowp vec4 SampleTextureUV(vec2 uv)
+            {
+                #if defined(ENABLE_SAMPLER_2D_RECT)
+                    uv = vec2(uv.x * textureSize(uSourceUV).x, uv.y * textureSize(uSourceUV).y);
+                #endif
+                return texture(uSourceUV, uv);
+            }
 
             lowp vec4 SampleVideoTexture(vec2 textureCoord)
             {
-                lowp vec4 c;
-                #if defined(TEXTURE_RGB) || defined(TEXTURE_RGBA)
-                    c = vec4(SampleTextureRGBA(textureCoord).rgb, 1.0);
-                #else
-                    #if defined(TEXTURE_RGB_422_APPLE)
-                        lowp vec4 color = SampleTextureRGBA(textureCoord);
-                        lowp vec3 convertedColor = vec3(-0.87075, 0.52975, -1.08175);
-                        convertedColor += 1.164 * color.g; // Y
-                        convertedColor += vec3(0.0, -0.391, 2.018) * color.b; // U
-                        convertedColor += vec3(1.596, -0.813, 0.0) * color.r; // V
-                        c = vec4(convertedColor, 1.0);
-                    #elif defined(TEXTURE_YUV_420)
-                        mediump float v = SampleTextureV(textureCoord).r - 128.0 / 255.0;
-                        mediump float u = SampleTextureU(textureCoord).r - 128.0 / 255.0;
-                        mediump float y = (SampleTextureY(textureCoord).r - 16.0 / 255.0) * (255.0 / (235.0 - 16.0));
-                        c = vec4(y + 1.403 * v, y - 0.344 * u - 0.714 * v, y + 1.770 * u, 1.0);
-                    #elif defined(TEXTURE_NV12)
-                        mat3 kColorConversion601 = mat3(1.164,  1.164, 1.164,
-                                                        0.000, -0.392, 2.017,
-                                                        1.596, -0.813, 0.000);
-                        mediump vec3 yuv;
-                        lowp vec3 rgb;
+                lowp vec4 c = vec4(0.0, 0.0, 0.0, uSrcOpacity);
 
-                        // Subtract constants to map the video range start at 0
-                        yuv.x = (SampleTextureY(textureCoord).r - (16.0/255.0));
-                        yuv.yz = (SampleTextureUV(textureCoord).rg - vec2(0.5, 0.5));
-                        rgb = kColorConversion601 * yuv;
-                        c = vec4(rgb, 1.0);
-                    #endif
-                #endif
+                if (uPixelFormat == TEXTURE_RGB || uPixelFormat == TEXTURE_RGBA) {
+                    c.rgb = SampleTextureRGBA(textureCoord).rgb;
+                } else if(uPixelFormat == TEXTURE_RGB_422_APPLE) {
+                    lowp vec4 color = SampleTextureRGBA(textureCoord);
+                    lowp vec3 convertedColor = vec3(-0.87075, 0.52975, -1.08175);
+                    convertedColor += 1.164 * color.g; // Y
+                    convertedColor += vec3(0.0, -0.391, 2.018) * color.b; // U
+                    convertedColor += vec3(1.596, -0.813, 0.0) * color.r; // V
+                    c.rgb = convertedColor;
+                } else if(uPixelFormat == TEXTURE_YUV_420) {
+                    mediump float v = SampleTextureV(textureCoord).r - 128.0 / 255.0;
+                    mediump float u = SampleTextureU(textureCoord).r - 128.0 / 255.0;
+                    mediump float y = (SampleTextureY(textureCoord).r - 16.0 / 255.0) * (255.0 / (235.0 - 16.0));
+                    c.rgb = vec3(y + 1.403 * v, y - 0.344 * u - 0.714 * v, y + 1.770 * u);
+                } else if(uPixelFormat == TEXTURE_NV12) {
+                    mat3 kColorConversion601 = mat3(1.164,  1.164, 1.164,
+                                                    0.000, -0.392, 2.017,
+                                                    1.596, -0.813, 0.000);
+
+                    // Subtract constants to map the video range start at 0
+                    mediump vec3 yuv;
+                    yuv.x = (SampleTextureY(textureCoord).r - (16.0/255.0));
+                    yuv.yz = (SampleTextureUV(textureCoord).rg - vec2(0.5, 0.5));
+                    c.rgb = kColorConversion601 * yuv;
+                }
+
                 return c;
             }
 
@@ -338,11 +307,8 @@ void_t VideoShader::create(const char_t *vertexShader, const char_t *fragmentSha
 
         if (depthTextureFormat != VideoPixelFormat::INVALID)
         {
-            if (depthTextureFormat == VideoPixelFormat::NV12
-                || depthTextureFormat == VideoPixelFormat::RGB
-                || depthTextureFormat == VideoPixelFormat::RGBA
-                || depthTextureFormat == VideoPixelFormat::YUV_420
-                )
+            if (depthTextureFormat == VideoPixelFormat::NV12 || depthTextureFormat == VideoPixelFormat::RGB ||
+                depthTextureFormat == VideoPixelFormat::RGBA || depthTextureFormat == VideoPixelFormat::YUV_420)
             {
                 if (depthTextureVertexShaderFetch)
                 {
@@ -367,9 +333,21 @@ void_t VideoShader::create(const char_t *vertexShader, const char_t *fragmentSha
     }
     else if (backendType == RendererType::D3D11 || backendType == RendererType::D3D12)
     {
+        FixedString1024 defines;
+        // Texture type defines
+        defines.append("#define TEXTURE_RGB 0\n");
+        defines.append("#define TEXTURE_RGBA 1\n");
+        defines.append("#define TEXTURE_RGB_422_APPLE 2\n");
+        defines.append("#define TEXTURE_YUV_420 3\n");
+        defines.append("#define TEXTURE_NV12 4\n");
+
+
         FixedString8192 preprocessed;
 
         static const char_t* fsCommonDX = R"(
+            uniform int uPixelFormat;
+            uniform float uSrcOpacity;
+
             Texture2D uSourceY : register(t0);
             SamplerState sSourceY : register(s0);
 
@@ -389,10 +367,16 @@ void_t VideoShader::create(const char_t *vertexShader, const char_t *fragmentSha
 
             float4 SampleVideoTexture(float2 uv)
             {
-                float3 yuv;
-                yuv.r = uSourceY.Sample(sSourceY, uv).r;
-                yuv.gb = uSourceUV.Sample(sSourceUV, uv).rg;
-                return float4(yuv2rgb(yuv), 1.0);
+            
+                if (uPixelFormat == TEXTURE_NV12) {
+                    float3 yuv;
+                    yuv.r = uSourceY.Sample(sSourceY, uv).r;
+                    yuv.gb = uSourceUV.Sample(sSourceUV, uv).rg;
+                    return float4(yuv2rgb(yuv), 1.0);
+                }
+
+                return float4(uSourceY.Sample(sSourceY, uv).rgb, 1.0);
+
             }
 
             float SampleMaskTexture(float2 uv)
@@ -446,6 +430,7 @@ void_t VideoShader::create(const char_t *vertexShader, const char_t *fragmentSha
             }
         )";
 
+        preprocessed.append(defines.getData());
         preprocessed.append(fsCommonDX);
 
         if (depthTextureFormat != VideoPixelFormat::INVALID)
@@ -494,8 +479,10 @@ void_t VideoShader::bindVideoTexture(VideoFrame videoFrame)
     uint32_t textureUnit1 = 1;
     uint32_t textureUnit2 = 2;
 
-    if (videoFrame.format == VideoPixelFormat::RGB ||
-        videoFrame.format == VideoPixelFormat::RGBA ||
+    // used in shader to decide which sampler to use (
+    setConstant("uPixelFormat", ShaderConstantType::INTEGER, &videoFrame.format);
+
+    if (videoFrame.format == VideoPixelFormat::RGB || videoFrame.format == VideoPixelFormat::RGBA ||
         videoFrame.format == VideoPixelFormat::RGB_422_APPLE)
     {
         setConstant("uSource", ShaderConstantType::SAMPLER_2D, &textureUnit0);
@@ -522,10 +509,8 @@ void_t VideoShader::bindDepthTexture(VideoFrame videoFrame)
     // Bind textures
     uint32_t textureUnit3 = 3;
 
-    if (videoFrame.format == VideoPixelFormat::NV12 ||
-        videoFrame.format == VideoPixelFormat::YUV_420 ||
-        videoFrame.format == VideoPixelFormat::RGBA ||
-        videoFrame.format == VideoPixelFormat::RGB)
+    if (videoFrame.format == VideoPixelFormat::NV12 || videoFrame.format == VideoPixelFormat::YUV_420 ||
+        videoFrame.format == VideoPixelFormat::RGBA || videoFrame.format == VideoPixelFormat::RGB)
     {
         SamplerState samplerState;
         samplerState.addressModeU = TextureAddressMode::CLAMP;
@@ -580,7 +565,8 @@ bool_t VideoShader::isValid()
     return (handle != ShaderID::Invalid);
 }
 
-void_t VideoShader::setConstant(const char_t* name, ShaderConstantType::Enum type, const void_t* values, uint32_t numValues)
+void_t
+VideoShader::setConstant(const char_t* name, ShaderConstantType::Enum type, const void_t* values, uint32_t numValues)
 {
     for (ShaderConstantList::Iterator it = mShaderConstants.begin(); it != mShaderConstants.end(); ++it)
     {
@@ -669,13 +655,13 @@ void_t VideoShader::createDefaultVideoShader(VideoPixelFormat::Enum videoTexture
 
         if (maskEnabled)
         {
-            vs = (char_t*)vsGLmask;
-            ps = (char_t*)psGLmask;
+            vs = (char_t*) vsGLmask;
+            ps = (char_t*) psGLmask;
         }
         else
         {
-            vs = (char_t*)vsGL;
-            ps = (char_t*)psGL;
+            vs = (char_t*) vsGL;
+            ps = (char_t*) psGL;
         }
     }
     else if (backendType == RendererType::D3D11 || backendType == RendererType::D3D12)
@@ -706,14 +692,14 @@ void_t VideoShader::createDefaultVideoShader(VideoPixelFormat::Enum videoTexture
 
             float4 mainPS(PS_INPUT input) : SV_TARGET
             {
-                return SampleVideoTexture(input.vTextureCoord);
+                return float4(SampleVideoTexture(input.vTextureCoord).rgb, uSrcOpacity);
             }
         )";
 
         static const char_t* maskShader = R"(
             matrix uMVP;
             matrix uVideoTextureMatrix;
-            uniform float4 uClearColor;
+            float4 uClearColor;
 
             struct VS_INPUT
             {
@@ -748,11 +734,11 @@ void_t VideoShader::createDefaultVideoShader(VideoPixelFormat::Enum videoTexture
 
         if (maskEnabled)
         {
-            vs = (char_t*)maskShader;
+            vs = (char_t*) maskShader;
         }
         else
         {
-            vs = (char_t*)shader;
+            vs = (char_t*) shader;
         }
         ps = vs;
     }
@@ -793,8 +779,8 @@ void_t VideoShader::createTintVideoShader(VideoPixelFormat::Enum videoTextureFor
                 fragmentColor = c * uTint;
             }
         )";
-        vs = (char_t*)vsGL;
-        ps = (char_t*)psGL;
+        vs = (char_t*) vsGL;
+        ps = (char_t*) psGL;
     }
     else if (backendType == RendererType::D3D11 || backendType == RendererType::D3D12)
     {
@@ -828,7 +814,7 @@ void_t VideoShader::createTintVideoShader(VideoPixelFormat::Enum videoTextureFor
                 return SampleVideoTexture(input.vTextureCoord) * uTint;
             }
         )";
-        vs = (char_t*)shader;
+        vs = (char_t*) shader;
         ps = vs;
     }
     create(vs, ps, videoTextureFormat);
@@ -839,10 +825,11 @@ void_t VideoShader::setTintVideoShaderConstants(const Color4& tintColor)
     setConstant("uTint", ShaderConstantType::FLOAT4, &tintColor);
 }
 
-void_t VideoShader::setDefaultVideoShaderConstants(const Matrix44 mvp, const Matrix44 vtm)
+void_t VideoShader::setDefaultVideoShaderConstants(const Matrix44 mvp, const Matrix44 vtm, const float32_t opacity)
 {
     setConstant("uMVP", ShaderConstantType::MATRIX44, &mvp);
     setConstant("uVideoTextureMatrix", ShaderConstantType::MATRIX44, &vtm);
+    setConstant("uSrcOpacity", ShaderConstantType::FLOAT, &opacity);
 }
 
 OMAF_NS_END

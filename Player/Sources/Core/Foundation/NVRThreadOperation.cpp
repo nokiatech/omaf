@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,8 +17,8 @@
 OMAF_NS_BEGIN
 
 ThreadOperation::ThreadOperation(void_t* userData, const char_t* name, uint32_t stackSize)
-: mThread(name, stackSize)
-, mUserData(userData)
+    : mThread(name, stackSize)
+    , mUserData(userData)
 {
 }
 
@@ -29,7 +29,7 @@ ThreadOperation::~ThreadOperation()
         mThread.stop();
         mThread.join();
     }
-    
+
     mUserData = OMAF_NULL;
 }
 
@@ -39,7 +39,7 @@ void_t ThreadOperation::run()
     {
         Thread::EntryFunction function;
         function.bind<ThreadOperation, &ThreadOperation::threadFunction>(this);
-        
+
         mThread.start(function);
     }
 }
@@ -65,7 +65,7 @@ Thread::ReturnValue ThreadOperation::getResult() const
 Thread::ReturnValue ThreadOperation::threadFunction(const Thread& thread, void_t* userData)
 {
     mResult = task(userData);
-    
+
     return mResult;
 }
 

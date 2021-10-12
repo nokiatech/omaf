@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,30 +21,32 @@
 #include "Foundation/NVRPathName.h"
 
 OMAF_NS_BEGIN
-    namespace StorageManager
-    {
-        typedef void_t* FileHandle;
-        extern FileHandle InvalidFileHandle;
+namespace StorageManager
+{
+    typedef void_t* FileHandle;
+    extern FileHandle InvalidFileHandle;
 
-        bool_t FileExists(const char_t* path);
-        bool_t DirExists(const char_t* path);
-        
-        PathName GetFullPath(const char_t* filename);
+    bool_t FileExists(const char_t* path);
+    bool_t DirExists(const char_t* path);
 
-        FileHandle Open(const char_t* filename, FileSystem::AccessMode::Enum mode, FileSystem::CreateMode::Enum createMode = FileSystem::CreateMode::CREATE);
-        void_t Close(FileHandle handle);
+    PathName GetFullPath(const char_t* filename);
 
-        int64_t Read(FileHandle handle, void_t* destination, int64_t bytes);
-        int64_t Write(FileHandle handle, const void_t* source, int64_t bytes);
+    FileHandle Open(const char_t* filename,
+                    FileSystem::AccessMode::Enum mode,
+                    FileSystem::CreateMode::Enum createMode = FileSystem::CreateMode::CREATE);
+    void_t Close(FileHandle handle);
 
-        bool_t Delete(const char_t* filename);
-        bool_t Rename(const char_t* oldFilename, const char_t* newFilename);
+    int64_t Read(FileHandle handle, void_t* destination, int64_t bytes);
+    int64_t Write(FileHandle handle, const void_t* source, int64_t bytes);
 
-        bool_t Seek(FileHandle handle, int64_t offset);
-        int64_t Tell(FileHandle handle);
-        
-        bool_t IsOpen(FileHandle handle);
-        
-        int64_t GetSize(FileHandle handle);
-    }
+    bool_t Delete(const char_t* filename);
+    bool_t Rename(const char_t* oldFilename, const char_t* newFilename);
+
+    bool_t Seek(FileHandle handle, int64_t offset);
+    int64_t Tell(FileHandle handle);
+
+    bool_t IsOpen(FileHandle handle);
+
+    int64_t GetSize(FileHandle handle);
+}  // namespace StorageManager
 OMAF_NS_END

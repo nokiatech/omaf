@@ -2,7 +2,7 @@
 #
 # This file is part of Nokia OMAF implementation
 #
-# Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+# Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
 #
 # Contact: omaf@nokia.com
 #
@@ -17,7 +17,15 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
 project(OmafCreator LANGUAGES CXX C)
 
-set(CMAKE_CXX_STANDARD 11)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_definitions(-DVDD_MP4VR_USE_LINUX_FILESTREAM)
+endif()
+
+set(CMAKE_CXX_STANDARD 17)
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17")
+endif()
+
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -41,6 +49,7 @@ if(MSVC)
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
   endif()
+  add_definitions(-DNOMINMAX=1)
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   # Use MATCHES for Clang to also include AppleClang
   # Update if necessary
@@ -78,6 +87,10 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Cl
 
   # enable debug features 
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG")
+
+  # MSVC errors about missing returns; do the same on other platforms. however, this doesn't catch
+  # cases where debug build ends up in assert(false).
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wreturn-type -Werror=return-type")
 else()
     message(FATAL_ERROR "Unsupported compiler!")
 endif()
@@ -97,7 +110,6 @@ exec_program(
 
 if (NOT GIT_RES EQUAL 0)
     message(WARNING "Could not get git info, is git in path, no tags? ${GIT_RES}")
-	#TODO
     set(OMAF_CREATOR_VERSION "v1.0.0")
 endif()
 
@@ -155,7 +167,6 @@ include_directories(.)
 configure_file("${PROJECT_SOURCE_DIR}/buildinfo/buildinfo.h.in" "${PROJECT_BINARY_DIR}/buildinfo.h")
 include_directories("${PROJECT_BINARY_DIR}")
 
-#TODO
 include_directories("../../Mp4/srcs/api")
 include_directories("../../Mp4/srcs/api/reader")
 
@@ -167,16 +178,20 @@ set(HEIF_INCLUDE_APICPP "${CMAKE_CURRENT_SOURCE_DIR}/../../../heif/srcs/api-cpp"
 set(HEIF_INCLUDE_API "${CMAKE_CURRENT_SOURCE_DIR}/../../../heif/srcs/api")
 
 if(MSVC)
-    if (MSVC_VERSION EQUAL 1900)
-        set(VSVERSION VS2015)
-    elseif (MSVC_VERSION GREATER 1900)
-        set(VSVERSION VS2017)
-    else()
-        message(FATAL_ERROR "Unsupported visual studio version!" ${MSVC_VERSION})
-    endif()
+  if (MSVC_VERSION EQUAL 1800)
+    set(VSVERSION VS2013)
+  elseif (MSVC_VERSION EQUAL 1900)
+    set(VSVERSION VS2015)
+  elseif (MSVC_VERSION GREATER 1919)
+    set(VSVERSION VS2019)
+  elseif (MSVC_VERSION GREATER 1900)
+    set(VSVERSION VS2017)
+  else()
+    message(FATAL_ERROR "Unsupported visual studio version!" ${MSVC_VERSION})
+  endif()
     
-    set(HEIF_LIB_RELEASE "${HEIF_LIB_RELEASE}/${VSVERSION}")
-    set(HEIF_LIB_DEBUG "${HEIF_LIB_DEBUG}/${VSVERSION}")
+  set(HEIF_LIB_RELEASE "${HEIF_LIB_RELEASE}/${VSVERSION}")
+  set(HEIF_LIB_DEBUG "${HEIF_LIB_DEBUG}/${VSVERSION}")
 endif()
 
 set_target_properties(heif_static PROPERTIES IMPORTED_LOCATION_DEBUG "${HEIF_LIB_DEBUG}/${CMAKE_STATIC_LIBRARY_PREFIX}heif_static${CMAKE_STATIC_LIBRARY_SUFFIX}")
@@ -233,13 +248,13 @@ add_subdirectory(common)
 add_subdirectory(controller)
 add_subdirectory(config)
 add_subdirectory(concurrency)
-add_subdirectory(tool)
 add_subdirectory(processor)
-add_subdirectory(mp4loader)
+add_subdirectory(medialoader)
 add_subdirectory(segmenter)
 add_subdirectory(omaf)
 add_subdirectory(raw)
 add_subdirectory(log)
+add_subdirectory(tool)
 
 
 # For Ninja cmake generator

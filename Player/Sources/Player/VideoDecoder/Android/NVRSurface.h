@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -23,19 +23,17 @@ OMAF_NS_BEGIN
 class Surface
 {
 public:
+    Surface();
+    ~Surface();
 
-	Surface();
-	~Surface();
+    SurfaceTexture* getSurfaceTexture();
 
-	SurfaceTexture* getSurfaceTexture();
-
-	jobject	getJavaObject();
+    jobject getJavaObject();
 
 private:
+    JNIEnv* mJEnv;
+    jobject mJavaObject;
 
-	JNIEnv* mJEnv;
-	jobject	mJavaObject;
-
-	SurfaceTexture* mSurfaceTexture;
+    SurfaceTexture* mSurfaceTexture;
 };
 OMAF_NS_END

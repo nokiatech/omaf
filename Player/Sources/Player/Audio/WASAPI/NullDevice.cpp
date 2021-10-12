@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,24 +14,24 @@
  */
 #define WASAPI_LOGS
 #include "NullDevice.h"
-#include "Context.h"
-#include "Foundation/NVRLogger.h"
-#include "Foundation/NVRClock.h"
 #include "Audio/NVRAudioRendererAPI.h"
-//i think these might not be needed anymore. (the accesses are synchronized)
-#define AtomicSet(a,b) InterlockedExchange64(a,b);
-#define AtomicAdd(a,b) InterlockedAdd64(a,b);
-#define AtomicGet(a) InterlockedAdd64(a,0);
+#include "Context.h"
+#include "Foundation/NVRClock.h"
+#include "Foundation/NVRLogger.h"
+// i think these might not be needed anymore. (the accesses are synchronized)
+#define AtomicSet(a, b) InterlockedExchange64(a, b);
+#define AtomicAdd(a, b) InterlockedAdd64(a, b);
+#define AtomicGet(a) InterlockedAdd64(a, 0);
 
 OMAF_NS_BEGIN
 OMAF_LOG_ZONE(NullDevice)
 
 namespace WASAPIImpl
-{    
-    NullDevice::NullDevice(Context* aContext) :
-        mContext(aContext)
+{
+    NullDevice::NullDevice(Context* aContext)
+        : mContext(aContext)
     {
-        init(0,0);
+        init(0, 0);
         PauseEvent = CreateEvent(NULL, true, false, NULL);
 
         Thread::EntryFunction function;
@@ -40,7 +40,6 @@ namespace WASAPIImpl
         mThread.setPriority(Thread::Priority::LOWEST);
         mThread.setName("NullAudioDevice::PollingThread");
         mThread.start(function);
-
     }
 
     NullDevice::~NullDevice()
@@ -56,7 +55,7 @@ namespace WASAPIImpl
         {
             WaitForSingleObject(PauseEvent, INFINITE);
             SetEvent(mContext->onNeedMoreSamples);
-            Sleep(5);//requst samples every 5 ms...
+            Sleep(5);  // requst samples every 5 ms...
         }
         return 0;
     }
@@ -80,7 +79,7 @@ namespace WASAPIImpl
 
     void NullDevice::stop()
     {
-        ResetEvent(PauseEvent);//Stops the polling thread..
+        ResetEvent(PauseEvent);  // Stops the polling thread..
         AtomicSet(&mPosition, 0);
         mStartTime = 0;
         mPauseTime = 0;
@@ -88,9 +87,9 @@ namespace WASAPIImpl
     }
     void NullDevice::pause()
     {
-        //pause playback. but dont reset..
+        // pause playback. but dont reset..
         //(store the pause time, so we can adjust the "starttime".. which is used to count samples to consume etcetc)
-        ResetEvent(PauseEvent);//Stops the polling thread..
+        ResetEvent(PauseEvent);  // Stops the polling thread..
         if (mPauseTime == 0)
             mPauseTime = Clock::getMilliseconds();
     }
@@ -99,7 +98,7 @@ namespace WASAPIImpl
         int64_t ret;
         ret = AtomicGet(&mPosition);
         ret *= 1000000;
-        ret /= (int64_t)mSampleRate;
+        ret /= (int64_t) mSampleRate;
         return ret;
     }
 
@@ -109,7 +108,7 @@ namespace WASAPIImpl
         int64_t curtime = Clock::getMilliseconds();
         if (!mStarted)
         {
-            mLastTime=mStartTime = curtime;
+            mLastTime = mStartTime = curtime;
             mLastPlayed = 0;
             mPauseTime = 0;
             mStarted = true;
@@ -120,63 +119,61 @@ namespace WASAPIImpl
         {
             if (mPauseTime)
             {
-                //mStartTime += (curtime - mPauseTime);
+                // mStartTime += (curtime - mPauseTime);
                 mPauseTime = 0;
                 mLastTime = mStartTime = curtime;
                 SetEvent(PauseEvent);
             }
         }
-        //count how many frames should have been played since the start..
-        int64_t timePlayed = curtime-mStartTime;
-        //TODO: fixup time if delta is too big. (ie. we are debugging...)
-        if ((curtime- mLastTime)> 500)
+        // count how many frames should have been played since the start..
+        int64_t timePlayed = curtime - mStartTime;
+        if ((curtime - mLastTime) > 500)
         {
             mStartTime = curtime - (mLastTime - mStartTime);
             timePlayed = curtime - mStartTime;
         }
 
-        int64_t samplesPlayed = (timePlayed*(int64_t)mSampleRate) / 1000; //frames played.
-        //count how many since last call..
+        int64_t samplesPlayed = (timePlayed * (int64_t) mSampleRate) / 1000;  // frames played.
+        // count how many since last call..
         int64_t todo = samplesPlayed - mLastPlayed;
-        
+
         if (todo > 0)
         {
             int64_t consumed = 0;
-            //consume required amount of samples..
+            // consume required amount of samples..
             size_t maxSamples = sizeof(mDummy) / sizeof(mChannels);
             while (todo)
             {
                 size_t request = todo;
-                if (request > maxSamples) request = maxSamples;
+                if (request > maxSamples)
+                    request = maxSamples;
                 size_t received;
                 request *= mChannels;
 
-                // TODO: fetch AAC stuff
                 // audio->renderSamples(request, (int16_t*)mDummy, received);
 
                 received /= mChannels;
                 consumed += received;
                 todo -= received;
-                if (received == 0) break;
+                if (received == 0)
+                    break;
             }
             if (todo != 0)
             {
-                //TODO: must adjust the mStartTime here based on the missing sample count..
-                //since the play cursor should not move when there is no data....
-                //this code might be completely incorrect. not sure how to properly force the case to test it....
-                //also the millisecond clock might be too inaccurate.....
+                // since the play cursor should not move when there is no data....
+                // this code might be completely incorrect. not sure how to properly force the case to test it....
+                // also the millisecond clock might be too inaccurate.....
                 write_message("Underflow!");
                 int64_t samplesMissed = todo;
-                mStartTime += (samplesMissed * 1000) / (int64_t)mSampleRate;
+                mStartTime += (samplesMissed * 1000) / (int64_t) mSampleRate;
             }
             AtomicAdd(&mContext->mPosition, consumed);
             AtomicAdd(&mPosition, consumed);
-            //write_message("samplesPlayed:%lld %lld", samplesPlayed, mPosition);
+            // write_message("samplesPlayed:%lld %lld", samplesPlayed, mPosition);
         }
         mLastPlayed = samplesPlayed;
         mLastTime = curtime;
         return ret;
     }
-
-}
+}  // namespace WASAPIImpl
 OMAF_NS_END

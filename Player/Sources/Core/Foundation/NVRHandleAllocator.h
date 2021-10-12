@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,99 +18,98 @@
 #include "Platform/OMAFDataTypes.h"
 
 #include "Foundation/NVRCompatibility.h"
-#include "Foundation/NVRNonCopyable.h"
 #include "Foundation/NVRHandle.h"
+#include "Foundation/NVRNonCopyable.h"
+
+#include "NVRAssert.h"
 
 OMAF_NS_BEGIN
 
 template <typename Type, size_t SlotBits, size_t GenerationBits, size_t N>
 class HandleAllocator
-{ 
-    public:
+{
+public:
+    typedef GenericHandle<Type, SlotBits, GenerationBits> HandleType;
 
-        typedef GenericHandle<Type, SlotBits, GenerationBits> HandleType;
-        
-    public:
-        
-        static const Type INVALID_GENERATION = 0;
-        static const Type DEFAULT_GENERATION = 1;
-        
-        static const Type NUM_SLOTS = (1 << SlotBits);
-        static const Type NUM_GENERATIONS = (1 << GenerationBits);
-        
-        HandleAllocator()
+public:
+    static const Type INVALID_GENERATION = 0;
+    static const Type DEFAULT_GENERATION = 1;
+
+    static const Type NUM_SLOTS = (1 << SlotBits);
+    static const Type NUM_GENERATIONS = (1 << GenerationBits);
+
+    HandleAllocator()
         : mNumFreeHandles(N)
+    {
+        OMAF_ASSERT(N <= NUM_SLOTS, "");
+
+        for (size_t index = 0; index < N; ++index)
         {
-            OMAF_ASSERT(N <= NUM_SLOTS, "");
-                
-            for (size_t index = 0; index < N; ++index)
-            {
-                HandleType& handle = mFreeHandles[index];
-                handle.index = (Type)index;
-                handle.generation = INVALID_GENERATION;
-                    
-                mGenerations[index] = DEFAULT_GENERATION;
-            }
+            HandleType& handle = mFreeHandles[index];
+            handle.index = (Type) index;
+            handle.generation = INVALID_GENERATION;
+
+            mGenerations[index] = DEFAULT_GENERATION;
         }
-            
-        ~HandleAllocator()
+    }
+
+    ~HandleAllocator()
+    {
+    }
+
+    HandleType allocate()
+    {
+        if (mNumFreeHandles > 0)
         {
-        }
-            
-        HandleType allocate()
-        {
-            if (mNumFreeHandles > 0)
-            {
-                HandleType& handle = mFreeHandles[mNumFreeHandles - 1];
-                handle.generation = mGenerations[handle.index];
-                    
-                --mNumFreeHandles;
-                    
-                return handle;
-            }
-                
-            return HandleType::Invalid;
-        }
-            
-        void_t release(HandleType handle)
-        {
-            if (isValid(handle))
-            {
-                mFreeHandles[mNumFreeHandles] = HandleType(handle.index, INVALID_GENERATION);
-                    
-                mNumFreeHandles++;
-                mGenerations[handle.index] = (mGenerations[handle.index] + 1) % NUM_GENERATIONS;
-                    
-                if (mGenerations[handle.index] == INVALID_GENERATION)
-                {
-                    mGenerations[handle.index] = DEFAULT_GENERATION;
-                }
-            }
-        }
-            
-        bool_t isValid(HandleType handle)
-        {
-            return (mGenerations[handle.index] == handle.generation);
+            HandleType& handle = mFreeHandles[mNumFreeHandles - 1];
+            handle.generation = mGenerations[handle.index];
+
+            --mNumFreeHandles;
+
+            return handle;
         }
 
-        void_t reset()
-        {
-            for (size_t index = 0; index < N; ++index)
-            {
-                HandleType& handle = mFreeHandles[index];
-                handle.index = (Type)index;
-                handle.generation = INVALID_GENERATION;
+        return HandleType::Invalid;
+    }
 
-                mGenerations[index] = DEFAULT_GENERATION;
+    void_t release(HandleType handle)
+    {
+        if (isValid(handle))
+        {
+            mFreeHandles[mNumFreeHandles] = HandleType(handle.index, INVALID_GENERATION);
+
+            mNumFreeHandles++;
+            mGenerations[handle.index] = (mGenerations[handle.index] + 1) % NUM_GENERATIONS;
+
+            if (mGenerations[handle.index] == INVALID_GENERATION)
+            {
+                mGenerations[handle.index] = DEFAULT_GENERATION;
             }
         }
-            
-    private:
-            
-        Type mNumFreeHandles;
-        HandleType mFreeHandles[N];
-            
-        Type mGenerations[N];
+    }
+
+    bool_t isValid(HandleType handle)
+    {
+        return (mGenerations[handle.index] == handle.generation);
+    }
+
+    void_t reset()
+    {
+        for (size_t index = 0; index < N; ++index)
+        {
+            HandleType& handle = mFreeHandles[index];
+            handle.index = (Type) index;
+            handle.generation = INVALID_GENERATION;
+
+            mGenerations[index] = DEFAULT_GENERATION;
+        }
+    }
+
+private:
+    Type mNumFreeHandles;
+    HandleType mFreeHandles[N];
+
+    Type mGenerations[N];
 };
 
 OMAF_NS_END

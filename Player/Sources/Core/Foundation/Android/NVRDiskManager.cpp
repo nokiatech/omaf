@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -29,7 +29,6 @@ OMAF_NS_BEGIN
             struct stat st;
             int result = stat(filePath, &st);
 
-            // TODO: Make sure it's a FILE and not a directory or something.
 
             return (result == 0);
         }
@@ -73,7 +72,7 @@ OMAF_NS_BEGIN
                 {
                     if (createMode == FileSystem::CreateMode::CREATE)
                     {
-                        int result = open64(filePath, O_WRONLY | O_CREAT);
+                        int result = open64(filePath, O_WRONLY | O_CREAT, 0600);
                         if (result == -1)
                         {
                             return InvalidFileHandle;
@@ -101,7 +100,7 @@ OMAF_NS_BEGIN
                 {
                     if (createMode == FileSystem::CreateMode::CREATE)
                     {
-                        int result = open64(filePath, O_RDWR | O_CREAT);
+                        int result = open64(filePath, O_RDWR | O_CREAT,  0600);
                         if (result == -1)
                         {
                             return InvalidFileHandle;
@@ -175,7 +174,7 @@ OMAF_NS_BEGIN
             if(handle != InvalidFileHandle)
             {
                 ssize_t result = write((intptr_t)handle, source, (size_t)bytes);
-                fsync((intptr_t)handle); // TODO: Add separate Flush() instead of calling this every time
+                fsync((intptr_t)handle);
                 return result;
             }
 

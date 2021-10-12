@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,67 +17,74 @@
 #include "NVRNamespace.h"
 
 #include "Audio/NVRAudioTypes.h"
-#include "Provider/NVRCoreProviderSources.h"
 #include "NVRErrorCodes.h"
+#include "Provider/NVRCoreProviderSources.h"
 
 OMAF_NS_BEGIN
 
-    struct AudioSourceMetadata1;
-    class MP4VRMediaPacket;
+struct AudioSourceMetadata1;
+class MP4VRMediaPacket;
 
-    namespace AudioState
+namespace AudioState
+{
+    enum Enum
     {
-        enum Enum
-        {
-            INVALID = -1,
-            IDLE,
-            PLAYING,
-            PAUSED,
+        INVALID = -1,
+        IDLE,
+        PLAYING,
+        PAUSED,
 
-            COUNT
-        };
+        COUNT
+    };
+}
+class AudioInputBuffer;
+class AudioInputBufferObserver
+{
+public:
+    AudioInputBufferObserver()
+    {
     }
-    class AudioInputBuffer;
-    class AudioInputBufferObserver
+    virtual ~AudioInputBufferObserver()
     {
-    public:
-        
-        AudioInputBufferObserver() {}
-        virtual ~AudioInputBufferObserver() {}
-        
-        virtual void_t onPlaybackStarted(AudioInputBuffer* caller, int64_t bufferingOffsetUs) = 0;
-        virtual void_t onSamplesConsumed(AudioInputBuffer* caller, streamid_t streamId) = 0;
-        virtual void_t onOutOfSamples(AudioInputBuffer* caller, streamid_t streamId) = 0;
-        virtual void_t onAudioErrorOccurred(AudioInputBuffer* caller, Error::Enum error) = 0;
-    };
+    }
 
-    class AudioInputBuffer
+    virtual void_t onPlaybackStarted(AudioInputBuffer* caller, int64_t bufferingOffsetUs) = 0;
+    virtual void_t onSamplesConsumed(AudioInputBuffer* caller, streamid_t streamId) = 0;
+    virtual void_t onOutOfSamples(AudioInputBuffer* caller, streamid_t streamId) = 0;
+    virtual void_t onAudioErrorOccurred(AudioInputBuffer* caller, Error::Enum error) = 0;
+};
+
+class AudioInputBuffer
+{
+public:
+    AudioInputBuffer()
     {
-    public:
-        
-        AudioInputBuffer() {}
-        virtual ~AudioInputBuffer() {}
-        
-        virtual Error::Enum initializeForEncodedInput(streamid_t nrStreams, uint8_t* codecData, size_t dataSize) = 0;
-        virtual Error::Enum initializeForNoAudio() = 0;
+    }
+    virtual ~AudioInputBuffer()
+    {
+    }
 
-        virtual Error::Enum write(streamid_t streamId, MP4VRMediaPacket* packet) = 0;
+    virtual Error::Enum initializeForEncodedInput(streamid_t aStreamId, uint8_t* codecData, size_t dataSize) = 0;
+    virtual Error::Enum initializeForNoAudio() = 0;
 
-        virtual void_t startPlayback() = 0;
-        virtual void_t stopPlayback() = 0;
+    virtual Error::Enum addStream(streamid_t aStreamId, uint8_t* codecData, size_t dataSize) = 0;
+    virtual Error::Enum removeStream(streamid_t aStreamId, bool_t& aNeedToPausePlayback) = 0;
+    virtual Error::Enum removeAllStreams() = 0;
 
-        virtual AudioState::Enum getState() = 0;
+    virtual Error::Enum write(streamid_t streamId, MP4VRMediaPacket* packet) = 0;
 
-        virtual AudioReturnValue::Enum flush() = 0;
+    virtual void_t startPlayback() = 0;
+    virtual void_t stopPlayback() = 0;
 
-        virtual void_t setObserver(AudioInputBufferObserver* observer) = 0;
-        virtual void_t removeObserver(AudioInputBufferObserver* observer) = 0;
+    virtual AudioState::Enum getState() = 0;
 
-        virtual bool_t isInitialized() const = 0;
+    virtual AudioReturnValue::Enum flush() = 0;
 
-        virtual uint64_t getElapsedTimeUs() const = 0;
+    virtual void_t setObserver(AudioInputBufferObserver* observer) = 0;
+    virtual void_t removeObserver(AudioInputBufferObserver* observer) = 0;
 
-        virtual AudioInputBuffer* getAuxiliaryAudioInputBuffer() = 0;
+    virtual bool_t isInitialized() const = 0;
 
-    };
+    virtual uint64_t getElapsedTimeUs() const = 0;
+};
 OMAF_NS_END

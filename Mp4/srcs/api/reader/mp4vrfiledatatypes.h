@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,23 +17,36 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include "mp4vrfileexport.h"
+
+#include "../isobmff/commontypes.h"
+#include "../isobmff/dynarray.h"
+#include "../isobmff/mp4vrfileexport.h"
 
 #ifndef _SCL_SECURE_NO_WARNINGS
 #define _SCL_SECURE_NO_WARNINGS
 #endif
 
+namespace ISOBMFF
+{
+    struct OverlayStruct;
+}
 
 namespace MP4VR
 {
+    using ISOBMFF::AlphaBlendingModeType;
+    using ISOBMFF::DynArray;
+    using ISOBMFF::MediaAlignmentType;
+    using ISOBMFF::SphereRegionShapeType;
+    using ISOBMFF::TransformType;
+
     struct MP4VR_DLL_PUBLIC FourCC
     {
         char value[5];
-        inline FourCC()
+        inline FourCC() noexcept
             : value{}
         {
         }
-        inline FourCC(uint32_t v)
+        inline FourCC(uint32_t v) noexcept
         {
             value[0] = char((v >> 24) & 0xff);
             value[1] = char((v >> 16) & 0xff);
@@ -41,7 +54,7 @@ namespace MP4VR
             value[3] = char((v >> 0) & 0xff);
             value[4] = '\0';
         }
-        inline FourCC(const char* str)
+        inline FourCC(const char* str) noexcept
         {
             value[0] = str[0];
             value[1] = str[1];
@@ -49,7 +62,7 @@ namespace MP4VR
             value[3] = str[3];
             value[4] = '\0';
         }
-        inline FourCC(const FourCC& fourcc)
+        inline FourCC(const FourCC& fourcc) noexcept
         {
             value[0] = fourcc.value[0];
             value[1] = fourcc.value[1];
@@ -106,47 +119,6 @@ namespace MP4VR
         {
             return !(*this <= other);
         }
-    };
-
-    template <typename T>
-    struct MP4VR_DLL_PUBLIC DynArray
-    {
-        typedef T value_type;
-        typedef T* iterator;
-        typedef const T* const_iterator;
-        typedef size_t size_type;
-        typedef ptrdiff_t difference_type;
-        size_t size;
-        T* elements;
-        DynArray();
-        DynArray(size_t n);
-        DynArray(const DynArray& other);
-        DynArray& operator=(const DynArray& other);
-        inline T& operator[](size_t index)
-        {
-            return elements[index];
-        }
-        inline const T& operator[](size_t index) const
-        {
-            return elements[index];
-        }
-        inline T* begin()
-        {
-            return elements;
-        }
-        inline T* end()
-        {
-            return elements + size;
-        }
-        inline const T* begin() const
-        {
-            return elements;
-        }
-        inline const T* end() const
-        {
-            return elements + size;
-        }
-        ~DynArray();
     };
 
     enum TrackSampleType
@@ -556,7 +528,7 @@ namespace MP4VR
         MONOSCOPIC            = 0x8f  ///< special value for indicating that stvi box was not found
     };
 
-    struct MP4VR_DLL_PUBLIC Rotation
+    struct MP4VR_DLL_PUBLIC RotationProperty
     {
         int32_t yaw;
         int32_t pitch;
@@ -573,13 +545,348 @@ namespace MP4VR
         bool interpolate;
     };
 
+    struct MP4VR_DLL_PUBLIC RecommendedViewportProperty
+    {
+        ISOBMFF::SphereRegionConfigStruct sphereRegionConfig;
+        ISOBMFF::RecommendedViewportInfoStruct recommendedViewportInfo;
+    };
+
+    struct MP4VR_DLL_PUBLIC SphereRegionWithRangeSample : SphereRegionProperty
+    {
+        SphereRegionProperty region = {};
+
+        SphereRegionWithRangeSample();
+        SphereRegionWithRangeSample(const char* frameData, uint32_t frameLen);
+
+        DynArray<uint8_t> toBytes() const;
+    };
+
+    struct MP4VR_DLL_PUBLIC SphereRegionWithoutRangeSample : SphereRegionProperty
+    {
+        SphereRegionProperty region = {};
+
+        SphereRegionWithoutRangeSample();
+        SphereRegionWithoutRangeSample(const char* frameData, uint32_t frameLen);
+
+        DynArray<uint8_t> toBytes() const;
+    };
+
     struct MP4VR_DLL_PUBLIC InitialViewingOrientationSample
     {
         SphereRegionProperty region = {};
         bool refreshFlag;
 
-        InitialViewingOrientationSample() = default;
-        InitialViewingOrientationSample(char* frameData, uint32_t frameLen);
+        InitialViewingOrientationSample();
+        InitialViewingOrientationSample(const char* frameData, uint32_t frameLen);
+
+        DynArray<uint8_t> toBytes() const;
+    };
+
+
+    /**
+     * Overlay relates structs
+     */
+
+    struct MP4VR_DLL_PUBLIC PackedPictureRegionProperty
+    {
+        uint16_t pictureWidth;
+        uint16_t pictureHeight;
+        uint16_t regionWidth;
+        uint16_t regionHeight;
+        uint16_t regionTop;
+        uint16_t regionLeft;
+    };
+
+    struct MP4VR_DLL_PUBLIC ProjectedPictureRegionProperty
+    {
+        uint32_t pictureWidth;
+        uint32_t pictureHeight;
+        uint32_t regionWidth;
+        uint32_t regionHeight;
+        uint32_t regionTop;
+        uint32_t regionLeft;
+    };
+
+    struct MP4VR_DLL_PUBLIC OverlayControlFlagBase
+    {
+        bool doesExist                           = false;
+        bool overlayControlEssentialFlag         = false;
+        bool inheritFromOverlayConfigSampleEntry = false;
+    };
+
+    struct MP4VR_DLL_PUBLIC ViewportRelativeOverlay : OverlayControlFlagBase
+    {
+        uint16_t rectLeftPercent;
+        uint16_t rectTopPercent;
+        uint16_t rectWidthtPercent;
+        uint16_t rectHeightPercent;
+
+        MediaAlignmentType mediaAlignment;
+        bool relativeDisparityFlag;
+
+        // disparity in pixels or in percent, in case of percent
+        // signed 16 bit value is normalized to range -100..100
+        int16_t disparity;
+
+        ViewportRelativeOverlay();
+        ViewportRelativeOverlay(const ViewportRelativeOverlay&);
+        ViewportRelativeOverlay(ViewportRelativeOverlay&&);
+        ViewportRelativeOverlay& operator=(const ViewportRelativeOverlay&);
+        ViewportRelativeOverlay& operator=(ViewportRelativeOverlay&&);
+        ~ViewportRelativeOverlay();
+    };
+
+    struct MP4VR_DLL_PUBLIC SphereRelativeOmniOverlay : OverlayControlFlagBase
+    {
+        bool regionIndicationSphereRegion;
+        bool timelineChangeFlag;
+
+        ProjectedPictureRegionProperty region;  // if regionIndicationSphereRegion == false
+        SphereRegionProperty sphereRegion;      // if regionIndicationSphereRegion == true
+
+        uint16_t regionDepthMinus1;
+
+        SphereRelativeOmniOverlay();
+        SphereRelativeOmniOverlay(const SphereRelativeOmniOverlay&);
+        SphereRelativeOmniOverlay(SphereRelativeOmniOverlay&&);
+        SphereRelativeOmniOverlay& operator=(const SphereRelativeOmniOverlay&);
+        SphereRelativeOmniOverlay& operator=(SphereRelativeOmniOverlay&&);
+        ~SphereRelativeOmniOverlay();
+    };
+
+    struct MP4VR_DLL_PUBLIC SphereRelative2DOverlay : OverlayControlFlagBase
+    {
+        SphereRegionProperty sphereRegion;
+        bool timelineChangeFlag;
+        RotationProperty overlayRotation;
+
+        uint16_t regionDepthMinus1;
+
+        SphereRelative2DOverlay();
+        SphereRelative2DOverlay(const SphereRelative2DOverlay&);
+        SphereRelative2DOverlay(SphereRelative2DOverlay&&);
+        SphereRelative2DOverlay& operator=(const SphereRelative2DOverlay&);
+        SphereRelative2DOverlay& operator=(SphereRelative2DOverlay&&);
+        ~SphereRelative2DOverlay();
+    };
+
+    struct MP4VR_DLL_PUBLIC OverlaySourceRegion : OverlayControlFlagBase
+    {
+        PackedPictureRegionProperty region;
+        TransformType transformType;
+
+        OverlaySourceRegion();
+        OverlaySourceRegion(const OverlaySourceRegion&);
+        OverlaySourceRegion(OverlaySourceRegion&&);
+        OverlaySourceRegion& operator=(const OverlaySourceRegion&);
+        OverlaySourceRegion& operator=(OverlaySourceRegion&&);
+        ~OverlaySourceRegion();
+    };
+
+
+    struct MP4VR_DLL_PUBLIC RecommendedViewportOverlay : OverlayControlFlagBase
+    {
+        uint32_t rcvpTrackRefIdx;
+
+        RecommendedViewportOverlay();
+        RecommendedViewportOverlay(const RecommendedViewportOverlay&);
+        RecommendedViewportOverlay(RecommendedViewportOverlay&&);
+        RecommendedViewportOverlay& operator=(const RecommendedViewportOverlay&);
+        RecommendedViewportOverlay& operator=(RecommendedViewportOverlay&&);
+        ~RecommendedViewportOverlay();
+    };
+
+    struct MP4VR_DLL_PUBLIC OverlayLayeringOrder : OverlayControlFlagBase
+    {
+        int16_t layeringOrder;
+
+        OverlayLayeringOrder();
+        OverlayLayeringOrder(const OverlayLayeringOrder&);
+        OverlayLayeringOrder(OverlayLayeringOrder&&);
+        OverlayLayeringOrder& operator=(const OverlayLayeringOrder&);
+        OverlayLayeringOrder& operator=(OverlayLayeringOrder&&);
+        ~OverlayLayeringOrder();
+    };
+
+    struct MP4VR_DLL_PUBLIC OverlayOpacity : OverlayControlFlagBase
+    {
+        uint8_t opacity;
+
+        OverlayOpacity();
+        OverlayOpacity(const OverlayOpacity&);
+        OverlayOpacity(OverlayOpacity&&);
+        OverlayOpacity& operator=(const OverlayOpacity&);
+        OverlayOpacity& operator=(OverlayOpacity&&);
+        ~OverlayOpacity();
+    };
+
+    struct MP4VR_DLL_PUBLIC OverlayInteraction : OverlayControlFlagBase
+    {
+        bool changePositionFlag;
+        bool changeDepthFlag;
+        bool switchOnOffFlag;
+        bool changeOpacityFlag;
+        bool resizeFlag;
+        bool rotationFlag;
+        bool sourceSwitchingFlag;
+        bool cropFlag;
+
+        OverlayInteraction();
+        OverlayInteraction(const OverlayInteraction&);
+        OverlayInteraction(OverlayInteraction&&);
+        OverlayInteraction& operator=(const OverlayInteraction&);
+        OverlayInteraction& operator=(OverlayInteraction&&);
+        ~OverlayInteraction();
+    };
+
+    struct MP4VR_DLL_PUBLIC OverlayLabel : OverlayControlFlagBase
+    {
+        DynArray<char> overlayLabel;
+
+        OverlayLabel();
+        OverlayLabel(const OverlayLabel& other);
+        OverlayLabel(OverlayLabel&& other);
+        OverlayLabel& operator=(const OverlayLabel& other);
+        ~OverlayLabel();
+    };
+
+    struct MP4VR_DLL_PUBLIC OverlayPriority : OverlayControlFlagBase
+    {
+        uint8_t overlayPriority;
+
+        OverlayPriority();
+        OverlayPriority(const OverlayPriority&);
+        OverlayPriority(OverlayPriority&&);
+        OverlayPriority& operator=(const OverlayPriority&);
+        OverlayPriority& operator=(OverlayPriority&&);
+        ~OverlayPriority();
+    };
+
+    struct MP4VR_DLL_PUBLIC AssociatedSphereRegion : OverlayControlFlagBase
+    {
+        SphereRegionShapeType shapeType;
+        SphereRegionProperty sphereRegion;
+
+        AssociatedSphereRegion();
+        AssociatedSphereRegion(const AssociatedSphereRegion&);
+        AssociatedSphereRegion(AssociatedSphereRegion&&);
+        AssociatedSphereRegion& operator=(const AssociatedSphereRegion&);
+        AssociatedSphereRegion& operator=(AssociatedSphereRegion&&);
+        ~AssociatedSphereRegion();
+    };
+
+    struct MP4VR_DLL_PUBLIC OverlayAlphaCompositing : OverlayControlFlagBase
+    {
+        AlphaBlendingModeType alphaBlendingMode;
+
+        OverlayAlphaCompositing();
+        OverlayAlphaCompositing(const OverlayAlphaCompositing&);
+        OverlayAlphaCompositing(OverlayAlphaCompositing&&);
+        OverlayAlphaCompositing& operator=(const OverlayAlphaCompositing&);
+        OverlayAlphaCompositing& operator=(OverlayAlphaCompositing&&);
+        ~OverlayAlphaCompositing();
+    };
+
+    struct MP4VR_DLL_PUBLIC SingleOverlayProperty
+    {
+        uint16_t overlayId;
+        ViewportRelativeOverlay viewportRelativeOverlay;
+        SphereRelativeOmniOverlay sphereRelativeOmniOverlay;
+        SphereRelative2DOverlay sphereRelative2DOverlay;
+        OverlaySourceRegion overlaySourceRegion;
+        RecommendedViewportOverlay recommendedViewportOverlay;
+        OverlayLayeringOrder overlayLayeringOrder;
+        OverlayOpacity overlayOpacity;
+        OverlayInteraction overlayInteraction;
+        OverlayLabel overlayLabel;
+        OverlayPriority overlayPriority;
+        AssociatedSphereRegion associatedSphereRegion;
+        OverlayAlphaCompositing overlayAlphaCompositing;
+
+        SingleOverlayProperty();
+        SingleOverlayProperty(const SingleOverlayProperty& other);
+        SingleOverlayProperty& operator=(const SingleOverlayProperty& other);
+        SingleOverlayProperty(SingleOverlayProperty&&);
+        SingleOverlayProperty& operator=(SingleOverlayProperty&&);
+
+        ~SingleOverlayProperty();
+    };
+
+    struct MP4VR_DLL_PUBLIC OverlayConfigProperty
+    {
+        uint8_t numFlagBytes;
+        DynArray<SingleOverlayProperty> overlays;
+
+        void readFromCommon(const ISOBMFF::OverlayStruct& ovlyStruct);
+    };
+
+    struct MP4VR_DLL_PUBLIC OverlayConfigSample
+    {
+        DynArray<uint16_t> activeOverlayIds;
+        ISOBMFF::Optional<OverlayConfigProperty> addlActiveOverlays;
+
+        OverlayConfigSample();
+        OverlayConfigSample(const char* frameData, uint32_t frameLen);
+        OverlayConfigSample(const OverlayConfigSample& other);
+
+        OverlayConfigSample& operator=(const OverlayConfigSample& other);
+
+        ~OverlayConfigSample();
+
+        void fromBytes(const uint8_t* bytes, uint32_t len);
+        DynArray<uint8_t> toBytes() const;
+    };
+
+    using DynamicViewpointConfigProperty = ISOBMFF::DynamicViewpointSampleEntry;
+    using InitialViewpointConfigProperty = ISOBMFF::InitialViewpointSampleEntry;
+
+    struct MP4VR_DLL_PUBLIC EntityToGroupProperty
+    {
+        uint32_t groupId;
+        DynArray<uint32_t> entityIds;
+    };
+
+    struct MP4VR_DLL_PUBLIC AltrEntityGroupProperty : public EntityToGroupProperty
+    {
+    };
+
+    struct MP4VR_DLL_PUBLIC OvbgGroupFlags
+    {
+        bool overlayFlag;
+        bool backgroundFlag;
+    };
+
+    struct MP4VR_DLL_PUBLIC OvbgEntityGroupProperty : public EntityToGroupProperty
+    {
+        uint32_t sphereDistanceInMm;
+        DynArray<OvbgGroupFlags> entityFlags;
+    };
+
+    struct MP4VR_DLL_PUBLIC OvalEntityGroupProperty : public EntityToGroupProperty
+    {
+        DynArray<uint16_t> refOverlayIds;
+    };
+
+    struct MP4VR_DLL_PUBLIC VipoEntityGroupProperty : public EntityToGroupProperty
+    {
+        uint32_t viewpointId;
+		DynArray<char> viewpointLabel;
+        ISOBMFF::ViewpointPosStruct viewpointPos;
+        ISOBMFF::ViewpointGroupStruct<true> viewpointGroup;
+        ISOBMFF::ViewpointGlobalCoordinateSysRotationStruct viewpointGlobalCoordinateSysRotation;
+
+        ISOBMFF::Optional<ISOBMFF::ViewpointGpsPositionStruct> viewpointGpsPosition;
+        ISOBMFF::Optional<ISOBMFF::ViewpointGeomagneticInfoStruct> viewpointGeomagneticInfo;
+        ISOBMFF::Optional<ISOBMFF::ViewpointSwitchingListStruct> viewpointSwitchingList;
+        ISOBMFF::Optional<ISOBMFF::ViewpointLoopingStruct> viewpointLooping;
+    };
+
+    struct MP4VR_DLL_PUBLIC GroupsListProperty
+    {
+        DynArray<AltrEntityGroupProperty> altrGroups;
+        DynArray<OvbgEntityGroupProperty> ovbgGroups;
+        DynArray<OvalEntityGroupProperty> ovalGroups;
+        DynArray<VipoEntityGroupProperty> vipoGroups;
     };
 
 }  // namespace MP4VR

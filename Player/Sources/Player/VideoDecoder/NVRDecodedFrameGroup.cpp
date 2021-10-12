@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,27 +13,31 @@
  * written consent of Nokia.
  */
 #include "VideoDecoder/NVRDecodedFrameGroup.h"
-#include "VideoDecoder/NVRFrameCache.h"
 #include "Foundation/NVRLogger.h"
 #include "Graphics/NVRRenderBackend.h"
+#include "VideoDecoder/NVRFrameCache.h"
 
 OMAF_NS_BEGIN
 OMAF_LOG_ZONE(DecodedFrameGroup)
 
-static const uint64_t TOO_OLD_FRAME_THRESHOLD = 99000; // 99 ms
+static const uint64_t TOO_OLD_FRAME_THRESHOLD = 16 * 33000;  // 16 frames
 
 DecodedFrameGroup::DecodedFrameGroup(FrameCache* frameCache)
-: mFrameCache(frameCache)
-, mStagedFrame(OMAF_NULL)
+    : mFrameCache(frameCache)
+    , mStagedFrame(OMAF_NULL)
 {
-    if (RenderBackend::getRendererType() == RendererType::OPENGL)
+    if (RenderBackend::getRendererType() == RendererType::D3D11)
     {
-        // Windows OpenGL has some perf issues; better not to discard old frames even though it may result in jerkiness and out of AV sync
-        mDiscardOldFrames = false;
+        // Select the frame only if it's not too old, this is to avoid the fast-forward effect in some cases (what
+        // cases??)
+        mDiscardOldFrames = true;
     }
     else
     {
-        mDiscardOldFrames = true;
+        // Windows OpenGL has some perf issues; better not to discard old frames even though it may result in jerkiness
+        // and out of AV sync Also Android VD streams can stutter if we discard too old frames (and keep the last active
+        // frame).
+        mDiscardOldFrames = false;
     }
 }
 
@@ -99,13 +103,17 @@ DecoderFrame* DecodedFrameGroup::findFrameWithPTS(uint64_t targetPTSUs)
         }
     }
 #endif
-
+    // if (selectedFrame)
+    // {
+    //     OMAF_LOG_D("<<<<<<<<<<<<<<<<<< Found frame with pts: %d for: %d", selectedFrame->pts, targetPTSUs);
+    // }
     return selectedFrame;
 }
 
 DecoderFrame* DecodedFrameGroup::findFrameWithPTSInternal(uint64_t targetPTSUs, bool_t ignoreOldFrames)
 {
     DecoderFrame* selectedFrame = OMAF_NULL;
+
     if (mFrames.isEmpty())
     {
         return OMAF_NULL;
@@ -131,7 +139,7 @@ DecoderFrame* DecodedFrameGroup::findFrameWithPTSInternal(uint64_t targetPTSUs, 
     return selectedFrame;
 }
 
-void_t DecodedFrameGroup::removeFrame(OMAF::Private::DecoderFrame *frame)
+void_t DecodedFrameGroup::removeFrame(OMAF::Private::DecoderFrame* frame)
 {
     Spinlock::ScopeLock lock(mFramesLock);
     mFrames.remove(frame);
@@ -162,7 +170,7 @@ void_t DecodedFrameGroup::flushFrames()
     {
         mStagedFrameLock.unlock();
     }
-    
+
     clearDiscardedFrames();
 }
 
@@ -198,8 +206,10 @@ void_t DecodedFrameGroup::discardFramesInternal(uint64_t targetPTSUs)
         {
             if (targetPTSUs != OMAF_UINT64_MAX)
             {
-                OMAF_LOG_D("Discarding frame with PTS %llu target %llu for stream %d", frame->pts, targetPTSUs, frame->streamId);
+                OMAF_LOG_D("Discarding frame with PTS %llu target %llu for stream %d", frame->pts, targetPTSUs,
+                           frame->streamId);
             }
+            // OMAF_LOG_D("+++++++++++++++++ Discarding old frame with pts: %d consumed: %d", frame->pts, frame->consumed);
             discardedFrames.add(frame);
             index++;
         }
@@ -251,7 +261,7 @@ bool_t DecodedFrameGroup::stageFrame(DecoderFrame* frame)
     }
     else
     {
-        //OMAF_ASSERT_UNREACHABLE();
+        // OMAF_ASSERT_UNREACHABLE();
         return false;
     }
 }

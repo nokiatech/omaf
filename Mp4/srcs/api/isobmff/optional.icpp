@@ -1,0 +1,270 @@
+
+/**
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+#ifndef ISOBMFF_OPTIONAL_ICC
+#define ISOBMFF_OPTIONAL_ICC
+
+#include <cassert>
+
+namespace ISOBMFF
+{
+    template <typename T>
+    Optional<T>::Optional()
+    {
+        // nothing
+    }
+
+    template <typename T>
+    Optional<T>::Optional(NoneType)
+    {
+        // nothing
+    }
+
+    template <typename T>
+    Optional<T>::~Optional()
+    {
+        clear();
+    }
+
+    template <typename T>
+    bool operator==(const Optional<T>& self, const Optional<T>& other)
+    {
+        bool a = !!self;
+        bool b = !!other;
+        return (!a && !b) || (a && b && *self == *other);
+    }
+
+    template <typename T>
+    bool operator!=(const Optional<T>& self, const Optional<T>& other)
+    {
+        return !(self == other);
+    }
+
+    template <typename T>
+    bool operator<(const Optional<T>& self, const Optional<T>& other)
+    {
+        bool a = !!self;
+        bool b = !!other;
+        return (a < b) ? true : (a > b) ? false : (!a && !b) ? false : (*self < *other);
+    }
+
+    template <typename T>
+    bool operator>(const Optional<T>& self, const Optional<T>& other)
+    {
+        bool a = !!self;
+        bool b = !!other;
+        return (a < b) ? false : (a > b) ? true : (!a && !b) ? false : (*self > *other);
+    }
+
+    template <typename T>
+    bool operator<=(const Optional<T>& self, const Optional<T>& other)
+    {
+        bool a = !!self;
+        bool b = !!other;
+        return (a < b) ? true : (a > b) ? false : (!a && !b) ? true : (*self <= *other);
+    }
+
+    template <typename T>
+    bool operator>=(const Optional<T>& self, const Optional<T>& other)
+    {
+        bool a = !!self;
+        bool b = !!other;
+        return (a < b) ? false : (a > b) ? true : (!a && !b) ? true : (*self >= *other);
+    }
+
+    template <typename T>
+    Optional<T>::Optional(const Optional<T>& other)
+    {
+        if (other)
+        {
+            new(&mStorage) T(*other);
+            mIsSet = true;
+        }
+    }
+
+    template <typename T>
+    void Optional<T>::clear()
+    {
+        if (mIsSet)
+        {
+            get().~T();
+            mIsSet = false;
+        }
+    }
+
+    template <typename T>
+    Optional<T>& Optional<T>::operator=(const Optional<T>& other)
+    {
+        if (this != &other)
+        {
+            clear();
+        }
+        if (other)
+        {
+            new(&mStorage) T(*other);
+        }
+        mIsSet = other.mIsSet;
+        return *this;
+    }
+
+    template <typename T>
+    Optional<T>::Optional(const T& other)
+    {
+        new(&mStorage) T(other);
+        mIsSet = true;
+    }
+
+    template <typename T>
+    Optional<T>::operator bool() const
+    {
+        return mIsSet;
+    }
+
+    template <typename T>
+    T& Optional<T>::operator*()
+    {
+        return get();
+    }
+
+    template <typename T>
+    const T& Optional<T>::operator*() const
+    {
+        return get();
+    }
+
+    template <typename T>
+    T& Optional<T>::get()
+    {
+        assert(mIsSet);
+        return *reinterpret_cast<T*>(&mStorage);
+    }
+
+    template <typename T>
+    const T& Optional<T>::get() const
+    {
+        assert(mIsSet);
+        return *reinterpret_cast<const T*>(&mStorage);
+    }
+
+    template <typename T>
+    T* Optional<T>::ptr()
+    {
+        return mIsSet ? reinterpret_cast<T*>(&mStorage) : nullptr;
+    }
+
+    template <typename T>
+    const T* Optional<T>::ptr() const
+    {
+        return mIsSet ? reinterpret_cast<const T*>(&mStorage) : nullptr;
+    }
+
+    template <typename T>
+    T* Optional<T>::operator->()
+    {
+        return ptr();
+    }
+
+    template <typename T>
+    const T* Optional<T>::operator->() const
+    {
+        return ptr();
+    }
+
+    template <typename T>
+    Optional<T> makeOptional(const T& value)
+    {
+        return Optional<T>(value);
+    }
+
+    // base case
+    template <typename First>
+    First coalesce(First value)
+    {
+        return value;
+    }
+
+    // general case
+    template <typename First, typename... Rest>
+    First coalesce(First value, Rest... rest)
+    {
+        if (value)
+        {
+            return value;
+        }
+        else
+        {
+            return coalesce(rest...);
+        }
+    }
+
+    template <typename T>
+    template <typename MapFunc>
+    auto Optional<T>::map(const MapFunc& aMap) const -> Optional<decltype(aMap(**this))>
+    {
+        if (*this)
+        {
+            return aMap(**this);
+        }
+        else
+        {
+            return {};
+        }
+    }
+
+    template <typename T>
+    template <typename MapFunc>
+    auto Optional<T>::then_do(const MapFunc& aMap) const -> decltype(aMap(**this))
+    {
+        if (*this)
+        {
+            return aMap(**this);
+        }
+        else
+        {
+            return decltype(aMap(**this))();
+        }
+    }
+
+    template <typename T>
+    template <typename MakeFunc> T Optional<T>::else_do(const MakeFunc& aMakeValue) const
+    {
+        if (*this)
+        {
+            return **this;
+        }
+        else
+        {
+            return aMakeValue();
+        }
+    }
+
+    template <typename T>
+    T Optional<T>::value_or(const T& aDefault) const
+    {
+        if (*this)
+        {
+            return **this;
+        }
+        else
+        {
+            return aDefault;
+        }
+    }
+}  // namespace ISOBMFF
+
+#endif
+/* For emacs:        */
+/* Local Variables:  */
+/* mode: c++         */
+/* End:              */

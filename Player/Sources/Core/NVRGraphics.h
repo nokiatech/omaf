@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,18 +21,24 @@
 #include "Graphics/NVRColor.h"
 #include "Graphics/NVRColorMask.h"
 #include "Graphics/NVRColorSpace.h"
+#include "Graphics/NVRComputeBufferAccess.h"
 #include "Graphics/NVRCullMode.h"
+#include "Graphics/NVRDebugMode.h"
+#include "Graphics/NVRDependencies.h"
 #include "Graphics/NVRDepthFunction.h"
 #include "Graphics/NVRDepthMask.h"
 #include "Graphics/NVRDepthStencilState.h"
 #include "Graphics/NVRDiscardMask.h"
 #include "Graphics/NVRFillMode.h"
 #include "Graphics/NVRFrontFace.h"
+#include "Graphics/NVRGraphicsAPIDetection.h"
+#include "Graphics/NVRHandles.h"
 #include "Graphics/NVRIRenderContext.h"
 #include "Graphics/NVRPrimitiveType.h"
 #include "Graphics/NVRRasterizerState.h"
 #include "Graphics/NVRRenderBackend.h"
 #include "Graphics/NVRRendererType.h"
+#include "Graphics/NVRResourceDescriptors.h"
 #include "Graphics/NVRScissors.h"
 #include "Graphics/NVRShaderConstantType.h"
 #include "Graphics/NVRStencilFunction.h"
@@ -44,12 +50,6 @@
 #include "Graphics/NVRVertexAttributeFormat.h"
 #include "Graphics/NVRVertexDeclaration.h"
 #include "Graphics/NVRViewport.h"
-#include "Graphics/NVRHandles.h"
-#include "Graphics/NVRResourceDescriptors.h"
-#include "Graphics/NVRGraphicsAPIDetection.h"
-#include "Graphics/NVRDebugMode.h"
-#include "Graphics/NVRComputeBufferAccess.h"
-#include "Graphics/NVRDependencies.h" // TODO: Remove this since we can't expose e.g. Metal headers due to the fact there is Objective-C code
 
 #if OMAF_GRAPHICS_API_OPENGL_ES || OMAF_GRAPHICS_API_OPENGL
 

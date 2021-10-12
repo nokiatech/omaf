@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -46,12 +46,15 @@ namespace VDD
         SegmenterNonFrag(Config aConfig);
         ~SegmenterNonFrag() override;
 
-        virtual std::vector<Views> process(const Views& data) override;
+        std::string getGraphVizDescription() override;
+
+        std::vector<Streams> process(const Streams& data) override;
 
     protected:
-        virtual void writeSegment(StreamSegmenter::Segmenter::Segments& aSegments, std::vector<Views>& aFrames);
+        virtual void writeSegment(StreamSegmenter::Segmenter::Segments& aSegments, std::vector<Streams>& aFrames) override;
 
     private:
+        Config mConfig;
 
         SegmenterInit mInitSegment;
 

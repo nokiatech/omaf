@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -32,11 +32,11 @@ namespace VDD {
         }
     }
 
-    void TileProxyMultiRes::processExtractors(std::vector<Views>& aTiles)
+    void TileProxyMultiRes::processExtractors(std::vector<Streams>& aTiles)
     {
         for (auto& direction : mTileMergingConfig.directions)
         {
-            aTiles.push_back({ std::move(collectExtractors(direction, mFirstExtractorRound)) });
+            aTiles.push_back({ collectExtractors(direction, mFirstExtractorRound) });
         }
         mFirstExtractorRound = false;
         // now we are ready to pop the extractors at front of each stream
@@ -46,7 +46,7 @@ namespace VDD {
         }
     }
 
-    void TileProxyMultiRes::createEoS(std::vector<Views>& aTiles)
+    void TileProxyMultiRes::createEoS(std::vector<Streams>& aTiles)
     {
         for (auto& direction : mTileMergingConfig.directions)
         {
@@ -61,14 +61,14 @@ namespace VDD {
     {
         StreamId idOfFirstTile = aDirection.tiles.at(0).at(0).tile.at(0).ids.first;
 
-        CodedFrameMeta cMeta(mExtractorCache[idOfFirstTile].front().getCodedFrameMeta());
+        CodedFrameMeta cMeta(mExtractorCache[idOfFirstTile].front().data.getCodedFrameMeta());
 
         if (aFirstPacket)
         {
             // 
             StreamId idOfVeryFirstTile = mTileMergingConfig.directions.at(0).tiles.at(0).at(0).tile.at(0).ids.first;
 
-            CodedFrameMeta cFirstMeta(mExtractorCache[idOfVeryFirstTile].front().getCodedFrameMeta());
+            CodedFrameMeta cFirstMeta(mExtractorCache[idOfVeryFirstTile].front().data.getCodedFrameMeta());
 
             // the very first extractor data should contain SPS of the input picture
             // and the very first tile is expected to be a high-res video (but it may not matter even if it is not as we rewrite the resolution)
@@ -118,11 +118,11 @@ namespace VDD {
                 mTileMergingConfig.extractorPPS.mUniformSpacingFlag = 0;
                 mTileMergingConfig.extractorPPS.mColumnWidthMinus1.clear();
                 mTileMergingConfig.extractorPPS.mRowHeightMinus1.clear();
-                for (int x = 0; x < mTileMergingConfig.extractorPPS.mNumTileColumnsMinus1; x++)
+                for (size_t x = 0; x < mTileMergingConfig.extractorPPS.mNumTileColumnsMinus1; x++)
                 {
                     mTileMergingConfig.extractorPPS.mColumnWidthMinus1.push_back(mTileMergingConfig.grid.columnWidths[x] / ctuSize - 1);
                 }
-                for (int y = 0; y < mTileMergingConfig.extractorPPS.mNumTileRowsMinus1; y++)
+                for (size_t y = 0; y < mTileMergingConfig.extractorPPS.mNumTileRowsMinus1; y++)
                 {
                     mTileMergingConfig.extractorPPS.mRowHeightMinus1.push_back(mTileMergingConfig.grid.rowHeights[y] / ctuSize - 1);
                 }
@@ -155,7 +155,8 @@ namespace VDD {
             cMeta.regionPacking.get().packedPictureWidth = mTileMergingConfig.packedWidth;
             cMeta.regionPacking.get().projPictureHeight = mTileMergingConfig.projectedHeight;
             cMeta.regionPacking.get().projPictureWidth = mTileMergingConfig.projectedWidth;
-            if (mOutputMode == PipelineOutput::VideoSideBySide || mOutputMode == PipelineOutput::VideoTopBottom)
+            if (mOutputMode == PipelineOutputVideo::SideBySide ||
+                mOutputMode == PipelineOutputVideo::TopBottom)
             {
                 cMeta.regionPacking.get().constituentPictMatching = true;
             }
@@ -175,13 +176,13 @@ namespace VDD {
                 {
                     StreamId id = tile.ids.first;
 
-                    Data& data = mExtractorCache[id].front();
+                    Data& data = mExtractorCache[id].front().data;
                     Extractor extractor = data.getExtractors().front();
 
                     // rewrite the inline constructor for this tile configuration
                     // the same extractor may be used with other tile configuration, so don't pop it yet
                     Parser::BitStream newSliceHeaderBitStr;
-                    convertSliceHeader(extractor.sampleConstruct.at(0).sliceInfo.naluHeader, extractor.sampleConstruct.at(0).sliceInfo.origSliceHeader, newSliceHeaderBitStr, tile.ctuIndex, mTileMergingConfig.extractorSPS, mTileMergingConfig.extractorPPS);
+                    convertSliceHeader(extractor.sampleConstruct.at(0).sliceInfo.naluHeader, extractor.sampleConstruct.at(0).sliceInfo.origSliceHeader, newSliceHeaderBitStr, static_cast<std::uint64_t>(tile.ctuIndex), mTileMergingConfig.extractorSPS, mTileMergingConfig.extractorPPS);
 
                     Extractor::InlineConstruct inlineCtor;
                     // add placeholder for NAL unit length field; reader is expected to rewrite it
@@ -189,7 +190,6 @@ namespace VDD {
                     // add the updated slice header
                     inlineCtor.inlineData.insert(inlineCtor.inlineData.end(), newSliceHeaderBitStr.getStorage().begin(), newSliceHeaderBitStr.getStorage().end());
 
-                    //TODO this works with 1 tile per extractor only? But do we need to support other cases?
                     if (extractor.inlineConstruct.size())
                     {
                         // replace the existing inline constructor

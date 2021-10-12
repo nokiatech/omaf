@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,7 +16,7 @@
 
 #include "Foundation/NVRLogger.h"
 
-#if 0 // enable only when needed as can cause frame drops
+#if 0  // enable only when needed as can cause frame drops
 OMAF_NS_BEGIN
     namespace LATENCY_LOG
     {
@@ -33,7 +33,7 @@ OMAF_NS_BEGIN
 
     }
 
-#define LATENCY_LOG_D(...) LATENCY_LOG::logDebug("Latency", ## __VA_ARGS__)
+#define LATENCY_LOG_D(...) LATENCY_LOG::logDebug("Latency", ##__VA_ARGS__)
 
 
 OMAF_NS_END

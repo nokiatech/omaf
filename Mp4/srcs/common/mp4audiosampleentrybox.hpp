@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -67,13 +67,13 @@ public:
 
     /** @brief Creates the bitstream that represents the box in the ISOBMFF file
      *  @param [out] bitstr Bitstream that contains the box data. */
-    virtual void writeBox(ISOBMFF::BitStream& bitstr);
+    void writeBox(ISOBMFF::BitStream& bitstr) override;
 
     /** @brief Parses a AudioSampleEntryBox bitstream and fills in the necessary member variables
      *  @param [in]  bitstr Bitstream that contains the box data */
-    virtual void parseBox(ISOBMFF::BitStream& bitstr);
+    void parseBox(ISOBMFF::BitStream& bitstr) override;
 
-    virtual MP4AudioSampleEntryBox* clone() const;
+    MP4AudioSampleEntryBox* clone() const override;
 
     /* @brief Returns the configuration record for this sample */
     virtual const DecoderConfigurationRecord* getConfigurationRecord() const override;

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,10 +16,10 @@
 
 #include "Foundation/NVRDependencies.h"
 
-// MSCV doesn't have variadic copy from C99, so we need to use common behaviour which is just simple assign to make this work!
+// MSCV doesn't have variadic copy from C99, so we need to use common behaviour which is just simple assign to make this
+// work!
 #ifndef va_copy
 
 #define va_copy(d, s) ((d) = (s))
 
 #endif
-

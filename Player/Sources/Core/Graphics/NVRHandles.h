@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -20,44 +20,44 @@
 
 OMAF_NS_BEGIN
 
-#define OMAF_DECLARE_HANDLE(name, type)                      \
-struct name                                                 \
-{                                                           \
-    typedef type InternalType;                              \
-                                                            \
-    InternalType _handle;                                   \
-    static const name Invalid;                              \
-                                                            \
-    name()                                                  \
-    : _handle(InternalType::Invalid)                        \
-    {                                                       \
-    }                                                       \
-                                                            \
-    name(const InternalType& handle)                        \
-    : _handle(handle)                                       \
-    {                                                       \
-    }                                                       \
-                                                            \
-    name(const name& handle)                                \
-    : _handle(handle._handle)                               \
-    {                                                       \
-    }                                                       \
-                                                            \
-    bool_t isValid() const                                  \
-    {                                                       \
-        return _handle != InternalType::Invalid;            \
-    }                                                       \
-                                                            \
-    OMAF_INLINE bool_t operator == (const name& other) const \
-    {                                                       \
-        return _handle == other._handle;                    \
-    }                                                       \
-                                                            \
-    OMAF_INLINE bool_t operator != (const name& other) const \
-    {                                                       \
-        return _handle != other._handle;                    \
-    }                                                       \
-}
+#define OMAF_DECLARE_HANDLE(name, type)                        \
+    struct name                                                \
+    {                                                          \
+        typedef type InternalType;                             \
+                                                               \
+        InternalType _handle;                                  \
+        static const name Invalid;                             \
+                                                               \
+        name()                                                 \
+            : _handle(InternalType::Invalid)                   \
+        {                                                      \
+        }                                                      \
+                                                               \
+        name(const InternalType& handle)                       \
+            : _handle(handle)                                  \
+        {                                                      \
+        }                                                      \
+                                                               \
+        name(const name& handle)                               \
+            : _handle(handle._handle)                          \
+        {                                                      \
+        }                                                      \
+                                                               \
+        bool_t isValid() const                                 \
+        {                                                      \
+            return _handle != InternalType::Invalid;           \
+        }                                                      \
+                                                               \
+        OMAF_INLINE bool_t operator==(const name& other) const \
+        {                                                      \
+            return _handle == other._handle;                   \
+        }                                                      \
+                                                               \
+        OMAF_INLINE bool_t operator!=(const name& other) const \
+        {                                                      \
+            return _handle != other._handle;                   \
+        }                                                      \
+    }
 
 OMAF_DECLARE_HANDLE(VertexBufferID, VertexBufferHandleAllocator::HandleType);
 OMAF_DECLARE_HANDLE(IndexBufferID, IndexBufferHandleAllocator::HandleType);

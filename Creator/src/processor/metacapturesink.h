@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -20,32 +20,28 @@
 
 namespace VDD
 {
-    // MetaCaptureSink sinks the configured frame/data and returns its CodedFrameMeta to the provided callback
+    // MetaCaptureSink sinks the first frame and returns its Meta to the provided callback
     // function.
     class MetaCaptureSink : public Sink
     {
     public:
         struct Config
         {
-            // in OMAF take the specified one
-            bool pickFirstOne;
-            StreamId streamId;
+            // no configuration
         };
 
         MetaCaptureSink(const Config& aConfig);
 
         ~MetaCaptureSink();
 
-        Future<std::vector<CodedFrameMeta>> getCodedFrameMeta() const;
+        Future<std::vector<Meta>> getMeta() const;
 
         StorageType getPreferredStorageType() const override;
 
-        void consume(const Views&) override;
+        void consume(const Streams&) override;
 
     private:
-        bool mPickFirstOne; //vs pick given stream id
-        bool mDone;
-        StreamId mStreamId;
-        Promise<std::vector<CodedFrameMeta>> mCodedFrameMeta;
+        bool mFirst = true;
+        Promise<std::vector<Meta>> mMeta;
     };
 }

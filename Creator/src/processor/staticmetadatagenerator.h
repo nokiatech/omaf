@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -23,8 +23,12 @@ namespace VDD
     public:
         struct Config
         {
+            CodedFormat metadataType;
             std::vector<std::vector<uint8_t>> metadataSamples;
-            int mediaToMetaSampleRate; // one metadata sample per this many media frames, can correspond e.g. to GOP length
+
+            // one metadata sample of this length per this duration, can correspond e.g. to GOP
+            // length
+            FrameDuration sampleDuration;
         };
 
         StaticMetadataGenerator(const Config& aConfig);
@@ -35,11 +39,12 @@ namespace VDD
             return StorageType::CPU;
         }
 
-        std::vector<Views> process(const Views& data) override;
+        std::vector<Streams> process(const Streams& data) override;
 
     private:
         Config mConfig;
         std::vector<Data> mData;
         size_t mIndex;
+        FrameTime mTimeTillNextSample;
     };
-} // namespace VDD
+}  // namespace VDD

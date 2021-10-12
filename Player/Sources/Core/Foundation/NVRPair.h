@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,52 +17,50 @@
 #include "Platform/OMAFCompiler.h"
 
 OMAF_NS_BEGIN
-    template<typename FirstType, typename SecondType>
-    class Pair
+template <typename FirstType, typename SecondType>
+class Pair
+{
+public:
+    FirstType first;
+    SecondType second;
+
+public:
+    Pair()
     {
-        public:
-            
-            FirstType first;
-            SecondType second;
-            
-        public:
-        
-            Pair()
-            {
-            }
-        
-            Pair(FirstType first, SecondType second)
-            : first(first)
-            , second(second)
-            {
-            }
-        
-            Pair(const Pair& other)
-            : first(other.first)
-            , second(other.second)
-            {
-            }
-            
-            ~Pair()
-            {
-            }
-        
-            Pair& operator = (const Pair& other)
-            {
-                first = other.first;
-                second = other.second;
-                
-                return *this;
-            }
-        
-            bool_t operator == (const Pair& other) const
-            {
-                return (first == other.first && second == other.second);
-            }
-            
-            bool_t operator != (const Pair& other) const
-            {
-                return !(first == other.first && second == other.second);
-            }
-    };
+    }
+
+    Pair(FirstType first, SecondType second)
+        : first(first)
+        , second(second)
+    {
+    }
+
+    Pair(const Pair& other)
+        : first(other.first)
+        , second(other.second)
+    {
+    }
+
+    ~Pair()
+    {
+    }
+
+    Pair& operator=(const Pair& other)
+    {
+        first = other.first;
+        second = other.second;
+
+        return *this;
+    }
+
+    bool_t operator==(const Pair& other) const
+    {
+        return (first == other.first && second == other.second);
+    }
+
+    bool_t operator!=(const Pair& other) const
+    {
+        return !(first == other.first && second == other.second);
+    }
+};
 OMAF_NS_END

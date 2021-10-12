@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -84,13 +84,13 @@ void H265StdIoStream::fillBuffer()
     // readsome doesn't work on Windows as we'd hope, so let's just keep track of how much we got
     std::streamsize bytesRead = mStream.tellg();
     mStream.read(reinterpret_cast<char*>(&mBuffer[0] + writeOffset),
-                 mBuffer.size() - writeOffset);
+                 static_cast<std::streamsize>(mBuffer.size() - writeOffset));
     if (mStream.eof())
     {
         // eof and other errors are handled by dealing with bytesRead
         mStream.clear();
     }
-    bytesRead = mStream.tellg() - bytesRead;
+    bytesRead = std::streamsize(mStream.tellg() - std::streampos(bytesRead));
     mReadOffset = writeOffset;
     mBufferSize = size_t(bytesRead) + writeOffset;
 

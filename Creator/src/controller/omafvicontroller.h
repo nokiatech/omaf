@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,8 +14,8 @@
  */
 #pragma once
 
-#include <string>
 #include <functional>
+#include <string>
 
 #include "audio.h"
 #include "common.h"
@@ -25,11 +25,11 @@
 #include "controllerbase.h"
 
 #include "async/asyncnode.h"
-#include "async/graph.h"
 #include "async/combinenode.h"
-#include "common/utils.h"
+#include "async/future.h"
+#include "async/graph.h"
 #include "common/optional.h"
-#include "concurrency/threadedpoolprocessor.h"
+#include "common/utils.h"
 #include "config/config.h"
 #include "dashomaf.h"
 
@@ -63,53 +63,53 @@ namespace VDD
         segments. If there is no video encoder config, the video encoder is skipped and
         pipeline is built for raw data (ie AAC).
 
-        @param aName Name of the output
         @param aDashOutput The Dash output configuration for this stream
         @param aPipelineOutput What kind of output is this? Mono, Left, Audio, etc
-        @param aSources Which source to capture the initial frames from (raw import, aac import, or tiler)
-        Uses aSegmenterOutput to choose the correct source from here.
+        @param aSources Which source to capture the initial frames from (raw import, aac import, or
+        tiler) Uses aSegmenterOutput to choose the correct source from here.
         @param aMP4VRSink If this pipeline (the part before segmenter) is to be written to
         an MP4VR file, provide a writer sink
 
         @return Return the end of the pipeline, suitable for using with configureMPD
         */
-        AsyncNode* buildPipeline(std::string aName,
-            Optional<DashSegmenterConfig> aDashOutput,
-            PipelineOutput aPipelineOutput,
-            PipelineOutputNodeMap aSources,
-            AsyncProcessor* aMP4VRSink);
-
-        void makeAudioDashPipeline(const ConfigValue& aDashConfig,
-            std::string aAudioName,
-            AsyncNode* aAacInput,
-            FrameDuration aTimeScale);
+        PipelineInfo buildPipeline(View* aView,
+                                   Optional<DashSegmenterConfig> aDashOutput,
+                                   PipelineOutput aPipelineOutput, PipelineOutputNodeMap aSources,
+                                   AsyncProcessor* aMP4VRSink,
+                                   Optional<PipelineBuildInfo> aPipelineBuildInfo) override;
 
     private:
-        std::shared_ptr<Log> mLog;
-        std::shared_ptr<VDD::Config> mConfig;
-
-        bool mParallel;
-        std::unique_ptr<GraphBase> mGraph;
-        ThreadedWorkPool mWorkPool;
-        Optional<std::string> mDotFile;
-
         int mFrame = 1;
 
         GraphErrors mErrors;
 
-        /* Graph ops lifting the shared functionality. unique_ptr so we don't need to include the
-         * header. */
-        std::unique_ptr<ControllerOps> mOps;
-
-        DashOmaf mDash;
-
-        SegmentDurations mDashDurations;
+        class ControllerConfigureForwarder;
+        friend class ControllerConfigureForwarder;
 
         /* Lower level configuration operations (ie. access to mInputLeft). */
         std::unique_ptr<ControllerConfigure> mConfigure;
 
+        std::set<TrackId> mVideoTrackIds;  // for output; used for making track references correctly
+
         Optional<MP4VRWriter::Config> mMP4VRConfig;
         MP4VROutputs mMP4VROutputs;
+
+        // Collect a list of video or extractor adaptation ids (==stream id) for overlay associations
+        std::list<StreamId> mVideoAdaptationIds;
+
+        Optional<ParsedValue<RefIdLabel>> mVideoRefIdLabel;
+        EntityGroupReadContext mEntityGroupReadContext;
+
+        AsyncNode* mInputLeft = nullptr;
+        AsyncNode* mInputRight = nullptr;
+
+        VideoInputMode mInputVideoMode;
+        FrameDuration mVideoFrameDuration;
+        FrameDuration mVideoTimeScale;
+        VideoGOP mGopInfo;
+
+        // Must be set before starting the pipeline
+        Promise<ISOBMFF::Optional<StreamSegmenter::Segmenter::MetaSpec>> mFileMeta;
 
         /** @brief Given an pipeline mode and base layer name, find an existing MP4VR producer for
          * it, or create one if it is missing and MP4VR generation is enabled. Arranges left and
@@ -118,7 +118,7 @@ namespace VDD
          * @return nullptr if mp4vr output is not enabled, otherwise a pointer to an MP4VRWriter */
         MP4VRWriter* createMP4VROutputForVideo(PipelineMode aMode, std::string aName);
 
-        /** @brief Creates the video passthru pipeline. 
+        /** @brief Creates the video passthru pipeline.
          */
         void makeVideo();
 
@@ -134,6 +134,6 @@ namespace VDD
          * "foo.dot" } } (maps to mDotFile) */
         void writeDot();
 
-        friend class ControllerConfigure;
+        friend class ControllerConfigureForwarder;
     };
-}
+}  // namespace VDD

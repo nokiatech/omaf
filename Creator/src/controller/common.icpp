@@ -1,0 +1,156 @@
+
+/**
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+namespace VDD
+{
+    namespace
+    {
+        // Given a number, return its factors in sorted order. Ie: 42000 -> {2, 2, 2, 2, 3, 5, 5, 5,
+        // 7} https://codereview.stackexchange.com/a/70886
+        template <typename T>
+        std::vector<T> factorize(T num)
+        {  // works great for smooth numbers
+            std::vector<T> v;
+            if (num < 4)
+            {
+                v.push_back(num);
+                return v;
+            }
+            T d{2};
+            while (num >= d * d)
+            {
+                while (num % d == 0)
+                {  // remove all repeats of this divisor
+                    v.push_back(d);
+                    num /= d;
+                }
+                ++d;
+                if (d * d > num && num > 1)
+                {
+                    v.push_back(num);
+                    return v;
+                }
+            }
+            return v;
+        }
+
+        // Given a sequence of numbers, convert it into "run length + number" form.
+        // ie: {2, 2, 2, 2, 3, 5, 5, 5, 7} -> {{4, 2}, {1, 3}, {3, 5}, {1, 7}}
+        template <typename T>
+        auto countSequentialRun(const T& xs) -> std::vector<
+            std::pair<size_t, typename std::remove_reference<
+                                  typename std::remove_const<decltype(*xs.begin())>::type>::type>>
+        {
+            std::vector<std::pair<size_t, typename std::remove_reference<typename std::remove_const<
+                                              decltype(*xs.begin())>::type>::type>>
+                result;
+            for (auto& x : xs)
+            {
+                if (!result.size() || result.back().second != x)
+                {
+                    result.push_back({1, x});
+                }
+                else
+                {
+                    assert(result.size() && result.back().second == x);
+                    ++result.back().first;
+                }
+            }
+            return result;
+        }
+
+        // Given a set of denominators (divider in a fractional number), return a number which can
+        // multiple all of the rational numbers and the result is an integral number. Ie. {42000,
+        // 50000} -> 1050000 (105000/42000=21/1, 105000/50000=25/0)
+        template <typename T>
+        unsigned calculateTimescale(const T& aDenominators)
+        {
+            using ValueType = typename T::value_type;
+            std::set<ValueType> visitedFactors;
+            std::map<ValueType, size_t> maxFactors;
+            for (auto den : aDenominators)
+            {
+                if (!visitedFactors.count(den))
+                {
+                    visitedFactors.insert(den);
+
+                    for (auto [count, factor] : countSequentialRun(factorize(den)))
+                    {
+                        if (!maxFactors.count(factor))
+                        {
+                            maxFactors[factor] = count;
+                        }
+                        else
+                        {
+                            maxFactors[factor] = std::max(maxFactors[factor], count);
+                        }
+                    }
+                }
+            }
+            ValueType timescale = 1;
+            for (auto [factor, count] : maxFactors)
+            {
+                for (size_t i = 0; i < count; ++i)
+                {
+                    timescale *= factor;
+                }
+            }
+            return timescale;
+        }
+
+    }  // namespace
+
+    template <typename Sample>
+    FrameDuration timescaleForSamples(const std::vector<Sample>& aSamples,
+                                      Optional<FrameTime::value> aGopDenominator)
+    {
+        FrameDuration timescale;
+        if (aSamples.size())
+        {
+            std::vector<FrameTime::value> denominators;
+            std::transform(aSamples.begin(), aSamples.end(), std::back_inserter(denominators),
+                           [](auto& x) { return x.getCodedFrameMeta().presTime.minimize().den; });
+            if (aGopDenominator)
+            {
+                denominators.push_back(*aGopDenominator);
+            }
+            timescale = {1, static_cast<FrameDuration::value>(calculateTimescale(denominators))};
+        } else {
+            // no samples? Then the timescale hardly matters, does it?
+            timescale = {1, 1000};
+        }
+        return timescale;
+    }
+
+    template <typename Sample>
+    CodedFrameMeta SampleTimeDuration<Sample>::getCodedFrameMeta(Index aIndex, CodedFormat aFormat) const
+    {
+        CodedFrameMeta m;
+        m.format = aFormat;
+        m.presIndex = aIndex;
+        m.codingTime = time;
+        m.presTime = time;
+        m.duration = duration;
+        m.inCodingOrder = true;
+        m.type = FrameType::IDR;
+        return m;
+    }
+
+    template <typename Dump, typename Value> Value trace(Dump f, Value&& x)
+    {
+        f(std::cout, x);
+        std::cout << std::endl;
+        return x;
+    }
+}  // namespace VDD

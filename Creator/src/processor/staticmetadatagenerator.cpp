@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -30,28 +30,32 @@ namespace VDD
 
     StaticMetadataGenerator::~StaticMetadataGenerator() = default;
 
-    std::vector<Views> StaticMetadataGenerator::process(const Views& aData)
+    std::vector<Streams> StaticMetadataGenerator::process(const Streams& aData)
     {
-        if (aData[0].isEndOfStream())
+        std::vector<Streams> streams;
+        if (aData.isEndOfStream())
         {
-            return { aData };
+            streams = { aData };
         }
         else
         {
-            CodedFrameMeta codedMeta = aData[0].getCodedFrameMeta();
-            if (codedMeta.presIndex % mConfig.mediaToMetaSampleRate == 0)
+            if (mTimeTillNextSample <= FrameTime(0, 1))
             {
-                codedMeta.format = CodedFormat::TimedMetadata;
+                mTimeTillNextSample += mConfig.sampleDuration.cast<FrameTime>();
+                CodedFrameMeta codedMeta = aData.front().getCodedFrameMeta();
+                codedMeta.format = mConfig.metadataType;
+                codedMeta.duration = mConfig.sampleDuration;
 
                 Meta meta(codedMeta);
                 mIndex %= mData.size();
-                return{ { Data(mData[mIndex++], meta) } };
+                streams = {{Data(mData[mIndex++], meta)}};
             }
             else
             {
-                std::vector<Views> frames;
-                return frames;
+                // fine, no streams to return
             }
+            mTimeTillNextSample -= aData.front().getCodedFrameMeta().duration.cast<FrameTime>();
         }
+        return streams;
     }
-} // namespace VDD
+}  // namespace VDD

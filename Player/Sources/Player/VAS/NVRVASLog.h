@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,7 +17,7 @@
 #include "Foundation/NVRLogger.h"
 #include "VAS/NVRVASTilePicker.h"
 
-#if 0 // enable only when needed as can cause frame drops
+#if 0  // enable only when needed as can cause frame drops
 OMAF_NS_BEGIN
     namespace VDD_LOG
     {
@@ -53,7 +53,7 @@ OMAF_NS_BEGIN
 
     }
 
-#define VAS_LOG_D(...) VDD_LOG::logDebug("VDD", ## __VA_ARGS__)
+#define VAS_LOG_D(...) VDD_LOG::logDebug("VDD", ##__VA_ARGS__)
 #define VAS_LOG_TILES_D(title, tiles) VDD_LOG::logTilesDebug(title, tiles)
 
 

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,22 +16,22 @@
 
 #include "NVREssentials.h"
 
-#include "Graphics/NVRDependencies.h"
-#include "Graphics/NVRRasterizerState.h"
 #include "Graphics/NVRBlendState.h"
-#include "Graphics/NVRDepthStencilState.h"
 #include "Graphics/NVRBufferAccess.h"
+#include "Graphics/NVRComputeBufferAccess.h"
+#include "Graphics/NVRDependencies.h"
+#include "Graphics/NVRDepthStencilState.h"
+#include "Graphics/NVRIndexBufferFormat.h"
 #include "Graphics/NVRPrimitiveType.h"
-#include "Graphics/NVRTextureType.h"
+#include "Graphics/NVRRasterizerState.h"
+#include "Graphics/NVRScissors.h"
+#include "Graphics/NVRShaderConstantType.h"
 #include "Graphics/NVRTextureAddressMode.h"
 #include "Graphics/NVRTextureFilterMode.h"
 #include "Graphics/NVRTextureFormat.h"
-#include "Graphics/NVRShaderConstantType.h"
+#include "Graphics/NVRTextureType.h"
 #include "Graphics/NVRVertexAttributeFormat.h"
 #include "Graphics/NVRViewport.h"
-#include "Graphics/NVRScissors.h"
-#include "Graphics/NVRIndexBufferFormat.h"
-#include "Graphics/NVRComputeBufferAccess.h"
 
 #include "Graphics/OpenGL/NVRGLError.h"
 
@@ -87,12 +87,12 @@ bool_t supportsRenderTargetTextureFormatGL(TextureFormat::Enum format);
 
 #if OMAF_GRAPHICS_API_OPENGL_ES >= 30 || OMAF_GRAPHICS_API_OPENGL >= 30
 
-    const char_t* getStringGL(GLenum key);
-    const char_t* getStringGL(GLenum key, GLuint index);
+const char_t* getStringGL(GLenum key);
+const char_t* getStringGL(GLenum key, GLuint index);
 
 #else
 
-    const char_t* getStringGL(GLenum key);
+const char_t* getStringGL(GLenum key);
 
 #endif
 

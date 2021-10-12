@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,12 +17,13 @@
 #include <mutex>
 
 #include "asyncnode.h"
+#include "common/exceptions.h"
 
 namespace VDD {
     /**
      * CombineNode is a mechanism for combining two or more sources of data into one. For example,
-     * if there are two YUV importing sources each producing one separate Views with one Data each,
-     * CombineNode is able to combine those two frames into one frame that has two views.
+     * if there are two YUV importing sources each producing one separate Streams with one Data each,
+     * CombineNode is able to combine those two frames into one frame that has two streams.
      *
      * CombineNode doesn't require the frames to be produced at the same time. When one frame is
      * provided, it waits until the other source produces a frame as well, and then combines them
@@ -58,14 +59,18 @@ namespace VDD {
     public:
         ~CombineSinkNode();
 
-        void hasInput(const Views& input) override;
+        void hasInput(const Streams& input) override;
         bool isBlocked() const override;
 
     private:
-        CombineSinkNode(GraphBase&, std::shared_ptr<CombineSourceNode> aCombineSourceNode, size_t aIndex);
+        CombineSinkNode(GraphBase&, std::shared_ptr<CombineSourceNode> aCombineSourceNode,
+                        size_t aIndex, bool aRequireSingleStream,
+                        Optional<StreamId> aAssignStreamId);
 
         std::shared_ptr<CombineSourceNode> mCombineSourceNode;
         size_t mIndex; // which output slot to occupy in the final output from CombineSourceNode
+        bool mRequireSingleStream;
+        Optional<StreamId> mAssignStreamId;
 
         friend class CombineNode;
     };
@@ -81,15 +86,20 @@ namespace VDD {
          * inputs to provide end-of-stream. */
         void abort() override;
 
+        std::string getInfo() const override;
+
     private:
         CombineSourceNode(GraphBase&);
 
-        std::vector<std::list<Views>> mFrames; // one frame queue per each CombineSinkNode
-        std::map<size_t, std::set<StreamId>> mFinished; // which nodes are finished; used to synchronise EndOfStream
-        std::mutex mFramesMutex; // protect read/write from/to mFrames
+        std::map<size_t, std::list<Streams>> mFrames;  // one frame queue per each CombineSinkNode
+        std::map<size_t, Data> mEmpty;  // empty placeholder object for cases when we need to pad streams
+        std::map<size_t, std::list<Data>>
+            mFinished;            // which nodes are finished; used to synchronise EndOfStream
+        std::mutex mFramesMutex;  // protect read/write from/to mFrames
 
-        void addInput();
-        void addFrame(size_t aIndex, const Views& aViews);
+        size_t addInput(StreamId aStreamId);
+        size_t addInput(Optional<StreamId> aStreamId, size_t aIndex);
+        void addFrame(size_t aIndex, const Streams& aStreams);
         bool isSourceBlocked(size_t aIndex);
 
         friend class CombineNode;
@@ -97,7 +107,7 @@ namespace VDD {
     };
 
     /** @brief CombineNode takes n separate inputs behaving as sink, and once those predefined n
-     * input have been received, it produces an output where the individual views are put in the
+     * input have been received, it produces an output where the individual streams are put in the
      * same frame one after another.
      *
      * This allows combining Data from different branches of the graph.
@@ -105,7 +115,15 @@ namespace VDD {
     class CombineNode
     {
     public:
-        CombineNode(GraphBase&);
+        struct Config {
+            std::string labelPrefix;
+            bool renumberStreams = false; // if true, output streams will have stream ids 0, 1, 2, ..
+            bool requireSingleStream = false; // if true, a sink will check that a single stream is being provided to it
+        };
+
+        static const Config sDefaultConfig;
+
+        CombineNode(GraphBase&, const Config& config = sDefaultConfig);
 
         virtual ~CombineNode();
 
@@ -113,20 +131,39 @@ namespace VDD {
          * If each input source produces single Data, then aIndex matches the actual index
          * in the output View. But if the sources produce ie. 2 instance of Data, those
          * will be put one after another, so aIndex = 1 will result in a sink that writes
-         * to view indices [2..3]. */
-        std::unique_ptr<CombineSinkNode> getSink(size_t aIndex);
+         * to view indices [2..3].
 
-        /** @brief Get a source for receiving combined Views. The same frames are duplicated to
+         @note Only of of the getSink variants can be ever used on a CombineNode
+        */
+        std::unique_ptr<CombineSinkNode> getSink(size_t aIndex, std::string aLabelPrefix = std::string{});
+
+        /** @brief getSink that automatically filters the input to this sink to be assigned the
+            given StreamId when read from the source.
+
+            @note Only of of the getSink variants can be ever used on a CombineNode
+
+            @note Requires Config::requireSingleStream to be true */
+        std::unique_ptr<CombineSinkNode> getSink(StreamId aStreamId, std::string aLabelPrefix = std::string{});
+
+        /** @brief Get a source for receiving combined Streams. The same frames are duplicated to
          * each created source, each call creates a new separate source.
          *
-         * Do not call in vain, as if there is nothing to satisfy the combination criteria, Views
+         * Do not call in vain, as if there is nothing to satisfy the combination criteria, Streams
          * will be buffered forever probably resulting in great memory consumption. */
         std::shared_ptr<CombineSourceNode> getSource();
 
     private:
         GraphBase& mGraph;
+        Config mConfig;
 
+        enum Mode
+        {
+            Index,
+            Stream
+        };
+        Optional<Mode> mMode;
         size_t mId;
+        std::string mLabelPrefix;
 
         std::shared_ptr<CombineSourceNode> mSource;
 

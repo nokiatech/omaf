@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,6 +17,17 @@
 namespace VDD
 {
     template <typename T>
+    PromiseState<T>::~PromiseState()
+    {
+#if defined(OMAFVD_FUTURE_DEBUG)
+        if (!value && !callbacks.empty())
+        {
+            std::cerr << "Warning: promise has not been set but has callbacks: " << id << std::endl;
+        }
+#endif // OMAFVD_FUTURE_DEBUG
+    }
+
+    template <typename T>
     Future<T>::Future()
         : mState(new PromiseState<T>())
     {
@@ -24,7 +35,7 @@ namespace VDD
     }
 
     template <typename T>
-    Future<T>::Future(const Future<T>& aOther)
+    Future<T>::Future(const Future<T>& aOther) noexcept
         : mState(aOther.mState)
     {
         // nothing
@@ -37,6 +48,27 @@ namespace VDD
     PromiseState<T>& Future<T>::state() const
     {
         return *mState;
+    }
+
+    template <typename T>
+    bool Future<T>::isSet() const
+    {
+        std::unique_lock<std::mutex> lock(Future<T>::state().mutex);
+        return !!Future<T>::state().value;
+    }
+
+    template <typename T>
+    void Future<T>::setId(std::string aId)
+    {
+        std::unique_lock<std::mutex> lock(Future<T>::state().mutex);
+        Future<T>::state().id = aId;
+    }
+
+    template <typename T>
+    std::string Future<T>::getId() const
+    {
+        std::unique_lock<std::mutex> lock(Future<T>::state().mutex);
+        return Future<T>::state().id;
     }
 
     template <typename T>
@@ -55,6 +87,12 @@ namespace VDD
             Future<T>::state().callbacks.insert({ key, aCallback });
         }
         return key;
+    }
+
+    template <typename T>
+    FutureCallbackKey Future<T>::forward(const Promise<T>& aPromise) const
+    {
+        return then([aPromise](const T& x) { aPromise.set(x); });
     }
 
     template <typename T>
@@ -84,7 +122,7 @@ namespace VDD
     }
 
     template <typename T>
-    void Promise<T>::set(const T& aValue)
+    void Promise<T>::set(const T& aValue) const
     {
         std::unique_lock<std::mutex> lock(Future<T>::state().mutex);
         if (Future<T>::state().value)
@@ -100,6 +138,12 @@ namespace VDD
         {
             callback.second(value);
         }
+    }
+
+    template <typename T>
+    void Promise<T>::listen(const Future<T>& aFuture) const
+    {
+        aFuture.forward(*this);
     }
 }
 

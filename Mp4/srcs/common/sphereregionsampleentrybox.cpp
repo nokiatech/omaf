@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -41,5 +41,11 @@ void SphereRegionSampleEntryBox::parseBox(BitStream& bitstr)
 
     FourCCInt boxType;
     auto sphrereRegionConfigBoxStream = bitstr.readSubBoxBitStream(boxType);
-    mSphereRegionConfig.writeBox(sphrereRegionConfigBoxStream);
+    mSphereRegionConfig.parseBox(sphrereRegionConfigBoxStream);
+}
+
+SphereRegionSampleEntryBox::SphereRegionSample::SphereRegionSample()
+{
+    // there must always be single region in sample
+    regions.push_back(SphereRegion());
 }

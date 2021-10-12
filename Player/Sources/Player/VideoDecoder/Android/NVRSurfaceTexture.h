@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,36 +16,34 @@
 
 #include <android/native_window_jni.h>
 
-#include "NVREssentials.h"
 #include "Graphics/NVRDependencies.h"
+#include "NVREssentials.h"
 
 OMAF_NS_BEGIN
 class SurfaceTexture
 {
-	public:
+public:
+    SurfaceTexture();
+    ~SurfaceTexture();
 
-		SurfaceTexture();
-		~SurfaceTexture();
+    void setDefaultBufferSize(int width, int height);
+    bool_t update();
+    const float* getTransformMatrix();
+    long long getNanoTimestamp();
+    unsigned int getTexture();
+    jobject getJavaObject();
 
-		void setDefaultBufferSize(int width, int height);
-		bool_t update();
-		const float* getTransformMatrix();
-		long long getNanoTimestamp();
-		unsigned int getTexture();
-		jobject	getJavaObject();
+private:
+    JNIEnv* mJEnv;
+    jobject mJavaObject;
 
-	private:
+    GLuint mTexture;
+    long long mNanoTimestamp;
+    float mTransformMatrix[16];
 
-		JNIEnv* mJEnv;
-		jobject	mJavaObject;
-
-		GLuint mTexture;
-		long long mNanoTimestamp;
-		float mTransformMatrix[16];
-
-		jmethodID mUpdateTexImageMethodId;
-		jmethodID mGetTimestampMethodId;
-		jmethodID mSetDefaultBufferSizeMethodId;
-		jmethodID mGetTransformMatrixId;
+    jmethodID mUpdateTexImageMethodId;
+    jmethodID mGetTimestampMethodId;
+    jmethodID mSetDefaultBufferSizeMethodId;
+    jmethodID mGetTransformMatrixId;
 };
 OMAF_NS_END

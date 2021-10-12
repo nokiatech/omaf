@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,20 +13,20 @@
  * written consent of Nokia.
  */
 #include "VideoDecoder/Android/NVRSurface.h"
-#include "VideoDecoder/Android/NVRSurfaceTexture.h"
+#include "Foundation/Android/NVRAndroid.h"
 #include "Foundation/NVRLogger.h"
 #include "Foundation/NVRNew.h"
-#include "Foundation/Android/NVRAndroid.h"
+#include "VideoDecoder/Android/NVRSurfaceTexture.h"
 
 OMAF_NS_BEGIN
 Surface::Surface()
-: mJEnv(NULL)
-, mJavaObject(NULL)
+    : mJEnv(NULL)
+    , mJavaObject(NULL)
 {
     mJEnv = OMAF::Private::Android::getJNIEnv();
     mSurfaceTexture = OMAF_NEW_HEAP(SurfaceTexture);
     // Find class
-    const char *className = "android/view/Surface";
+    const char* className = "android/view/Surface";
     const jclass surfaceClass = mJEnv->FindClass(className);
 
     if (surfaceClass == 0)

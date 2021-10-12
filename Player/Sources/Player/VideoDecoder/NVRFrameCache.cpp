@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,13 +13,13 @@
  * written consent of Nokia.
  */
 #include "VideoDecoder/NVRFrameCache.h"
-#include "VideoDecoder/NVRVideoDecoderHW.h"
 #include "VideoDecoder/NVRDecodedFrameGroup.h"
 #include "VideoDecoder/NVRFreeFrameGroup.h"
+#include "VideoDecoder/NVRVideoDecoderHW.h"
 
+#include "Foundation/NVRClock.h"
 #include "Foundation/NVRLogger.h"
 #include "Graphics/NVRRenderBackend.h"
-#include "Foundation/NVRClock.h"
 
 #if OMAF_VIDEO_DECODER_NULL
 #elif OMAF_PLATFORM_ANDROID
@@ -32,8 +32,8 @@
 
 OMAF_NS_BEGIN
 
-const uint32_t FRAMES_PER_STREAM = 3; //Changed to 3 to optimize caching latency
-static const int64_t MAX_FRAME_AGE = 50000;
+const uint32_t FRAMES_PER_STREAM = 3;  
+static const int64_t MAX_FRAME_AGE = 50000; // not used?
 
 static uint64_t REQUIRED_FRAME_DURATION_PERCENTAGE = 90;
 
@@ -54,7 +54,7 @@ FrameCache* FrameCache::createFrameCache()
 }
 
 FrameCache::FrameCache()
-: mLastUploadClockTime(0)
+    : mLastUploadClockTime(0)
 {
     FrameList frames;
 
@@ -97,7 +97,8 @@ void_t FrameCache::destroyInstance()
         OMAF_ASSERT(mActiveFrames.at(stream) == OMAF_NULL, "Active frame still exists");
     }
 
-    for (DecodedFrameGroups::Iterator groupIt = mDecodedFrameGroups.begin(); groupIt != mDecodedFrameGroups.end(); ++groupIt)
+    for (DecodedFrameGroups::Iterator groupIt = mDecodedFrameGroups.begin(); groupIt != mDecodedFrameGroups.end();
+         ++groupIt)
     {
         OMAF_DELETE_HEAP(*groupIt);
     }
@@ -106,7 +107,7 @@ void_t FrameCache::destroyInstance()
     {
         OMAF_DELETE_HEAP(*groupIt);
     }
-    
+
     mFreeFrameGroups.clear();
 
     for (streamid_t stream = 0; stream < MAX_STREAM_COUNT; stream++)
@@ -118,7 +119,7 @@ void_t FrameCache::destroyInstance()
     {
         destroyFrame(*it);
     }
-    
+
     mFramePool.clear();
 }
 
@@ -128,7 +129,8 @@ void_t FrameCache::addDecodedFrame(DecoderFrame* decodedFrame)
     {
         if (decodedFrame->pts < mDiscardTargets.at(decodedFrame->streamId))
         {
-            OMAF_LOG_V("Stream %d releasing a frame with PTS: %lld, discard target %lld", decodedFrame->streamId, decodedFrame->pts, mDiscardTargets.at(decodedFrame->streamId));
+            OMAF_LOG_V("Stream %d releasing a frame with PTS: %lld, discard target %lld", decodedFrame->streamId,
+                       decodedFrame->pts, mDiscardTargets.at(decodedFrame->streamId));
             releaseFrame(decodedFrame);
             return;
         }
@@ -140,9 +142,8 @@ void_t FrameCache::addDecodedFrame(DecoderFrame* decodedFrame)
     }
     // New frame is older than the active frame (can happen during seek with B-frames)
     // Discard it immediately
-    if (mActiveFrames.at(decodedFrame->streamId) != OMAF_NULL
-        && !mActiveFrames.at(decodedFrame->streamId)->flushed
-        && decodedFrame->pts < mActiveFrames.at(decodedFrame->streamId)->pts)
+    if (mActiveFrames.at(decodedFrame->streamId) != OMAF_NULL && !mActiveFrames.at(decodedFrame->streamId)->flushed &&
+        decodedFrame->pts < mActiveFrames.at(decodedFrame->streamId)->pts)
     {
         releaseFrame(decodedFrame);
     }
@@ -176,10 +177,10 @@ DecoderFrame* FrameCache::findFrameWithPTS(streamid_t stream, uint64_t targetPTS
     }
     else
     {
-        
-        if (activeFrame->duration != 0 && ((now - activeFrame->uploadTime) < (activeFrame->duration / 100 * REQUIRED_FRAME_DURATION_PERCENTAGE)))
+        if (activeFrame->duration != 0 &&
+            ((now - activeFrame->uploadTime) < (activeFrame->duration / 100 * REQUIRED_FRAME_DURATION_PERCENTAGE)))
         {
-            //OMAF_LOG_D("Returning activeFrame since visible only for %d", now - mLastUploadTime);
+            // OMAF_LOG_D("Returning activeFrame since visible only for %d", now - mLastUploadTime);
             return activeFrame;
         }
         else if (selectedFrame->pts >= activeFrame->pts)
@@ -193,111 +194,75 @@ DecoderFrame* FrameCache::findFrameWithPTS(streamid_t stream, uint64_t targetPTS
     }
 }
 
-Error::Enum FrameCache::getSynchedFramesForPTS(const Streams& reqStreams, const Streams& enhancementStreams, uint64_t targetPTSUS, FrameList& frames)
+Error::Enum FrameCache::getSynchedFramesForPTS(const Streams& reqStreams,
+                                               const Streams& additionalStreams,
+                                               uint64_t targetPTSUS,
+                                               FrameList& frames)
 {
     if (reqStreams.isEmpty())
     {
         return Error::ITEM_NOT_FOUND;
     }
 
-    uint64_t smallestPTS = OMAF_UINT64_MAX;
+    // Sync other tracks according to single track
+    uint64_t syncPTS = OMAF_UINT64_MAX;
 
     // First find the smallest PTS from reqStreams
+    // reqStreams should contain background track(s)
     for (Streams::ConstIterator it = reqStreams.begin(); it != reqStreams.end(); ++it)
     {
-        DecoderFrame* frame = findFrameWithPTS((*it), targetPTSUS, targetPTSUS);
-        
+        streamid_t streamid = *it;
+        DecoderFrame* frame = findFrameWithPTS(streamid, targetPTSUS, targetPTSUS);
+
         if (frame == OMAF_NULL)
         {
-            // OMAF_LOG_V("getSynchedFramesForPTS target PTS %llu NULL frame from stream %d", targetPTSUS, (*it));
+            OMAF_LOG_V("getSynchedFramesForPTS target PTS %llu NULL frame from stream %d", targetPTSUS, (*it));
             return Error::ITEM_NOT_FOUND;
         }
-        
-        if (frame->pts < smallestPTS)
+
+        if (frame->pts < syncPTS)
         {
-            smallestPTS = frame->pts;
-            //OMAF_LOG_D("getSynchedFramesForPTS target PTS %llu use smallest PTS %llu from stream %d", targetPTSUS, smallestPTS, (*it));
+            syncPTS = frame->pts;
+            OMAF_LOG_D("getSynchedFramesForPTS target PTS %llu use smallest PTS %llu from stream %d", targetPTSUS, syncPTS, (*it));
         }
     }
-    if (smallestPTS == OMAF_UINT64_MAX)
+
+    if (syncPTS == OMAF_UINT64_MAX)
     {
         return Error::ITEM_NOT_FOUND;
     }
-    // Then do the same for the optStreams
-    uint64_t smallestPTSOpt = smallestPTS;
-    for (Streams::ConstIterator it = enhancementStreams.begin(); it != enhancementStreams.end(); ++it)
-    {
-        DecoderFrame* frame = findFrameWithPTS((*it), targetPTSUS, targetPTSUS);
 
-        if (frame && frame->pts < smallestPTSOpt && (targetPTSUS - frame->pts < MAX_FRAME_AGE))    // allow max 50 ms old frames from enh layer
-        {
-            smallestPTSOpt = frame->pts;
-            //OMAF_LOG_D("getSynchedFramesForPTS target PTS %llu use smallest PTS %llu from enhancementStream %d", targetPTSUS, smallestPTSOpt, (*it));
-        }
-    }
-
-    // Then find the frames for the very smallest PTS
     for (Streams::ConstIterator it = reqStreams.begin(); it != reqStreams.end(); ++it)
     {
-        DecoderFrame* frame = findFrameWithPTS(*it, smallestPTSOpt, targetPTSUS);
-        
-        if (frame && frame->pts == smallestPTSOpt)
+        DecoderFrame* frame = findFrameWithPTS(*it, syncPTS, targetPTSUS);
+
+        if (frame && frame->pts <= syncPTS)
         {
             frames.add(frame);
         }
         else
         {
             // we must always have a frame from all the reqStreams
-            OMAF_LOG_D("No frame found from the req stream %d for pts %llu", *it, smallestPTSOpt);
+            OMAF_LOG_D("No frame found from the req stream %d for pts %llu", *it, syncPTS);
             frames.clear();
-            if (smallestPTS == smallestPTSOpt)
-            {
-                // no need to check any more, frames not found
-                return Error::ITEM_NOT_FOUND;
-            }
-            // else try with the smallestPTS obtained from reqStreams
-            break;
+            return Error::ITEM_NOT_FOUND;
         }
     }
-    if (frames.isEmpty())
-    {
-        // reqStreams didn't have that old frame any more; try again, now with the smallestPTS obtained from reqStreams
-        for (Streams::ConstIterator it = reqStreams.begin(); it != reqStreams.end(); ++it)
-        {
-            DecoderFrame *frame = findFrameWithPTS(*it, smallestPTS, targetPTSUS);
 
-            if (frame && frame->pts == smallestPTS)
-            {
-                frames.add(frame);
-            }
-            else
-            {
-                // we must always have a frame from all the reqStreams
-                OMAF_LOG_D("No frame found from the req stream %d for pts %llu", *it, smallestPTS);
-                frames.clear();
-                return Error::ITEM_NOT_FOUND;
-            }
-        }
-    }
-    else
-    {
-        // do the enhancement stream search once with the pts used for reqStreams
-        smallestPTS = smallestPTSOpt;
-    }
-    // then find the frames from enhancement streams
-    for (Streams::ConstIterator it = enhancementStreams.begin(); it != enhancementStreams.end(); ++it)
-    {
-        DecoderFrame* frame = findFrameWithPTS(*it, smallestPTS, targetPTSUS);
+    // support for alternatively selecting the timestamp from additionalStreams dropped
 
-        if (frame && frame->pts == smallestPTS)
+    // ensure different fps doesn't cause fast forwards
+    for (Streams::ConstIterator it = additionalStreams.begin(); it != additionalStreams.end(); ++it)
+    {
+        DecoderFrame* frame = findFrameWithPTS(*it, syncPTS, targetPTSUS);
+
+        if (frame && frame->pts <= syncPTS)
         {
             frames.add(frame);
         }
-        // can skip an enhancementStream
     }
 
-    //OMAF_ASSERT(frames.getSize() == streams.getSize(), "Incorrect number of frames");
-    //OMAF_LOG_D("Selected frames from %zd streams out of %zd, pts %llu, target %llu", frames.getSize(), reqStreams.getSize() + enhancementStreams.getSize(), frames[0]->pts, targetPTSUS);
+
     return Error::OK;
 }
 
@@ -310,22 +275,22 @@ Error::Enum FrameCache::initializeStream(streamid_t stream, const DecoderConfig&
 {
     OMAF_ASSERT(mFreeFrameGroups.at(stream) == OMAF_NULL, "stream already initialized");
     mFreeFrameGroups.at(stream) = OMAF_NEW_HEAP(FreeFrameGroup)(stream, config.width, config.height);
-    
+
     return Error::OK;
 }
 
 Error::Enum FrameCache::activateStream(streamid_t stream)
 {
     OMAF_ASSERT(mFreeFrameGroups.at(stream) != OMAF_NULL, "Stream not initialized");
-    
+
     uint32_t width = mFreeFrameGroups.at(stream)->getWidth();
     uint32_t height = mFreeFrameGroups.at(stream)->getHeight();
-    
+
     FrameList framesForStream;
 
     // If there's already an active frame, we should create one less frame for the stream
     uint32_t frameCount = FRAMES_PER_STREAM;
-    
+
     if (mActiveFrames.at(stream) != OMAF_NULL)
     {
         frameCount--;
@@ -333,10 +298,10 @@ Error::Enum FrameCache::activateStream(streamid_t stream)
 
     mFramePoolMutex.lock();
 
-    for(size_t index = 0; index < mFramePool.getSize(); )
+    for (size_t index = 0; index < mFramePool.getSize();)
     {
-        DecoderFrame *frame = mFramePool.at(index);
-        
+        DecoderFrame* frame = mFramePool.at(index);
+
         if (frame->width == width && frame->height == height)
         {
             framesForStream.add(frame);
@@ -359,7 +324,6 @@ Error::Enum FrameCache::activateStream(streamid_t stream)
         framesForStream.add(createFrame(width, height));
     }
     mFreeFrameGroups.at(stream)->activate(framesForStream);
-    // TODO: Memory management
     return Error::OK;
 }
 
@@ -378,8 +342,7 @@ void_t FrameCache::deactivateStream(streamid_t stream)
     {
         expectedFrameCount--;
     }
-    //TODO this was once FRAMES_PER_STREAM + 1??
-    //OMAF_ASSERT(expectedFrameCount == frames.getSize(), "Missing frames in deactivate");
+    // OMAF_ASSERT(expectedFrameCount == frames.getSize(), "Missing frames in deactivate");
     Mutex::ScopeLock lock(mFramePoolMutex);
     mFramePool.add(frames);
 }
@@ -410,7 +373,7 @@ size_t FrameCache::getFreeFrameCount(streamid_t stream) const
     return mFreeFrameGroups.at(stream)->currentFreeFrames();
 }
 
-void_t FrameCache::releaseFrame(DecoderFrame *frame)
+void_t FrameCache::releaseFrame(DecoderFrame* frame)
 {
     OMAF_ASSERT(mFreeFrameGroups.at(frame->streamId) != OMAF_NULL, "Stream not initialized");
     mFreeFrameGroups.at(frame->streamId)->returnFreeFrame(frame);
@@ -419,13 +382,13 @@ void_t FrameCache::releaseFrame(DecoderFrame *frame)
 void_t FrameCache::uploadFrame(DecoderFrame* frame, uint64_t uploadTimeUs)
 {
     DecoderFrame* oldActiveFrame = mActiveFrames.at(frame->streamId);
-    
+
     if (oldActiveFrame == frame)
     {
         // Trying to upload an already uploaded frame
         return;
     }
-    
+
     mDecodedFrameGroups.at(frame->streamId)->removeFrame(frame);
     mActiveFrames.at(frame->streamId) = frame;
     uint64_t oldFrameDuration = 0;
@@ -434,18 +397,18 @@ void_t FrameCache::uploadFrame(DecoderFrame* frame, uint64_t uploadTimeUs)
         oldFrameDuration = oldActiveFrame->duration;
         releaseFrame(oldActiveFrame);
     }
-/*    
-#if OMAF_DEBUG_BUILD
-    uint32_t uploadTime = Clock::getMilliseconds();
+    /*
+    #if OMAF_DEBUG_BUILD
+        uint32_t uploadTime = Clock::getMilliseconds();
 
-    uint32_t deltaTime = uploadTime - mLastUploadClockTime;
-    if (deltaTime > (oldFrameDuration / 1000) + 2 || deltaTime < (oldFrameDuration / 1000) - 2)
-    {
-        OMAF_LOG_D("Time since last upload: %d", deltaTime);
-    }
-    mLastUploadClockTime = uploadTime;
-#endif
-*/
+        uint32_t deltaTime = uploadTime - mLastUploadClockTime;
+        if (deltaTime > (oldFrameDuration / 1000) + 2 || deltaTime < (oldFrameDuration / 1000) - 2)
+        {
+            OMAF_LOG_D("Time since last upload: %d", deltaTime);
+        }
+        mLastUploadClockTime = uploadTime;
+    #endif
+    */
     frame->uploadTime = uploadTimeUs;
     uploadTexture(frame);
 }
@@ -486,7 +449,7 @@ void_t FrameCache::flushFrames(streamid_t stream)
 // called from renderer thread
 bool_t FrameCache::syncStreams(streamid_t anchorStream, streamid_t stream)
 {
-    //OMAF_LOG_D("syncStreams stream: %d", stream);
+    // OMAF_LOG_D("syncStreams stream: %d", stream);
     uint64_t anchorPts = 0;
     if (!mDecodedFrameGroups.at(anchorStream)->getOldestFramePts(anchorPts))
     {
@@ -498,13 +461,13 @@ bool_t FrameCache::syncStreams(streamid_t anchorStream, streamid_t stream)
     if (frame == OMAF_NULL)
     {
         // no frames in the stream
-        //OMAF_LOG_D("Stream %d has no suitable frames, anchor %llu", stream, anchorPts);
+        // OMAF_LOG_D("Stream %d has no suitable frames, anchor %llu", stream, anchorPts);
         return false;
     }
     if (frame->pts != anchorPts)
     {
         // still not in sync with the anchor
-        //OMAF_LOG_D("Stream %d still not in sync %llu, %llu", stream, frame->pts, anchorPts);
+        // OMAF_LOG_D("Stream %d still not in sync %llu, %llu", stream, frame->pts, anchorPts);
         return false;
     }
     else
@@ -527,7 +490,7 @@ void_t FrameCache::discardFrames(streamid_t stream, uint64_t targetPTSUs)
     mDecodedFrameGroups.at(stream)->discardFrames(targetPTSUs);
 }
 
-void_t FrameCache::releaseVideoFrame(VideoFrame &videoFrame)
+void_t FrameCache::releaseVideoFrame(VideoFrame& videoFrame)
 {
     for (size_t index = 0; index < videoFrame.numTextures; ++index)
     {

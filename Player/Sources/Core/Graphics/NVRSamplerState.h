@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -26,9 +26,9 @@ struct SamplerState
     TextureAddressMode::Enum addressModeU;
     TextureAddressMode::Enum addressModeV;
     TextureAddressMode::Enum addressModeW;
-    
+
     TextureFilterMode::Enum filterMode;
-    
+
     // uint8_t maxAnisotropy;
     // uint8_t maxMipMapLevel;
     // float32_t mipMapLODBias;
@@ -38,9 +38,9 @@ struct SamplerState
         addressModeU = TextureAddressMode::CLAMP;
         addressModeV = TextureAddressMode::CLAMP;
         addressModeW = TextureAddressMode::CLAMP;
-        
+
         filterMode = TextureFilterMode::BILINEAR;
-        
+
         // maxAnisotropy = 1;
         // maxMipMapLevel = 1000;
         // mipMapLODBias = 0.0f;

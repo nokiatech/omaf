@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -48,11 +48,23 @@ namespace VDD
         };
     }
 
+    std::string AsyncNode::debugPrefix;
+    std::list<Optional<std::string>> AsyncNode::sDefaultColor;
+
+    AsyncCallback& AsyncCallback::setLabel(std::string aLabel)
+    {
+        label = aLabel;
+        return *this;
+    }
+
     AsyncNode::AsyncNode(GraphBase& aGraph, std::string aName)
         : mGraph(aGraph)
         , mId(++nodeIndexGenerator)
         , mName(aName)
     {
+        if (sDefaultColor.size()) {
+            mColor = sDefaultColor.front();
+        }
         mGraph.registerNode(this);
     }
 
@@ -68,7 +80,27 @@ namespace VDD
 
     std::string AsyncNode::getInfo() const
     {
-        return mName + "." + Utils::to_string(mId) + (isActive() ? "*" : "");
+        return debugPrefix + mName + "." + Utils::to_string(mId) + (isActive() ? "*" : "");
+    }
+
+    Optional<std::string> AsyncNode::getColor() const
+    {
+        return mColor;
+    }
+
+    void AsyncNode::pushDefaultColor(Optional<std::string> aColor)
+    {
+        sDefaultColor.push_front(aColor);
+    }
+
+    void AsyncNode::popDefaultColor()
+    {
+        sDefaultColor.pop_front();
+    }
+
+    void AsyncNode::setColor(Optional<std::string> aColor)
+    {
+        mColor = aColor;
     }
 
     void AsyncNode::graphStarted()
@@ -79,6 +111,11 @@ namespace VDD
     void AsyncNode::setName(std::string aName)
     {
         mName = aName;
+    }
+
+    std::string AsyncNode::getName() const
+    {
+        return mName;
     }
 
     GraphBase& AsyncNode::getGraph()
@@ -107,15 +144,17 @@ namespace VDD
         return false;
     }
 
-    void AsyncNode::hasOutput(const Views& aViews)
+    void AsyncNode::hasOutput(const Streams& aStreams)
     {
-        mGraph.nodeHasOutput(this, aViews);
+        assert(aStreams.begin() != aStreams.end());
+        mGraph.nodeHasOutput(this, aStreams);
         ++mOutputCounter;
     }
 
-    void AsyncNode::addCallback(AsyncProcessor& aCallback, ViewMask aViewMask)
+    AsyncCallback& AsyncNode::addCallback(AsyncProcessor& aCallback, StreamFilter aStreamFilter)
     {
-        mCallbacks.push_back({ &aCallback, aViewMask });
+        mCallbacks.push_back({ &aCallback, aStreamFilter, "" });
+        return mCallbacks.back();
     }
 
     AsyncSource::AsyncSource(GraphBase& aGraph, std::string aName)
@@ -146,11 +185,11 @@ namespace VDD
         // nothing
     }
 
-    void AsyncFunctionSink::hasInput(const Views& aViews)
+    void AsyncFunctionSink::hasInput(const Streams& aStreams)
     {
         HoldTrue holder(mRunning);
-        bool end = aViews[0].isEndOfStream();
-        mCallback(aViews);
+        bool end = aStreams.isEndOfStream();
+        mCallback(aStreams);
         if (end)
         {
             setInactive();
@@ -165,11 +204,11 @@ namespace VDD
 
     AsyncForwardProcessor::~AsyncForwardProcessor() = default;
 
-    void AsyncForwardProcessor::hasInput(const Views& aViews)
+    void AsyncForwardProcessor::hasInput(const Streams& aStreams)
     {
         HoldTrue holder(mRunning);
-        bool end = aViews[0].isEndOfStream();
-        hasOutput(aViews);
+        bool end = aStreams.isEndOfStream();
+        hasOutput(aStreams);
         if (end)
         {
             setInactive();
@@ -181,14 +220,16 @@ namespace VDD
         : AsyncProcessor(aGraph, aName)
         , mProcessor(std::move(aProcessor))
     {
-        // nothing
+        mProcessor->setId(getId());
+        mProcessor->ready();
     }
 
     AsyncProcessorWrapper::AsyncProcessorWrapper(GraphBase& aGraph, std::string aName, Processor* aProcessor)
         : AsyncProcessor(aGraph, aName)
         , mProcessor(std::unique_ptr<Processor>(aProcessor))
     {
-        // nothing
+        mProcessor->setId(getId());
+        mProcessor->ready();
     }
 
     AsyncProcessorWrapper::AsyncProcessorWrapper(GraphBase& aGraph, std::string aName)
@@ -229,16 +270,16 @@ namespace VDD
         }
     }
 
-    void AsyncProcessorWrapper::hasInput(const Views& aViews)
+    void AsyncProcessorWrapper::hasInput(const Streams& aStreams)
     {
         HoldTrue holder(mRunning);
-        for (Views& views: mProcessor->process(aViews))
+        for (Streams& streams: mProcessor->process(aStreams))
         {
-            if (views[0].isEndOfStream())
+            if (streams.isEndOfStream())
             {
                 setInactive();
             }
-            hasOutput(views);
+            hasOutput(streams);
         }
     }
 
@@ -246,14 +287,16 @@ namespace VDD
         : AsyncProcessor(aGraph, aName)
         , mSink(std::move(aSink))
     {
-        // nothing
+        mSink->setId(getId());
+        mSink->ready();
     }
 
     AsyncSinkWrapper::AsyncSinkWrapper(GraphBase& aGraph, std::string aName, Sink* aSink)
         : AsyncProcessor(aGraph, aName)
         , mSink(std::unique_ptr<Sink>(aSink))
     {
-        // nothing
+        mSink->setId(getId());
+        mSink->ready();
     }
 
     AsyncSinkWrapper::AsyncSinkWrapper(GraphBase& aGraph, std::string aName)
@@ -294,11 +337,11 @@ namespace VDD
         }
     }
 
-    void AsyncSinkWrapper::hasInput(const Views& aViews)
+    void AsyncSinkWrapper::hasInput(const Streams& aStreams)
     {
         HoldTrue holder(mRunning);
-        bool end = aViews[0].isEndOfStream();
-        mSink->consume(aViews);
+        bool end = aStreams.isEndOfStream();
+        mSink->consume(aStreams);
         if (end)
         {
             setInactive();
@@ -309,14 +352,16 @@ namespace VDD
         : AsyncSource(aGraph, aName)
         , mSource(std::move(aSource))
     {
-        // nothing
+        mSource->setId(getId());
+        mSource->ready();
     }
 
     AsyncSourceWrapper::AsyncSourceWrapper(GraphBase& aGraph, std::string aName, Source* aSource)
         : AsyncSource(aGraph, aName)
         , mSource(std::unique_ptr<Source>(aSource))
     {
-        // nothing
+        mSource->setId(getId());
+        mSource->ready();
     }
 
     std::string AsyncSourceWrapper::getInfo() const
@@ -339,13 +384,13 @@ namespace VDD
 
     void AsyncSourceWrapper::produce()
     {
-        for (const Views& views: mSource->produce())
+        for (const Streams& streams: mSource->produce())
         {
-            if (views[0].isEndOfStream())
+            if (streams.isEndOfStream())
             {
                 setInactive();
             }
-            hasOutput(views);
+            hasOutput(streams);
         }
     }
 

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,17 +14,17 @@
  */
 #pragma once
 
-#include "Math/OMAFMathTypes.h"
 #include "Math/OMAFMathConstants.h"
 #include "Math/OMAFMathFunctions.h"
+#include "Math/OMAFMathTypes.h"
 
 namespace OMAF
 {
-    static const Vector2 Vector2Zero = { 0.0f, 0.0f };
-    static const Vector2 Vector2One = { 1.0f, 1.0f };
+    static const Vector2 Vector2Zero = {0.0f, 0.0f};
+    static const Vector2 Vector2One = {1.0f, 1.0f};
 
-    static const Vector2 Vector2UnitX = { 1.0f, 0.0f };
-    static const Vector2 Vector2UnitY = { 0.0f, 1.0f };
+    static const Vector2 Vector2UnitX = {1.0f, 0.0f};
+    static const Vector2 Vector2UnitY = {0.0f, 1.0f};
 
     OMAF_INLINE Vector2 makeVector2(float32_t x, float32_t y);
     OMAF_INLINE Vector2 makeVector2(const float32_t v[2]);
@@ -67,42 +67,42 @@ namespace OMAF
 
     OMAF_INLINE bool_t equals(const Vector2& l, const Vector2& r, float32_t epsilon = OMAF_FLOAT32_EPSILON);
 
-    OMAF_INLINE Vector2 operator + (const Vector2& l, const Vector2& r);
-    OMAF_INLINE Vector2 operator - (const Vector2& l, const Vector2& r);
-    OMAF_INLINE Vector2 operator * (const Vector2& l, const Vector2& r);
-    OMAF_INLINE Vector2 operator / (const Vector2& l, const Vector2& r);
+    OMAF_INLINE Vector2 operator+(const Vector2& l, const Vector2& r);
+    OMAF_INLINE Vector2 operator-(const Vector2& l, const Vector2& r);
+    OMAF_INLINE Vector2 operator*(const Vector2& l, const Vector2& r);
+    OMAF_INLINE Vector2 operator/(const Vector2& l, const Vector2& r);
 
-    OMAF_INLINE void_t operator += (Vector2& l, const Vector2& r);
-    OMAF_INLINE void_t operator -= (Vector2& l, const Vector2& r);
-    OMAF_INLINE void_t operator *= (Vector2& l, const Vector2& r);
-    OMAF_INLINE void_t operator /= (Vector2& l, const Vector2& r);
+    OMAF_INLINE void_t operator+=(Vector2& l, const Vector2& r);
+    OMAF_INLINE void_t operator-=(Vector2& l, const Vector2& r);
+    OMAF_INLINE void_t operator*=(Vector2& l, const Vector2& r);
+    OMAF_INLINE void_t operator/=(Vector2& l, const Vector2& r);
 
-    OMAF_INLINE Vector2 operator + (const Vector2& v, float32_t s);
-    OMAF_INLINE Vector2 operator - (const Vector2& v, float32_t s);
-    OMAF_INLINE Vector2 operator * (const Vector2& v, float32_t s);
-    OMAF_INLINE Vector2 operator / (const Vector2& v, float32_t s);
+    OMAF_INLINE Vector2 operator+(const Vector2& v, float32_t s);
+    OMAF_INLINE Vector2 operator-(const Vector2& v, float32_t s);
+    OMAF_INLINE Vector2 operator*(const Vector2& v, float32_t s);
+    OMAF_INLINE Vector2 operator/(const Vector2& v, float32_t s);
 
-    OMAF_INLINE void_t operator += (Vector2& v, float32_t s);
-    OMAF_INLINE void_t operator -= (Vector2& v, float32_t s);
-    OMAF_INLINE void_t operator *= (Vector2& v, float32_t s);
-    OMAF_INLINE void_t operator /= (Vector2& v, float32_t s);
+    OMAF_INLINE void_t operator+=(Vector2& v, float32_t s);
+    OMAF_INLINE void_t operator-=(Vector2& v, float32_t s);
+    OMAF_INLINE void_t operator*=(Vector2& v, float32_t s);
+    OMAF_INLINE void_t operator/=(Vector2& v, float32_t s);
 
-    OMAF_INLINE bool_t operator == (const Vector2& l, const Vector2& r);
-    OMAF_INLINE bool_t operator != (const Vector2& l, const Vector2& r);
-}
+    OMAF_INLINE bool_t operator==(const Vector2& l, const Vector2& r);
+    OMAF_INLINE bool_t operator!=(const Vector2& l, const Vector2& r);
+}  // namespace OMAF
 
 namespace OMAF
 {
     Vector2 makeVector2(float32_t x, float32_t y)
     {
-        Vector2 result = { x, y };
+        Vector2 result = {x, y};
 
         return result;
     }
 
     Vector2 makeVector2(const float32_t v[2])
     {
-        Vector2 result = { v[0], v[1] };
+        Vector2 result = {v[0], v[1]};
 
         return result;
     }
@@ -231,9 +231,9 @@ namespace OMAF
     {
         float32_t s = sinf(angleRad);
         float32_t c = cosf(angleRad);
-        
-        Vector2 result = { v.x * c - v.y * s, v.x * s + v.y * c };
-        
+
+        Vector2 result = {v.x * c - v.y * s, v.x * s + v.y * c};
+
         return result;
     }
 
@@ -257,7 +257,7 @@ namespace OMAF
         result.y = v.y * invLength;
     }
 
-    void_t rotate(Vector2 & result, const Vector2& v, float32_t angleRad)
+    void_t rotate(Vector2& result, const Vector2& v, float32_t angleRad)
     {
         float32_t s = sinf(angleRad);
         float32_t c = cosf(angleRad);
@@ -321,54 +321,53 @@ namespace OMAF
 
     bool_t equals(const Vector2& l, const Vector2& r, float32_t epsilon)
     {
-        return (fabsf(l.x - r.x) <= epsilon &&
-                fabsf(l.y - r.y) <= epsilon);
+        return (fabsf(l.x - r.x) <= epsilon && fabsf(l.y - r.y) <= epsilon);
     }
 
 
-    Vector2 operator + (const Vector2& l, const Vector2& r)
+    Vector2 operator+(const Vector2& l, const Vector2& r)
     {
         return add(l, r);
     }
 
-    Vector2 operator - (const Vector2& l, const Vector2& r)
+    Vector2 operator-(const Vector2& l, const Vector2& r)
     {
         return subtract(l, r);
     }
 
-    Vector2 operator * (const Vector2& l, const Vector2& r)
+    Vector2 operator*(const Vector2& l, const Vector2& r)
     {
         return multiply(l, r);
     }
 
-    Vector2 operator / (const Vector2& l, const Vector2& r)
+    Vector2 operator/(const Vector2& l, const Vector2& r)
     {
         return divide(l, r);
     }
 
 
-    void_t operator += (Vector2& l, const Vector2& r)
+    void_t operator+=(Vector2& l, const Vector2& r)
     {
         return add(l, l, r);
     }
 
-    void_t operator -= (Vector2& l, const Vector2& r)
+    void_t operator-=(Vector2& l, const Vector2& r)
     {
         return subtract(l, l, r);
     }
 
-    void_t operator *= (Vector2& l, const Vector2& r)
+    void_t operator*=(Vector2& l, const Vector2& r)
     {
         return multiply(l, l, r);
     }
 
-    void_t operator /= (Vector2& l, const Vector2& r)
+    void_t operator/=(Vector2& l, const Vector2& r)
     {
         return divide(l, l, r);
     }
 
 
-    Vector2 operator + (const Vector2& v, float32_t s)
+    Vector2 operator+(const Vector2& v, float32_t s)
     {
         Vector2 result;
         result.x = v.x + s;
@@ -377,7 +376,7 @@ namespace OMAF
         return result;
     }
 
-    Vector2 operator - (const Vector2& v, float32_t s)
+    Vector2 operator-(const Vector2& v, float32_t s)
     {
         Vector2 result;
         result.x = v.x - s;
@@ -386,7 +385,7 @@ namespace OMAF
         return result;
     }
 
-    Vector2 operator * (const Vector2& v, float32_t s)
+    Vector2 operator*(const Vector2& v, float32_t s)
     {
         Vector2 result;
         result.x = v.x * s;
@@ -395,7 +394,7 @@ namespace OMAF
         return result;
     }
 
-    Vector2 operator / (const Vector2& v, float32_t s)
+    Vector2 operator/(const Vector2& v, float32_t s)
     {
         Vector2 result;
         result.x = v.x / s;
@@ -405,38 +404,38 @@ namespace OMAF
     }
 
 
-    void_t operator += (Vector2& v, float32_t s)
+    void_t operator+=(Vector2& v, float32_t s)
     {
         v.x += s;
         v.y += s;
     }
 
-    void_t operator -= (Vector2& v, float32_t s)
+    void_t operator-=(Vector2& v, float32_t s)
     {
         v.x -= s;
         v.y -= s;
     }
 
-    void_t operator *= (Vector2& v, float32_t s)
+    void_t operator*=(Vector2& v, float32_t s)
     {
         v.x *= s;
         v.y *= s;
     }
 
-    void_t operator /= (Vector2& v, float32_t s)
+    void_t operator/=(Vector2& v, float32_t s)
     {
         v.x /= s;
         v.y /= s;
     }
 
 
-    bool_t operator == (const Vector2& l, const Vector2& r)
+    bool_t operator==(const Vector2& l, const Vector2& r)
     {
         return equals(l, r);
     }
 
-    bool_t operator != (const Vector2& l, const Vector2& r)
+    bool_t operator!=(const Vector2& l, const Vector2& r)
     {
         return !equals(l, r);
     }
-}
+}  // namespace OMAF

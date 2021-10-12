@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -24,26 +24,23 @@ struct Viewport
     uint16_t y;
     uint16_t width;
     uint16_t height;
-    
+
     Viewport(uint16_t x, uint16_t y, uint16_t width, uint16_t height)
-    : x(x)
-    , y(y)
-    , width(width)
-    , height(height)
+        : x(x)
+        , y(y)
+        , width(width)
+        , height(height)
     {
     }
 };
 
 OMAF_INLINE bool_t equals(const Viewport& left, const Viewport& right)
 {
-    if (left.x == right.x &&
-        left.y == right.y &&
-        left.width == right.width &&
-        left.height == right.height)
+    if (left.x == right.x && left.y == right.y && left.width == right.width && left.height == right.height)
     {
         return true;
     }
-    
+
     return false;
 }
 

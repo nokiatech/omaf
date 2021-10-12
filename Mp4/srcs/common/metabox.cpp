@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -88,6 +88,12 @@ const ItemReferenceBox& MetaBox::getItemReferenceBox() const
 
 const DataInformationBox& MetaBox::getDataInformationBox() const
 {
+    return mDataInformationBox;
+}
+
+DataInformationBox& MetaBox::addDataInformationBox()
+{
+    mHasDataInformationBox = true;
     return mDataInformationBox;
 }
 
@@ -210,6 +216,16 @@ void MetaBox::setXmlBox(const XmlBox& xmlBox)
     mXmlBox    = xmlBox;
 }
 
+const ISOBMFF::Optional<GroupsListBox>& MetaBox::getGrplBox() const
+{
+    return mGrplBox;
+}
+
+void MetaBox::setGrplBox(const ISOBMFF::Optional<GroupsListBox>& grplBox)
+{
+    mGrplBox = grplBox;
+}
+
 void MetaBox::writeBox(BitStream& bitstr)
 {
     writeFullBoxHeader(bitstr);
@@ -247,6 +263,11 @@ void MetaBox::writeBox(BitStream& bitstr)
     if (mHasXmlBox)
     {
         mXmlBox.writeBox(bitstr);
+    }
+
+    if (mGrplBox)
+    {
+        mGrplBox->writeBox(bitstr);
     }
 
     updateSize(bitstr);
@@ -304,6 +325,11 @@ void MetaBox::parseBox(BitStream& bitstr)
         {
             mHasXmlBox = true;
             mXmlBox.parseBox(subBitstr);
+        }
+        else if (boxType == "grpl")
+        {
+            mGrplBox = GroupsListBox();
+            mGrplBox->parseBox(subBitstr);
         }
         // unsupported boxes are skipped
     }

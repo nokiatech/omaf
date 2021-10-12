@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -21,9 +21,9 @@ namespace VDD
     std::vector<uint8_t> InitialViewingOrientationSample::toBitstream()
     {
         Parser::BitStream sampleStream;
-        sampleStream.write32Bits(cAzimuth * 65536);
-        sampleStream.write32Bits(cElevation * 65536);
-        sampleStream.write32Bits(cTilt * 65536);
+        sampleStream.write32Bits(static_cast<unsigned int>(cAzimuth * 65536));
+        sampleStream.write32Bits(static_cast<unsigned int>(cElevation * 65536));
+        sampleStream.write32Bits(static_cast<unsigned int>(cTilt * 65536));
         sampleStream.write8Bits(0);  // interpolate is always 0
         sampleStream.write8Bits(refreshFlag ? 0x1 : 0x0);
 

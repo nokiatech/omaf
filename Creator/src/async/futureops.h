@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -65,6 +65,13 @@ namespace VDD
     /** Given a promise, wait it synchronously. Mostly useful for tests. */
     template <typename T>
     T waitFuture(const Future<T>& aFuture);
+
+    /** Given a promise, wait it immediately; assert that it's set */
+    template <typename T>
+    T getFuture(const Future<T>& aFuture);
+
+    // Helper for constructing immediately ready values
+    template <typename T> Promise<T> makePromise(const T&);
 }
 
 #include "futureops.icpp"

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -22,7 +22,7 @@ namespace MediaFileType
 {
     enum Enum
     {
-        INVALID = - 1,
+        INVALID = -1,
 
         MP4,
         MP4_OMAF,
@@ -41,8 +41,10 @@ namespace StreamType
         INVALID = -1,
 
         LOCAL_FILE,
-        LIVE_STREAM,
-        VIDEO_ON_DEMAND,
+        LIVE_STREAM,      // Live profile with dynamic type
+        LIVE_ON_DEMAND,   // Live profile with static type
+        VIDEO_ON_DEMAND,  // On-demand profile
+        OTHER,
 
         COUNT
     };
@@ -93,7 +95,7 @@ struct MediaInformation
     {
         width = 0;
         height = 0;
-        duration = 0;
+        durationUs = 0;
         fileType = MediaFileType::INVALID;
         numberOfFrames = 0;
         frameRate = 0;
@@ -105,7 +107,7 @@ struct MediaInformation
 
     uint32_t width;
     uint32_t height;
-    uint64_t duration;
+    uint64_t durationUs;
     uint64_t numberOfFrames;
 
     float64_t frameRate;
@@ -117,7 +119,6 @@ struct MediaInformation
     MediaFileType::Enum fileType;
     VideoType::Enum videoType;
     StreamType::Enum streamType;
-
 };
 
 OMAF_NS_END

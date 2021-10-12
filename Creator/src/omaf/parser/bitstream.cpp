@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -137,7 +137,6 @@ namespace Parser
         mStorage.push_back(static_cast<uint8_t>((bits) & 0xff));
     }
 
-    // TODO: check if this actually works;
     void BitStream::write64Bits(const unsigned long long int bits)
     {
         mStorage.push_back(static_cast<uint8_t>((bits >> 56) & 0xff));
@@ -188,7 +187,7 @@ namespace Parser
 
         for (const auto character : srcString)
         {
-            mStorage.push_back(character);
+            mStorage.push_back(static_cast<std::uint8_t>(character));
         }
     }
 
@@ -196,7 +195,7 @@ namespace Parser
     {
         for (const auto character : srcString)
         {
-            mStorage.push_back(character);
+            mStorage.push_back(static_cast<std::uint8_t>(character));
         }
         mStorage.push_back('\0');
     }
@@ -272,12 +271,12 @@ namespace Parser
     unsigned int BitStream::readBits(const int len)
     {
         unsigned int returnBits = 0;
-        int numBitsLeftInByte = 8 - mBitOffset;
+        int numBitsLeftInByte = 8 - static_cast<int>(mBitOffset);
 
         if (numBitsLeftInByte >= len)
         {
             returnBits = ((mStorage).at(mByteOffset) >> (numBitsLeftInByte - len)) & ((1 << len) - 1);
-            mBitOffset += len;
+            mBitOffset += static_cast<unsigned int>(len);
         }
         else
         {
@@ -297,7 +296,7 @@ namespace Parser
                 {
                     returnBits = (returnBits << numBitsToGo)
                         | (((mStorage).at(mByteOffset) >> (8 - numBitsToGo)) & ((1 << numBitsToGo) - 1));
-                    mBitOffset += numBitsToGo;
+                    mBitOffset += static_cast<unsigned int>(numBitsToGo);
                     numBitsToGo = 0;
                 }
             }
@@ -317,7 +316,7 @@ namespace Parser
         dstString.clear();
         for (unsigned int i = 0; i < len; i++)
         {
-            char currChar = read8Bits();
+            char currChar = static_cast<char>(read8Bits());
             dstString += currChar;
         }
     }
@@ -327,7 +326,7 @@ namespace Parser
         dstString.clear();
         for (unsigned int i = 0; i < len; i++)
         {
-            char currChar = getByte(pos + i);
+            char currChar = static_cast<char>(getByte(pos + i));
             dstString += currChar;
         }
     }
@@ -337,11 +336,11 @@ namespace Parser
         char currChar;
 
         dstString.clear();
-        currChar = read8Bits();
+        currChar = static_cast<char>(read8Bits());
         while (currChar != '\0')
         {
             dstString += currChar;
-            currChar = read8Bits();
+            currChar = static_cast<char>(read8Bits());
         }
     }
 
@@ -353,7 +352,7 @@ namespace Parser
 
         while (tmpBit == 0)
         {
-            tmpBit = readBits(1);
+            tmpBit = static_cast<int>(readBits(1));
             leadingZeroBits++;
         }
 
@@ -394,8 +393,8 @@ namespace Parser
 
         int numLeadingZeros = numBitsInCode - 1;
 
-        writeBits(0, numLeadingZeros);
-        writeBits(codeNum, numBitsInCode);
+        writeBits(0, static_cast<unsigned int>(numLeadingZeros));
+        writeBits(codeNum, static_cast<unsigned int>(numBitsInCode));
     }
 
     void BitStream::writeSignedExpGolombCode(int signedVal)
@@ -406,7 +405,7 @@ namespace Parser
             return;
         }
 
-        unsigned int codeNum = (std::abs(signedVal) << 1) - 1 + (signedVal < 0 ? 1 : 0);
+        unsigned int codeNum = static_cast<unsigned int>((std::abs(signedVal) << 1) - 1 + (signedVal < 0 ? 1 : 0));
 
         writeExpGolombCode(codeNum);
     }

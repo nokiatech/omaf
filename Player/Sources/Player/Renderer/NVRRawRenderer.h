@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,86 +19,81 @@
 #include "Renderer/NVRVideoRenderer.h"
 
 OMAF_NS_BEGIN
-    class RawRenderer
-    : public VideoRenderer
+class RawRenderer : public VideoRenderer
+{
+public:
+    RawRenderer();
+    ~RawRenderer();
+
+public:  // Implements PanoramaRenderer
+    virtual void_t render(const HeadTransform& headTransform,
+                          const RenderSurface& renderSurface,
+                          const CoreProviderSources& sources,
+                          const TextureID& renderMask = TextureID::Invalid,
+                          const RenderingParameters& renderingParameters = RenderingParameters());
+
+private:  // Implements PanoramaRenderer
+    virtual void_t createImpl();
+    virtual void_t destroyImpl();
+
+private:
+    class Shader
     {
-        public:
+    public:
+        Shader();
+        ~Shader();
 
-            RawRenderer();
-            ~RawRenderer();
+        void_t create(VideoPixelFormat::Enum textureFormat);
+        void_t bind();
+        void_t destroy();
 
-        public: // Implements PanoramaRenderer
+        bool_t isValid();
 
-            virtual ProjectionType::Enum getType() const;
+        void_t setSourceYConstant(uint32_t textureSampler);
+        void_t setSourceUConstant(uint32_t textureSampler);
+        void_t setSourceVConstant(uint32_t textureSampler);
 
-            virtual void_t render(const HeadTransform& headTransform, const RenderSurface& renderSurface, const CoreProviderSources& sources, const TextureID& renderMask = TextureID::Invalid, const RenderingParameters& renderingParameters = RenderingParameters());
+        void_t setSourceUVConstant(uint32_t textureSampler);
 
-        private: // Implements PanoramaRenderer
+        void_t setSourceConstant(uint32_t textureSampler);
 
-            virtual void_t createImpl();
-            virtual void_t destroyImpl();
+        void_t setTextureRectConstant(const Vector4& textureRect);
+        void_t setViewDirConstant(const Vector2& textureRect);
 
-        private:
+        void_t setMVPConstant(const Matrix44& mvp);
+        void_t setSTConstant(const Matrix44& st);
 
-            class Shader
-            {
-                public:
+    private:
+        ShaderID handle;
 
-                    Shader();
-                    ~Shader();
+        ShaderConstantID sourceConstant;
 
-                    void_t create(VideoPixelFormat::Enum textureFormat);
-                    void_t bind();
-                    void_t destroy();
+        ShaderConstantID ySourceConstant;
+        ShaderConstantID uSourceConstant;
+        ShaderConstantID vSourceConstant;
 
-                    bool_t isValid();
+        ShaderConstantID uvSourceConstant;
 
-                    void_t setSourceYConstant(uint32_t textureSampler);
-                    void_t setSourceUConstant(uint32_t textureSampler);
-                    void_t setSourceVConstant(uint32_t textureSampler);
+        ShaderConstantID textureRectConstant;
+        ShaderConstantID viewDirConstant;
 
-                    void_t setSourceUVConstant(uint32_t textureSampler);
-
-                    void_t setSourceConstant(uint32_t textureSampler);
-
-                    void_t setTextureRectConstant(const Vector4& textureRect);
-                    void_t setViewDirConstant(const Vector2& textureRect);
-
-                    void_t setMVPConstant(const Matrix44& mvp);
-                    void_t setSTConstant(const Matrix44& st);
-
-                private:
-
-                    ShaderID handle;
-
-                    ShaderConstantID sourceConstant;
-
-                    ShaderConstantID ySourceConstant;
-                    ShaderConstantID uSourceConstant;
-                    ShaderConstantID vSourceConstant;
-
-                    ShaderConstantID uvSourceConstant;
-
-                    ShaderConstantID textureRectConstant;
-                    ShaderConstantID viewDirConstant;
-
-                    ShaderConstantID mvpConstant;
-                    ShaderConstantID stConstant;
-            };
-
-            Shader mOpaqueShader;
-
-            bool_t mDirtyShader;
-
-            struct Vertex
-            {
-                float32_t x;
-                float32_t y;
-
-                float32_t u;
-                float32_t v;
-            };
-
-            VertexBufferID mVertexBuffer;
+        ShaderConstantID mvpConstant;
+        ShaderConstantID stConstant;
     };
+
+    Shader mOpaqueShader;
+
+    bool_t mDirtyShader;
+
+    struct Vertex
+    {
+        float32_t x;
+        float32_t y;
+
+        float32_t u;
+        float32_t v;
+    };
+
+    VertexBufferID mVertexBuffer;
+};
 OMAF_NS_END

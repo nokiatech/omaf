@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -23,17 +23,20 @@ namespace IndexBufferFormat
     {
         switch (format)
         {
-            case IndexBufferFormat::UINT8:  return 1;
-            case IndexBufferFormat::UINT16: return 2;
-            case IndexBufferFormat::UINT32: return 4;
-                
-            default:
-                OMAF_ASSERT_UNREACHABLE();
-                break;
+        case IndexBufferFormat::UINT8:
+            return 1;
+        case IndexBufferFormat::UINT16:
+            return 2;
+        case IndexBufferFormat::UINT32:
+            return 4;
+
+        default:
+            OMAF_ASSERT_UNREACHABLE();
+            break;
         }
-        
+
         return 0;
     }
-}
+}  // namespace IndexBufferFormat
 
 OMAF_NS_END

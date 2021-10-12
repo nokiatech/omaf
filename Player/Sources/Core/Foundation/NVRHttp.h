@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -24,5 +24,5 @@ namespace Http
     void_t setDefaultUserAgent(const utf8_t* aUserAgent);
 
     const utf8_t* getDefaultUserAgent();
-}
+}  // namespace Http
 OMAF_NS_END

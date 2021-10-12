@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -23,17 +23,17 @@ namespace VDD
         // nothing
     }
 
-    void ThrottleNode::hasInput(const Views& aViews)
+    void ThrottleNode::hasInput(const Streams& aStreams)
     {
-        for (auto& view : aViews)
+        for (auto& view : aStreams)
         {
             view.setDataAllocations(mConfig.dataAllocations.get());
         }
-        if (aViews.at(0).isEndOfStream())
+        if (aStreams.isEndOfStream())
         {
             setInactive();
         }
-        hasOutput(aViews);
+        hasOutput(aStreams);
     }
 
     bool ThrottleNode::isBlocked() const

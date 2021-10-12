@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,37 +15,40 @@
 #include "mp4vrwriter.h"
 
 #include "common.h"
-#include "controllerops.h"
 #include "configreader.h"
+#include "controllerops.h"
 
 #include "common/bitgenerator.h"
 #include "common/utils.h"
-#include "segmenter/tagtrackidprocessor.h"
-#include "segmenter/segmenternonfrag.h"
-#include "processor/staticmetadatagenerator.h"
 #include "omaf/omafviewingorientation.h"
+#include "processor/noop.h"
+#include "processor/staticmetadatagenerator.h"
+#include "segmenter/segmenternonfrag.h"
+#include "segmenter/tagstreamidprocessor.h"
+#include "segmenter/tagtrackidprocessor.h"
 
 
 namespace VDD
 {
-
     MP4VRWriter::Config MP4VRWriter::loadConfig(const ConfigValue& aConfig)
     {
-        Config config {};
-        config.segmentDuration = optionWithDefault(aConfig, "fragment_duration", "Duration of a single fragment", readSegmentDuration, { 1, 1 });
+        Config config{};
+        config.segmentDuration =
+            optionWithDefault(aConfig, "fragment_duration", readSegmentDuration, {1, 1});
         return config;
     }
 
-    MP4VRWriter::MP4VRWriter(ControllerOps& aOps, const Config& aConfig, std::string aName, PipelineMode aMode)
-        : mOps(aOps)
-        , mLog(aConfig.log)
+    MP4VRWriter::MP4VRWriter(ControllerOps& aOps, const Config& aConfig, std::string aName,
+                             PipelineMode /* aMode */)
+        : mOps(aOps), mLog(aConfig.log)
     {
         mSegmenterConfig = {};
         mSegmenterConfig.segmentDuration = aConfig.segmentDuration;
         mSegmenterConfig.checkIDR = true;
-        mSegmenterConfig.separateSidx = true;
+        mSegmenterConfig.sidx = true;
         mFragmented = aConfig.fragmented;
         mSegmenterInitConfig = {};
+        mSegmenterInitConfig.fileMeta = aConfig.fileMeta;
         mSingleFileSaveConfig = {};
 
         if (aName.find(".mp4") == std::string::npos)
@@ -57,70 +60,119 @@ namespace VDD
 
     void MP4VRWriter::finalizePipeline()
     {
-        if (mTrackSinks.empty())
+        assert(!mFinalized);
+        mFinalized = true;
+
+        if (mTrackSinks.empty() && mVRTrackSinks.empty())
         {
             // all done already
             return;
         }
+
+        AsyncProcessor* segmenter = nullptr;
+        AsyncProcessor* segmenterInit = nullptr;
+
+        // update the extractor segmenter init config; identified by its scal track reference
+        for (auto& [trackId, trackInitConfig] : mSegmenterInitConfig.tracks)
+        {
+            if (trackInitConfig.trackReferences.count("scal"))
+            {
+                auto extractorTrackId = trackId;
+                appendScalTrafIndexMap(mSegmenterConfig.trackToScalTrafIndexMap, mSegmenterInitConfig, extractorTrackId);
+            }
+        }
+
         if (mFragmented)
         {
-            auto segmenter = mOps.get().makeForGraph<Segmenter>("MP4VR segmenter", mSegmenterConfig);
+            segmenter = mOps.get().makeForGraph<Segmenter>("MP4VR segmenter", mSegmenterConfig);
             mSegmenterInitConfig.writeToBitstream = true;
-            auto segmenterInit = mOps.get().makeForGraph<SegmenterInit>("MP4VR segmenter init", mSegmenterInitConfig);
+            segmenterInit = mOps.get().makeForGraph<SegmenterInit>("MP4VR segmenter init",
+                                                                   mSegmenterInitConfig);
 
-            for (auto trackIdProcessor : mTrackSinks)
-            {
-                connect(*trackIdProcessor.second, *segmenterInit);
-                connect(*trackIdProcessor.second, *segmenter);
-            }
-
-            auto singleFileSave = mOps.get().makeForGraph<SingleFileSave>("MP4VR saver\n\"" + mSingleFileSaveConfig.filename + "\"", mSingleFileSaveConfig);
+            auto singleFileSave = mOps.get().makeForGraph<SingleFileSave>(
+                "MP4VR saver\n\"" + mSingleFileSaveConfig.filename + "\"", mSingleFileSaveConfig);
             connect(*segmenterInit, *singleFileSave);
             connect(*segmenter, *singleFileSave);
         }
         else
         {
-            // Non-fragmented writer takes care of writing to output stream itself, so it doesn't need a filesaver node.
-            // Further, this also means the init segment must be handled by the writer directly, so we can't have it as async node
-            // but have to use it as a passive component.
+            // Non-fragmented writer takes care of writing to output stream itself, so it doesn't
+            // need a filesaver node. Further, this also means the init segment must be handled by
+            // the writer directly, so we can't have it as async node but have to use it as a
+            // passive component.
             mSegmenterInitConfig.writeToBitstream = false;
-            SegmenterNonFrag::Config config = { mSingleFileSaveConfig.filename, mSegmenterConfig, mSegmenterInitConfig };
-            auto segmenter = mOps.get().makeForGraph<SegmenterNonFrag>("MP4VR segmenter", config);
-            for (auto trackIdProcessor : mTrackSinks)
+            SegmenterNonFrag::Config config = {mSingleFileSaveConfig.filename, mSegmenterConfig,
+                                               mSegmenterInitConfig};
+            segmenter = mOps.get().makeForGraph<SegmenterNonFrag>("MP4VR segmenter non frag", config);
+        }
+
+        for (auto trackIdProcessor : mTrackSinks)
+        {
+            if (segmenterInit)
             {
-                connect(*trackIdProcessor.second, *segmenter);
+                connect(*trackIdProcessor.second, *segmenterInit);
             }
+            connect(*trackIdProcessor.second, *segmenter);
+        }
+
+        for (auto vrTrackStreamFilter : mVRTrackSinks)
+        {
+            if (segmenterInit)
+            {
+                connect(*vrTrackStreamFilter.first, *segmenterInit, vrTrackStreamFilter.second);
+            }
+            connect(*vrTrackStreamFilter.first, *segmenter, vrTrackStreamFilter.second);
+
+            eliminate(*vrTrackStreamFilter.first);
         }
     }
 
     TrackId MP4VRWriter::createTrackId()
     {
-        ++mTrackCount;
-        return TrackId(mTrackCount);
+        ++mTrackIdCount;
+        return TrackId(mTrackIdCount);
     }
 
-    AsyncProcessor* MP4VRWriter::createSink(Optional<VRVideoConfig> aVRVideoConfig,
-                                            PipelineOutput aPipelineOutput,
-                                            FrameDuration aTimeScale, FrameDuration aRandomAccessDuration)
+    StreamId MP4VRWriter::createStreamId()
     {
-        if (!mFragmented && aVRVideoConfig && aVRVideoConfig.get().mode == OperatingMode::OMAF && aVRVideoConfig.get().ids.size() > 0)
+        ++mStreamIdCount;
+        return StreamId(mStreamIdCount);
+    }
+
+    MP4VRWriter::Sink MP4VRWriter::createSink(
+        Optional<VRVideoConfig> aVRVideoConfig, const PipelineOutput& aPipelineOutput,
+        FrameDuration aTimeScale,
+        const std::map<std::string, std::set<TrackId>>& aTrackReferences)
+    {
+        if (!mFragmented && aVRVideoConfig && aVRVideoConfig.get().mode == OutputMode::OMAFV1 &&
+            aVRVideoConfig.get().ids.size() > 0)
         {
-            // We have track ids, so we don't need to create any TagTrackIdProcessor, but can create the segmenter directly.
-            // Fragmented case is more complicated for this, since it would need a separate segmenterInit sink, and hence we can't return just the segmenter. 
-            // We would need e.g. NoOp processor and finalizePipeline call, but NoOp would need to handle EoS differently than it does now.
+            // We have track ids, so we don't need to create any TagTrackIdProcessor, but can create
+            // the segmenter directly. Fragmented case is more complicated for this, since it would
+            // need a separate segmenterInit sink, and hence we can't return just the segmenter. We
+            // would need e.g. NoOp processor and finalizePipeline call, but NoOp would need to
+            // handle EoS differently than it does now.
+
+            StreamFilter streamFilter;
+            std::set<TrackId> trackIds;
 
             for (auto id : aVRVideoConfig.get().ids)
             {
                 StreamSegmenter::TrackMeta trackMeta{};
                 trackMeta.trackId = id.second;
+                trackIds.insert(trackMeta.trackId);
                 trackMeta.timescale = aTimeScale;
                 trackMeta.type = StreamSegmenter::MediaType::Video;
-                mSegmenterConfig.tracks.insert({ id.second, trackMeta });
+                mSegmenterConfig.tracks.insert({id.second, trackMeta});
                 mSegmenterConfig.streamIds.push_back(id.first);
+                streamFilter.add(id.first);
 
                 SegmenterInit::TrackConfig trackInitConfig{};
                 trackInitConfig.meta = trackMeta;
-                mSegmenterInitConfig.tracks.insert({ id.second, trackInitConfig });
+                trackInitConfig.overlays = aVRVideoConfig->overlays;
+                trackInitConfig.pipelineOutput = aPipelineOutput;
+                trackInitConfig.trackReferences = aTrackReferences;
+                mSegmenterInitConfig.tracks.insert({id.second, trackInitConfig});
                 mSegmenterInitConfig.streamIds.push_back(id.first);
             }
             if (aVRVideoConfig.get().packedSubPictures)
@@ -129,75 +181,92 @@ namespace VDD
             }
             if (aVRVideoConfig->extractor)
             {
+                // special hack for invo manipulation: just return extractor track ids in this case
+                trackIds.clear();
+
                 // add extractor track
                 StreamSegmenter::TrackMeta trackMeta{};
                 trackMeta.trackId = aVRVideoConfig->extractor->second;
+                trackIds.insert(trackMeta.trackId);
                 trackMeta.timescale = aTimeScale;
                 trackMeta.type = StreamSegmenter::MediaType::Video;
-                mSegmenterConfig.tracks.insert({ aVRVideoConfig->extractor->second, trackMeta });
+                mSegmenterConfig.tracks.insert({aVRVideoConfig->extractor->second, trackMeta});
                 mSegmenterConfig.streamIds.push_back(aVRVideoConfig->extractor->first);
+                streamFilter.add(aVRVideoConfig->extractor->first);
 
                 SegmenterInit::TrackConfig trackInitConfig{};
                 trackInitConfig.meta = trackMeta;
+                trackInitConfig.overlays = aVRVideoConfig->overlays;
                 trackInitConfig.pipelineOutput = aPipelineOutput;
                 for (auto id : aVRVideoConfig.get().ids)
                 {
                     trackInitConfig.trackReferences["scal"].insert(id.second);
                 }
-                mSegmenterInitConfig.tracks.insert({ aVRVideoConfig->extractor->second, std::move(trackInitConfig) });
+                mSegmenterInitConfig.tracks.insert(
+                    {aVRVideoConfig->extractor->second, std::move(trackInitConfig)});
                 mSegmenterInitConfig.streamIds.push_back(aVRVideoConfig->extractor->first);
-
             }
             mSegmenterConfig.log = mLog;
             mSegmenterInitConfig.writeToBitstream = false;
-            mSegmenterInitConfig.mode = OperatingMode::OMAF;
-            SegmenterNonFrag::Config config = { mSingleFileSaveConfig.filename, mSegmenterConfig, mSegmenterInitConfig };
-            auto segmenter = mOps.get().makeForGraph<SegmenterNonFrag>("MP4VR segmenter", config);
-            return segmenter;
+            mSegmenterInitConfig.mode = OutputMode::OMAFV1;
+
+            // Postpone the creation of segmenter so all the config gets in; instead provide this
+            // forwarding-only proxy
+            auto proxy = mOps.get().makeForGraph<NoOp>("VR Video proxy", NoOp::Config{});
+            mVRTrackSinks.push_back({proxy, streamFilter});
+            return {proxy, trackIds};
         }
         else
         {
             // fragmented or non-fragmented, but without trackids, so either OMAF VI, or non-OMAF
 
             auto trackId = createTrackId();
+            auto streamId = createStreamId();
 
-            TagTrackIdProcessor::Config tagTrackIdConfig{ trackId };
-            auto tag =
-                mOps.get().makeForGraph<TagTrackIdProcessor>(
-                    "track id:=" + Utils::to_string(trackId.get()),
-                    tagTrackIdConfig);
+            TagTrackIdProcessor::Config tagTrackIdConfig{trackId};
+            auto tagTrack = mOps.get().makeForGraph<TagTrackIdProcessor>(
+                "track id:=" + Utils::to_string(trackId.get()), tagTrackIdConfig);
+            TagStreamIdProcessor::Config tagStreamIdConfig{streamId};
+            auto tagStream = mOps.get().makeForGraph<TagStreamIdProcessor>(
+                "stream id:=" + Utils::to_string(streamId), tagStreamIdConfig);
+            connect(*tagTrack, *tagStream);
 
             StreamSegmenter::TrackMeta trackMeta{};
             trackMeta.trackId = trackId;
             trackMeta.timescale = aTimeScale;
-            trackMeta.type = aVRVideoConfig ? StreamSegmenter::MediaType::Video : StreamSegmenter::MediaType::Audio;
-            mSegmenterConfig.tracks.insert({ trackId, trackMeta });
+            trackMeta.type = aPipelineOutput.getMediaType();
+            mSegmenterConfig.tracks.insert({trackId, trackMeta});
+            mSegmenterConfig.streamIds.push_back(streamId);
             mSegmenterConfig.log = mLog;
 
             SegmenterInit::TrackConfig trackInitConfig{};
             trackInitConfig.meta = trackMeta;
+            if (aVRVideoConfig)
+            {
+                trackInitConfig.overlays = aVRVideoConfig->overlays;
+            }
             trackInitConfig.pipelineOutput = aPipelineOutput;
+            trackInitConfig.trackReferences = aTrackReferences;
 
-            mSegmenterInitConfig.tracks.insert({ trackId, trackInitConfig });
+            mSegmenterInitConfig.tracks.insert({trackId, trackInitConfig});
+            mSegmenterInitConfig.streamIds.push_back(streamId);
             if (aVRVideoConfig)
             {
                 mSegmenterInitConfig.mode = aVRVideoConfig.get().mode;
             }
 
-            mTrackSinks.insert({ trackId, tag });
+            mTrackSinks.insert({trackId, tagStream});
 
-            // for testing only - to generate e.g. fake initial viewing orientations
-            if (aVRVideoConfig && false)
-            {
-                createVRMetadataGenerator(trackId, *aVRVideoConfig, aTimeScale, aRandomAccessDuration);
-            }
+            // There was a disabled fragment for generating testing data here.
 
-            return tag;
+            return {tagTrack, {trackId}};
         }
-
     }
 
-    void MP4VRWriter::createVRMetadataGenerator(TrackId aTrackId, VRVideoConfig aVRVideoConfig, FrameDuration aTimeScale, FrameDuration aRandomAccessDuration)
+    void MP4VRWriter::createVRMetadataGenerator(TrackId aTrackId,
+                                                VRVideoConfig /* caVRVideoConfig */,
+                                                FrameDuration aTimeScale,
+                                                FrameDuration aRandomAccessDuration)
     {
         // test code for initial viewing orientation
         auto metadataTrackId = createTrackId();
@@ -206,14 +275,16 @@ namespace VDD
         trackMeta.trackId = metadataTrackId;
         trackMeta.timescale = aTimeScale;
         trackMeta.type = StreamSegmenter::MediaType::Data;
-        mSegmenterConfig.tracks.insert({ metadataTrackId, trackMeta });
+        mSegmenterConfig.tracks.insert({metadataTrackId, trackMeta});
 
         SegmenterInit::TrackConfig trackInitConfig{};
         trackInitConfig.meta = trackMeta;
         trackInitConfig.trackReferences["cdsc"].insert(aTrackId);
-        mSegmenterInitConfig.tracks.insert({ metadataTrackId, trackInitConfig });
+        mSegmenterInitConfig.tracks.insert({metadataTrackId, trackInitConfig});
 
         StaticMetadataGenerator::Config generatorConfig = {};
+        generatorConfig.metadataType = CodedFormat::TimedMetadataInvo;
+
         InitialViewingOrientationSample sample1;
         sample1.cAzimuth = -90;
         sample1.cElevation = -30;
@@ -228,19 +299,19 @@ namespace VDD
 
         generatorConfig.metadataSamples.push_back(sample1.toBitstream());
         generatorConfig.metadataSamples.push_back(sample2.toBitstream());
-        generatorConfig.mediaToMetaSampleRate = aRandomAccessDuration.num;//set GOP length as the rate, i.e. 1 metadata sample per GOP
-        auto generator = mOps.get().makeForGraph<StaticMetadataGenerator>("MP4VR metadata generator", generatorConfig);
+        generatorConfig.sampleDuration =
+            aRandomAccessDuration;  // set GOP length as the rate, i.e. 1 metadata sample per GOP
+        auto generator = mOps.get().makeForGraph<StaticMetadataGenerator>(
+            "MP4VR metadata generator", generatorConfig);
         connect(*mTrackSinks.at(aTrackId), *generator);
 
-        TagTrackIdProcessor::Config tagTrackIdConfig{ metadataTrackId };
-        auto tag =
-            mOps.get().makeForGraph<TagTrackIdProcessor>(
-                "track id:=" + Utils::to_string(metadataTrackId.get()),
-                tagTrackIdConfig);
+        TagTrackIdProcessor::Config tagTrackIdConfig{metadataTrackId};
+        auto tag = mOps.get().makeForGraph<TagTrackIdProcessor>(
+            "track id:=" + Utils::to_string(metadataTrackId.get()), tagTrackIdConfig);
 
         connect(*generator, *tag);
 
-        mTrackSinks.insert({ metadataTrackId, tag });
+        mTrackSinks.insert({metadataTrackId, tag});
     }
 
-}
+}  // namespace VDD

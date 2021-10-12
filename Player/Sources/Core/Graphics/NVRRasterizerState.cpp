@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -20,7 +20,7 @@ OMAF_NS_BEGIN
 bool_t equals(const RasterizerState& left, const RasterizerState& right)
 {
     int32_t result = MemoryCompare(&left, &right, sizeof(RasterizerState));
-    
+
     return (result == 0) ? true : false;
 }
 

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,15 +14,15 @@
  */
 #pragma once
 
-#include "NVRNamespace.h"
 #include "Foundation/NVRArray.h"
 #include "Media/NVRMediaPacketQueue.h"
 #include "NVRErrorCodes.h"
+#include "NVRNamespace.h"
 
 
 OMAF_NS_BEGIN
 
-    typedef MediaPacketQueue       AACAudioStream;
-    typedef Array<AACAudioStream*> AACAudioStreams;
+typedef MediaPacketQueue AACAudioStream;
+typedef Array<AACAudioStream*> AACAudioStreams;
 
 OMAF_NS_END

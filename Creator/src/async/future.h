@@ -1,8 +1,7 @@
-
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -12,6 +11,7 @@
  * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
  * written consent of Nokia.
  */
+
 #pragma once
 
 #include <list>
@@ -51,9 +51,15 @@ namespace VDD
         size_t callbackKeyCounter;
 
         Optional<T> value;
+
+        std::string id;
+
+        ~PromiseState();
     };
 
     template <typename T> using SharedPromiseState = std::shared_ptr<PromiseState<T>>;
+
+    template <typename T> class Promise;
 
     /** A value that will be accessible some time in the future (or maybe now); use "then" to get
      * get the value */
@@ -66,7 +72,8 @@ namespace VDD
         Future();
 
         // shared copy
-        Future(const Future& aOther);
+        Future(const Future& aOther) noexcept;
+        Future<T>& operator=(const Future<T>& aOther) = default;
 
         ~Future();
 
@@ -78,11 +85,23 @@ namespace VDD
          * in C++ */
         FutureCallbackKey then(const FutureCallback<T>&) const;
 
+        /** Forward the current (or future) value to the given Promise */
+        FutureCallbackKey forward(const Promise<T>&) const;
+
         /** Remove a callback with a key; or the key is zero, does remove anything. */
         void removeCallback(FutureCallbackKey key) const;
 
         /** Returns *this. Useful for converting Promises to Future in certain contexts. */
         const Future<T>& getFuture() const;
+
+        /** Is this Future set? Obviously calling this is racy, but it does handle locking. */
+        bool isSet() const;
+
+        /** Set an identifier for debugging purposes */
+        void setId(std::string aId);
+
+        /** Set an identifier for debugging purposes */
+        std::string getId() const;
 
     protected:
         friend class Promise<T>;
@@ -108,8 +127,15 @@ namespace VDD
         /** Immediately has a value */
         Promise(const T&);
 
-        /** Set a value to a future that doesn't have its value already set. */
-        void set(const T&);
+        /** Set a value to a future that doesn't have its value already set.
+
+            The method is const because it manages shared state and sometimes using it is
+            inconvenient with lambda capture.
+         */
+        void set(const T&) const;
+
+        /** Same as aFuture.forward(*this); */
+        void listen(const Future<T>& aFuture) const;
     };
 }
 

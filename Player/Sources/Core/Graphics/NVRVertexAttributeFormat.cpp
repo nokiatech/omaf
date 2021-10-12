@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -23,25 +23,33 @@ namespace VertexAttributeFormat
     {
         switch (format)
         {
-            case VertexAttributeFormat::INT8:      return 1;
-            case VertexAttributeFormat::UINT8:     return 1;
-                
-            case VertexAttributeFormat::INT16:     return 2;
-            case VertexAttributeFormat::UINT16:    return 2;
-                
-            case VertexAttributeFormat::INT32:     return 4;
-            case VertexAttributeFormat::UINT32:    return 4;
-                
-            case VertexAttributeFormat::FLOAT16:   return 2;
-            case VertexAttributeFormat::FLOAT32:   return 4;
-                
-            default:
-                OMAF_ASSERT_UNREACHABLE();
-                break;
+        case VertexAttributeFormat::INT8:
+            return 1;
+        case VertexAttributeFormat::UINT8:
+            return 1;
+
+        case VertexAttributeFormat::INT16:
+            return 2;
+        case VertexAttributeFormat::UINT16:
+            return 2;
+
+        case VertexAttributeFormat::INT32:
+            return 4;
+        case VertexAttributeFormat::UINT32:
+            return 4;
+
+        case VertexAttributeFormat::FLOAT16:
+            return 2;
+        case VertexAttributeFormat::FLOAT32:
+            return 4;
+
+        default:
+            OMAF_ASSERT_UNREACHABLE();
+            break;
         }
-        
+
         return 0;
     }
-}
+}  // namespace VertexAttributeFormat
 
 OMAF_NS_END

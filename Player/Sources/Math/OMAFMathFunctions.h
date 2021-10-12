@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,38 +16,38 @@
 
 #include <math.h>
 
+#include "Math/OMAFMathConstants.h"
 #include "Platform/OMAFCompiler.h"
 #include "Platform/OMAFDataTypes.h"
-#include "Math/OMAFMathConstants.h"
 
 namespace OMAF
 {
-    template<typename T>
+    template <typename T>
     const T& min(const T& a, const T& b)
     {
         return (a < b) ? a : b;
     }
 
-    template<typename T>
+    template <typename T>
     const T& max(const T& a, const T& b)
     {
         return (a > b) ? a : b;
     }
 
-    template<typename T>
+    template <typename T>
     T abs(const T& a)
     {
         return (a >= 0) ? a : -a;
     }
 
-    template<typename T>
+    template <typename T>
     const T& clamp(const T& value, const T& min, const T& max)
     {
-        if(value < min)
+        if (value < min)
         {
             return min;
         }
-        else if(value > max)
+        else if (value > max)
         {
             return max;
         }
@@ -57,7 +57,7 @@ namespace OMAF
         }
     }
 
-    template<typename T>
+    template <typename T>
     T square(const T& value)
     {
         return (value * value);
@@ -126,7 +126,7 @@ namespace OMAF
     OMAF_INLINE float32_t clampAngle(float32_t radians);
 
     OMAF_INLINE bool_t equals(float32_t l, float32_t r, float32_t epsilon = OMAF_FLOAT32_EPSILON);
-}
+}  // namespace OMAF
 
 namespace OMAF
 {
@@ -356,4 +356,4 @@ namespace OMAF
     {
         return (fabsf(l - r) <= epsilon);
     }
-}
+}  // namespace OMAF

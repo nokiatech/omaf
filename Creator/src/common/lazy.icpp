@@ -1,0 +1,86 @@
+
+/**
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+namespace VDD
+{
+    template <typename T>
+    Lazy<T>::Lazy(const T& aInit) : mValue(aInit)
+    {
+        // nothing
+    }
+
+    template <typename T>
+    Lazy<T>::Lazy(T&& aInit) : mValue(std::move(aInit))
+    {
+        // nothing
+    }
+
+    template <typename T>
+    Lazy<T>::Lazy(std::function<T()> aMake) : mMake(aMake)
+    {
+        // nothing
+    }
+
+    template <typename T>
+    void Lazy<T>::resolve() const
+    {
+        if (!mValue)
+        {
+            mValue = (*mMake)();
+            mMake = {};
+        }
+    }
+
+    template <typename T>
+    T& Lazy<T>::operator*()
+    {
+        resolve();
+        return *mValue;
+    }
+
+    template <typename T>
+    const T& Lazy<T>::operator*() const
+    {
+        resolve();
+        return *mValue;
+    }
+
+    template <typename T>
+    T* Lazy<T>::operator->()
+    {
+        resolve();
+        return &*mValue;
+    }
+
+    template <typename T>
+    const T* Lazy<T>::operator->() const
+    {
+        resolve();
+        return &*mValue;
+    }
+
+    template <typename T>
+    T* Lazy<T>::ptr()
+    {
+        resolve();
+        return &*mValue;
+    }
+
+    template <typename T>
+    const T* Lazy<T>::ptr() const
+    {
+        resolve();
+        return &*mValue;
+    }
+}  // namespace VDD

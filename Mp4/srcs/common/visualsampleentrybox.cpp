@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,12 +13,13 @@
  * written consent of Nokia.
  */
 #include "visualsampleentrybox.hpp"
-#include "cleanaperturebox.hpp"
-#include "log.hpp"
 
 #include <cassert>
 #include <cstring>
 #include <stdexcept>
+
+#include "cleanaperturebox.hpp"
+#include "log.hpp"
 
 /// Length of compressorname string in VisualSampleEntry class
 static const unsigned int COMPRESSORNAME_STRING_LENGTH = 31;
@@ -40,6 +41,7 @@ VisualSampleEntryBox::VisualSampleEntryBox(const VisualSampleEntryBox& box)
     , mHeight(box.mHeight)
     , mCompressorName(box.mCompressorName)
     , mClap(box.mClap)
+    , mOvly(box.mOvly)
 {
     assert(mCompressorName.length() <= COMPRESSORNAME_STRING_LENGTH);
     mCompressorName.resize(COMPRESSORNAME_STRING_LENGTH, '\0');  // Make fixed length
@@ -119,6 +121,11 @@ void VisualSampleEntryBox::writeBox(ISOBMFF::BitStream& bitstr)
         rinfBox->writeBox(bitstr);
     }
 
+    if (mOvly)
+    {
+        mOvly->writeBox(bitstr);
+    }
+
     // Update the size of the movie box
     updateSize(bitstr);
 }
@@ -166,6 +173,12 @@ void VisualSampleEntryBox::parseBox(ISOBMFF::BitStream& bitstr)
             clap->parseBox(subBitStream);
             mClap = clap;
         }
+        else if (boxType == "ovly")
+        {
+            mOvly = OverlayConfigBox();
+            mOvly->parseBox(subBitStream);
+        }
+
         else
         {
             // It was not 'clap', so the contained box probably belongs to the box box extending VisualSampleEntryBox.
@@ -178,4 +191,15 @@ void VisualSampleEntryBox::parseBox(ISOBMFF::BitStream& bitstr)
 bool VisualSampleEntryBox::isVisual() const
 {
     return true;
+}
+
+const ISOBMFF::Optional<OverlayConfigBox> VisualSampleEntryBox::getOverlayConfigBox() const
+{
+    return mOvly;
+}
+
+
+void VisualSampleEntryBox::setOverlayConfigBox(const ISOBMFF::Optional<OverlayConfigBox>& anOvly)
+{
+    mOvly = anOvly;
 }

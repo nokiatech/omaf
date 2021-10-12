@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,65 +15,63 @@
 #include "Media/NVRMP4FileStreamer.h"
 
 OMAF_NS_BEGIN
-    MP4FileStreamer::MP4FileStreamer()
-            : mFileStream(OMAF_NULL)
-    {
+MP4FileStreamer::MP4FileStreamer()
+    : mFileStream(OMAF_NULL)
+{
+}
 
+MP4FileStreamer::~MP4FileStreamer()
+{
+    if (mFileStream != OMAF_NULL)
+    {
+        FileSystem::close(mFileStream);
+    }
+}
+
+Error::Enum MP4FileStreamer::open(const PathName &mediaUri)
+{
+    // PathName absolutePath = getAbsolutePath(mediaUri.getData());
+    // OMAF_LOG_D("Opening %s", absolutePath.getData());
+
+    mFileStream = FileSystem::open(mediaUri.getData(), FileSystem::AccessMode::READ);
+    if (mFileStream == OMAF_NULL)
+    {
+        return Error::FILE_NOT_FOUND;
     }
 
-    MP4FileStreamer::~MP4FileStreamer()
+    return Error::OK;
+}
+
+void_t MP4FileStreamer::close()
+{
+    if (mFileStream != OMAF_NULL)
     {
-        if (mFileStream != OMAF_NULL)
-        {
-            FileSystem::close(mFileStream);
-        }
-
+        FileSystem::close(mFileStream);
+        mFileStream = OMAF_NULL;
     }
+}
 
-    Error::Enum MP4FileStreamer::open(const PathName &mediaUri)
-    {
-        //PathName absolutePath = getAbsolutePath(mediaUri.getData());
-        //OMAF_LOG_D("Opening %s", absolutePath.getData());
+MP4VR::StreamInterface::offset_t MP4FileStreamer::read(char *buffer, MP4VR::StreamInterface::offset_t size)
+{
+    return mFileStream->read(buffer, size);
+}
 
-        mFileStream = FileSystem::open(mediaUri.getData(), FileSystem::AccessMode::READ);
-        if (mFileStream == OMAF_NULL)
-        {
-            return Error::FILE_NOT_FOUND;
-        }
+bool MP4FileStreamer::absoluteSeek(offset_t offset)
+{
+    int64_t current = mFileStream->tell();
+    int64_t delta = offset - current;
+    return mFileStream->seek(delta);
+}
 
-        return Error::OK;
-    }
+MP4VR::StreamInterface::offset_t MP4FileStreamer::tell()
+{
+    MP4VR::StreamInterface::offset_t tempoffset = mFileStream->tell();
+    return tempoffset;
+}
 
-    void_t MP4FileStreamer::close()
-    {
-        if (mFileStream != OMAF_NULL)
-        {
-            FileSystem::close(mFileStream);
-            mFileStream = OMAF_NULL;
-        }
-    }
-
-    MP4VR::StreamInterface::offset_t MP4FileStreamer::read(char *buffer, MP4VR::StreamInterface::offset_t size)
-    {
-        return mFileStream->read(buffer, size);
-    }
-
-    bool MP4FileStreamer::absoluteSeek(offset_t offset)
-    {
-        int64_t current = mFileStream->tell();
-        int64_t delta = offset - current;
-        return mFileStream->seek(delta);
-    }
-
-    MP4VR::StreamInterface::offset_t MP4FileStreamer::tell()
-    {
-        MP4VR::StreamInterface::offset_t tempoffset = mFileStream->tell();
-        return tempoffset;
-    }
-
-    MP4VR::StreamInterface::offset_t MP4FileStreamer::size()
-    {
-        MP4VR::StreamInterface::offset_t tempsize = mFileStream->getSize();
-        return tempsize;
-    }
+MP4VR::StreamInterface::offset_t MP4FileStreamer::size()
+{
+    MP4VR::StreamInterface::offset_t tempsize = mFileStream->getSize();
+    return tempsize;
+}
 OMAF_NS_END

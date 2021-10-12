@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -26,15 +26,15 @@
 #define NONEWIC
 #define NOBITMAP
 
-#include "endpoint.h"
 #include "AACDecoder.h"
+#include "endpoint.h"
 
-#include <Audioclient.h>
 #include <AudioPolicy.h>
+#include <Audioclient.h>
 
 OMAF_NS_BEGIN
 namespace WASAPIImpl
-{    
+{
     class WASAPIDevice : public Endpoint
     {
     public:
@@ -74,5 +74,5 @@ namespace WASAPIImpl
         UINT64 mLastPosition;
         bool_t mStarted;
     };
-}
+}  // namespace WASAPIImpl
 OMAF_NS_END

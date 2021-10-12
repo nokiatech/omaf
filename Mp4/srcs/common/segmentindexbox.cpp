@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -84,10 +84,17 @@ Vector<SegmentIndexBox::Reference> SegmentIndexBox::getReferences() const
     return mReferences;
 }
 
+Vector<SegmentIndexBox::Reference>& SegmentIndexBox::getReferences()
+{
+    return mReferences;
+}
+
 void SegmentIndexBox::writeBox(BitStream& bitstr)
 {
     const uint32_t referenceSize = 3 * 4;
-    const uint32_t reserveBytes  = static_cast<uint32_t>((mReserveTotal - mReferences.size()) * referenceSize);
+    const uint32_t reserveBytes  = mReferences.size() < mReserveTotal
+                                      ? static_cast<uint32_t>((mReserveTotal - mReferences.size()) * referenceSize)
+                                      : 0u;
 
     writeFullBoxHeader(bitstr);
     bitstr.write32Bits(mReferenceID);
@@ -121,7 +128,7 @@ void SegmentIndexBox::writeBox(BitStream& bitstr)
 
     updateSize(bitstr);
 
-    if (mReserveTotal != 0)
+    if (mReserveTotal > mReferences.size())
     {
         bitstr.write32Bits(reserveBytes);
         bitstr.write32Bits(FourCCInt("free").getUInt32());
@@ -171,4 +178,13 @@ void SegmentIndexBox::parseBox(BitStream& bitstr)
         ref.sapDeltaTime       = bitstr.readBits(28);                       // unsigned int(28) SAP_delta_time
         mReferences.push_back(ref);
     }
+
+    const uint32_t referenceSize = 3 * 4;
+    const uint32_t reserveBytes  = mReferences.size() < mReserveTotal
+                                      ? static_cast<uint32_t>((mReserveTotal - mReferences.size()) * referenceSize)
+                                      : 0u;
+
+    // reserveBytes is accounted here to have forth-and-back parse functionality; normally
+    // you would have mReserveTotal set to 0 when parsing
+    mFirstOffset -= reserveBytes;
 }

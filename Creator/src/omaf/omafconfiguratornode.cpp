@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -28,16 +28,16 @@ namespace VDD
         // nothing
     }
 
-    std::vector<Views> OmafConfiguratorNode::process(const Views& aStreams)
+    std::vector<Streams> OmafConfiguratorNode::process(const Streams& aStreams)
     {
-        std::vector<Views> frames;
+        std::vector<Streams> frames;
 
         if (mConfig.counter)
         {
             ++*mConfig.counter;
         }
 
-        if (aStreams[0].isEndOfStream())
+        if (aStreams.isEndOfStream())
         {
             mEnd = true;
         }
@@ -50,13 +50,13 @@ namespace VDD
             // The very first Data package
 
             std::vector<uint8_t> fpSeiNAL;
-            std::vector<CodedFrameMeta> meta;
+            std::vector<Meta> meta;
             for (auto& view : aStreams)
             {
-                meta.push_back(view.getCodedFrameMeta());
+                meta.push_back(view.getMeta());
             }
 
-            if (mConfig.videoOutput != PipelineOutput::VideoMono)
+            if (mConfig.videoOutput != PipelineOutputVideo::Mono)
             {
                 createFramePackingSEI(aStreams.front(), fpSeiNAL);
             }
@@ -89,7 +89,7 @@ namespace VDD
         else
         {
             // normal case, not first or last frame
-            frames.push_back({ aStreams[0] });
+            frames.push_back({ aStreams.front() });
         }
 
         return frames;
@@ -108,7 +108,7 @@ namespace VDD
         H265Parser::parseNalUnitHeader(bitstr, naluHeader);
         bitstr.clear();
 
-        std::uint32_t length = OMAF::createProjectionSEI(bitstr, naluHeader.mNuhTemporalIdPlus1);
+        std::uint32_t length = OMAF::createProjectionSEI(bitstr, static_cast<int>(naluHeader.mNuhTemporalIdPlus1));
         Parser::BitStream seiLengthField;
         seiLengthField.write32Bits(length);
 
@@ -127,16 +127,16 @@ namespace VDD
         }
         H265::NalUnitHeader naluHeader;
         H265Parser::parseNalUnitHeader(bitstr, naluHeader);
-        int temporalIdPlus1 = naluHeader.mNuhTemporalIdPlus1;
+        int temporalIdPlus1 = static_cast<int>(naluHeader.mNuhTemporalIdPlus1);
 
         H265::FramePackingSEI packing;
         packing.fpArrangementId = 0;
         packing.fpCancel = 0;
-        if (mConfig.videoOutput == PipelineOutput::VideoTopBottom)
+        if (mConfig.videoOutput == PipelineOutputVideo::TopBottom)
         {
             packing.fpArrangementType = 4;
         }
-        else if (mConfig.videoOutput == PipelineOutput::VideoSideBySide)
+        else if (mConfig.videoOutput == PipelineOutputVideo::SideBySide)
         {
             packing.fpArrangementType = 3;
         }
@@ -176,7 +176,7 @@ namespace VDD
         RegionPacking regionPacking;
         regionPacking.projPictureWidth = fullWidth;
         regionPacking.projPictureHeight = fullHeight;
-        if (aVideoOutput == PipelineOutput::VideoMono)
+        if (aVideoOutput == PipelineOutputVideo::Mono)
         {
             // mono
             regionPacking.constituentPictMatching = false;
@@ -237,7 +237,7 @@ namespace VDD
             aMeta.regionPacking.get().regions.push_back(std::move(region3));
             aMeta.regionPacking.get().regions.push_back(std::move(region4));
         }
-        else if (aVideoOutput == PipelineOutput::VideoTopBottom)
+        else if (aVideoOutput == PipelineOutputVideo::TopBottom)
         {
             // top-bottom framepacked stereo
             regionPacking.constituentPictMatching = true;
@@ -406,7 +406,7 @@ namespace VDD
             aMeta.regionPacking.get().regions.push_back(std::move(region26));
             */
         }
-        else if (aVideoOutput == PipelineOutput::VideoSideBySide)
+        else if (aVideoOutput == PipelineOutputVideo::SideBySide)
         {
             regionPacking.constituentPictMatching = true; 
             regionPacking.packedPictureWidth = fullWidth;

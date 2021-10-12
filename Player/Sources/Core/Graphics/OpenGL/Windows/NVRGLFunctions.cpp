@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,31 +16,39 @@
 #include <Windows.h>
 #include <gl/gl.h>
 #include <gl/glext.h>
-#include <wgl/wglext.h>
 #include <stdio.h>
+#include <wgl/wglext.h>
 
-#pragma comment(lib,"opengl32.lib")
-#include "NVREssentials.h"
+#pragma comment(lib, "opengl32.lib")
 #include "Foundation/NVRLogger.h"
+#include "NVREssentials.h"
 OMAF_NS_BEGIN
 OMAF_LOG_ZONE("NVRGLFunctions")
-#define declare(a,b) a b;
+#define declare(a, b) a b;
 #include "Graphics/OpenGL/Windows/NVRGLFunctions.inc"
 #undef declare
 
 
 void InitializeGLFunctions()
-{    
-    #define declare(a,b) if (b==OMAF_NULL) {*((void**)&b)=(void*)wglGetProcAddress(#b);}
-    #include "Graphics/OpenGL/Windows/NVRGLFunctions.inc"
-    #undef declare
+{
+#define declare(a, b)                                   \
+    if (b == OMAF_NULL)                                 \
+    {                                                   \
+        *((void**) &b) = (void*) wglGetProcAddress(#b); \
+    }
+#include "Graphics/OpenGL/Windows/NVRGLFunctions.inc"
+#undef declare
 
-    //Log out missing funcs..
+    // Log out missing funcs..
     bool fail = false;
 
-    #define declare(a,b) if (b==OMAF_NULL) {OMAF_LOG_E("OpenGL extension "#b" is missing\n");fail=true;}
-    #include "Graphics/OpenGL/Windows/NVRGLFunctions.inc"
-    #undef declare
-
+#define declare(a, b)                                       \
+    if (b == OMAF_NULL)                                     \
+    {                                                       \
+        OMAF_LOG_E("OpenGL extension " #b " is missing\n"); \
+        fail = true;                                        \
+    }
+#include "Graphics/OpenGL/Windows/NVRGLFunctions.inc"
+#undef declare
 }
 OMAF_NS_END

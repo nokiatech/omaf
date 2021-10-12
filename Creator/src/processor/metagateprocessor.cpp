@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -29,15 +29,15 @@ namespace VDD
         return StorageType::CPU;
     }
 
-    std::vector<Views> MetaGateProcessor::process(const Views& aViews)
+    std::vector<Streams> MetaGateProcessor::process(const Streams& aStreams)
     {
         if (mFirst)
         {
             mFirst = false;
-            if (!aViews[0].isEndOfStream())
+            if (!aStreams.isEndOfStream())
             {
                 std::vector<CommonFrameMeta> meta;
-                for (auto& data: aViews)
+                for (auto& data: aStreams)
                 {
                     meta.push_back(data.getCommonFrameMeta());
                 }
@@ -46,7 +46,7 @@ namespace VDD
         }
         if (mAllowPass)
         {
-            return { aViews };
+            return { aStreams };
         }
         else
         {

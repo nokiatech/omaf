@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -13,15 +13,16 @@
  * written consent of Nokia.
  */
 #include "Provider/NVRMP4VRProvider.h"
-#include "Media/NVRMP4MediaStreamManager.h"
 #include "Foundation/NVRLogger.h"
+#include "Media/NVRMP4MediaStreamManager.h"
 
 OMAF_NS_BEGIN
 OMAF_LOG_ZONE(MP4VRProvider)
 
 MP4VRProvider::MP4VRProvider()
 {
-    mMediaStreamManager = OMAF_NEW_HEAP(MP4MediaStreamManager);
+    mMP4MediaStreamManager = OMAF_NEW_HEAP(MP4MediaStreamManager);
+    mMediaStreamManager = mMP4MediaStreamManager;
 }
 
 MP4VRProvider::~MP4VRProvider()
@@ -31,7 +32,7 @@ MP4VRProvider::~MP4VRProvider()
 #if OMAF_PLATFORM_ANDROID
     mParserThreadControlEvent.signal();
 #endif
-    
+
     if (mParserThread.isValid())
     {
         mParserThread.stop();
@@ -40,13 +41,17 @@ MP4VRProvider::~MP4VRProvider()
 
     destroyInstance();
 
-    mMediaStreamManager->resetStreams();
-    OMAF_DELETE_HEAP(mMediaStreamManager);
+    mMP4MediaStreamManager->resetStreams();
+    OMAF_DELETE_HEAP(mMP4MediaStreamManager);
 }
-Error::Enum MP4VRProvider::openFile(PathName &uri)
+Error::Enum MP4VRProvider::openFile(PathName& uri)
 {
     OMAF_LOG_D("Loading from uri: %s", uri.getData());
-    Error::Enum result = mMediaStreamManager->openInput(uri);
+    Error::Enum result = mMP4MediaStreamManager->openInput(uri);
+    if (result == Error::FILE_NOT_FOUND)
+    {
+        OMAF_LOG_E("Failed opening the file");
+    }
     const MP4VideoStreams& vstreams = mMediaStreamManager->getVideoStreams();
 
     if (vstreams.getSize() == 0)
@@ -61,12 +66,15 @@ Error::Enum MP4VRProvider::openFile(PathName &uri)
         return result;
     }
 
-    // Initialize audio input buffer
-    initializeAudioFromMP4(mMediaStreamManager->getAudioStreams());
+    // audios, we should either init audio now properly (unless starving audio won't cause problems), or re-init it when
+    // an overlay starts
+    MP4AudioStreams main, additional;
+    mMediaStreamManager->getAudioStreams(main, additional);
+    initializeAudioFromMP4(main, additional);
 
-    mMediaInformation = mMediaStreamManager->getMediaInformation();
+    mMediaInformation = mMP4MediaStreamManager->getMediaInformation();
     mMediaInformation.streamType = StreamType::LOCAL_FILE;
-    const CoreProviderSources& sources = mMediaStreamManager->getVideoSources();
+    const CoreProviderSources& sources = mMP4MediaStreamManager->getVideoSources();
     if (sources.getSize() == 1)
     {
         // Only a single source so must be monoscopic
@@ -92,11 +100,32 @@ Error::Enum MP4VRProvider::openFile(PathName &uri)
     return result;
 }
 
-uint64_t MP4VRProvider::selectSources(HeadTransform headTransform, float32_t fovHorizontal, float32_t fovVertical, CoreProviderSources &required, CoreProviderSources &optional)
+const CoreProviderSources& MP4VRProvider::getAllSources() const
 {
-    // No source picking so all sources are required
+    return mMP4MediaStreamManager->getAllVideoSources();
+}
+
+uint64_t MP4VRProvider::selectSources(HeadTransform headTransform,
+                                      float32_t fovHorizontal,
+                                      float32_t fovVertical,
+                                      CoreProviderSources& required,
+                                      CoreProviderSources& optional)
+{
     required.clear();
-    required.add(mMediaStreamManager->getVideoSources());
+    optional.clear();
+    for (MP4VideoStream* stream : mMediaStreamManager->getVideoStreams())
+    {
+        if (stream->getMode() == VideoStreamMode::BACKGROUND)
+        {
+            required.add(stream->getVideoSources());
+        }
+        else
+        {
+            optional.add(stream->getVideoSources());
+        }
+    }
+
+
     return 0;
 }
 
@@ -108,7 +137,7 @@ const CoreProviderSourceTypes& MP4VRProvider::getSourceTypes()
 void_t MP4VRProvider::parserThreadCallback()
 {
     OMAF_ASSERT(getState() == VideoProviderState::LOADING, "Wrong state");
-    
+
     Error::Enum result = openFile(mSourceURI);
 
     if (result != Error::OK)
@@ -117,10 +146,11 @@ void_t MP4VRProvider::parserThreadCallback()
     }
     else
     {
-        if (mStreamInitialPositionMS != 0 && mStreamInitialPositionMS <= getMediaInformation().duration)
+        if (mStreamInitialPositionMS != 0 && mStreamInitialPositionMS <= getMediaInformation().durationUs / 1000)
         {
             uint64_t initialSeekTargetUs = mStreamInitialPositionMS * 1000;
-            if (!mMediaStreamManager->seekToUs(initialSeekTargetUs, SeekDirection::PREVIOUS, SeekAccuracy::NEAREST_SYNC_FRAME))
+            if (!mMP4MediaStreamManager->seekToUs(initialSeekTargetUs, SeekDirection::PREVIOUS,
+                                                  SeekAccuracy::NEAREST_SYNC_FRAME))
             {
                 OMAF_LOG_W("Seeking to initial position failed");
             }
@@ -146,13 +176,13 @@ void_t MP4VRProvider::parserThreadCallback()
 
         setState(VideoProviderState::LOADED);
 
-        retrieveInitialViewingOrientation(mMediaStreamManager, 0);
+        retrieveInitialViewingOrientation(0);
+        bool_t viewpointSwitchStarted = false;
 
         while (1)
         {
             VideoProviderState::Enum stateBeforeUserAction = getState();
 
-            // TODO: Atomics
             if (mPendingUserAction != PendingUserAction::INVALID)
             {
                 handlePendingUserRequest();
@@ -164,21 +194,22 @@ void_t MP4VRProvider::parserThreadCallback()
                 playPending = true;
             }
 
-            if ((mAudioFull && mVideoDecoderFull) || !(getState() == VideoProviderState::PLAYING || getState() == VideoProviderState::BUFFERING))
+            if (((!mAudioUsed || mAudioFull) && mVideoDecoderFull) ||
+                !(getState() == VideoProviderState::PLAYING || getState() == VideoProviderState::BUFFERING ||
+                  getState() == VideoProviderState::SWITCHING_VIEWPOINT))
             {
 #if OMAF_PLATFORM_ANDROID
                 if (!mParserThreadControlEvent.wait(20))
                 {
-                    //OMAF_LOG_D("Event timeout");
+                    // OMAF_LOG_D("Event timeout");
                 }
 #else
                 Thread::sleep(0);
 #endif
             }
 
-            if (getState() == VideoProviderState::STOPPED
-                || getState() == VideoProviderState::CLOSING
-                || getState() == VideoProviderState::STREAM_ERROR)
+            if (getState() == VideoProviderState::STOPPED || getState() == VideoProviderState::CLOSING ||
+                getState() == VideoProviderState::STREAM_ERROR)
             {
                 break;
             }
@@ -197,6 +228,18 @@ void_t MP4VRProvider::parserThreadCallback()
                 // Not seeking and paused or EoF, no need to parse more packets
                 continue;
             }
+            else if (mSwitchViewpoint)
+            {
+                // We need to do the switch via state outside the handlePendingUserRequest to let the renderer thread do
+                // its work in parallel.
+                // mNextViewpointId contains the id, now we just double-check that the id is valid
+                if (mMP4MediaStreamManager->setViewpoint(mNextViewpointId) == Error::OK)
+                {
+                    viewpointSwitchStarted = true;
+                    setState(VideoProviderState::SWITCHING_VIEWPOINT);
+                }
+                mSwitchViewpoint = false;
+            }
 
             bool_t buffering = true;
             bool_t endOfFile = false;
@@ -206,12 +249,57 @@ void_t MP4VRProvider::parserThreadCallback()
 
             while (buffering)
             {
-                if (!mAudioFull)
+                if (viewpointSwitchStarted)
                 {
-                    processMP4Audio(*mMediaStreamManager, mAudioInputBuffer);
+                    Spinlock::ScopeLock lock(mStreamLock);
+                    if (mMP4MediaStreamManager->isViewpointSwitchReadyToComplete(
+                            (uint32_t)(mSynchronizer.getElapsedTimeUs() / 1000)))
+                    {
+                        // mPreviousStreams must not be cleared in mp4 case, since streams are not deleted when
+                        // switching viewpoint
+                        // viewpoint if we want to continue playing the current viewpoint until the new viewpoint is
+                        // ready)
+                        enter();
+                        bool_t backgroundAudioContinues = false;
+                        mMP4MediaStreamManager->completeViewpointSwitch(backgroundAudioContinues);
+
+                        mPreparedSources.clear();
+                        leave();
+                        viewpointSwitchStarted = false;
+
+                        MP4AudioStreams main, additional;
+                        mMediaStreamManager->getAudioStreams(main, additional);
+                        if (backgroundAudioContinues)
+                        {
+                            // just add possible new additional audio streams
+                            addAudioStreams(additional);
+                        }
+                        else
+                        {
+                            // Re-init the audio subsystem
+
+                            initializeAudioFromMP4(main, additional);
+                            if (mAudioUsed)
+                            {
+                                mAudioInputBuffer->startPlayback();
+                            }
+
+                            mSynchronizer.reset(mAudioUsed);
+                        }
+                        setState(VideoProviderState::PLAYING);
+                        stateBeforeBuffering = VideoProviderState::PLAYING;
+                    }
                 }
 
-                PacketProcessingResult::Enum processResult = processMP4Video(*mMediaStreamManager);
+                if (mAudioUsed && !mAudioFull)
+                {
+                    processMP4Audio(mAudioInputBuffer);
+                }
+
+                // NOTE: not sure if anything should be done here with return value
+                processOverlayMetadataStream();
+
+                PacketProcessingResult::Enum processResult = processMP4Video();
 
                 if (processResult == PacketProcessingResult::BUFFERING)
                 {
@@ -238,14 +326,14 @@ void_t MP4VRProvider::parserThreadCallback()
                     buffering = false;
                 }
 
-                if (mPendingUserAction != PendingUserAction::INVALID || mSeekTargetUs != OMAF_UINT64_MAX || mSeekTargetFrame != OMAF_UINT64_MAX)
+                if (mPendingUserAction != PendingUserAction::INVALID || mSeekTargetUs != OMAF_UINT64_MAX ||
+                    mSeekTargetFrame != OMAF_UINT64_MAX)
                 {
                     break;
                 }
             }
 
-            if (mPendingUserAction != PendingUserAction::INVALID
-                || getState() == VideoProviderState::STREAM_ERROR)
+            if (mPendingUserAction != PendingUserAction::INVALID || getState() == VideoProviderState::STREAM_ERROR)
             {
                 continue;
             }
@@ -263,6 +351,12 @@ void_t MP4VRProvider::parserThreadCallback()
             else if (getState() == VideoProviderState::BUFFERING || getState() == VideoProviderState::LOADED)
             {
                 setState(VideoProviderState::PAUSED);
+            }
+            else if (mOverlayAudioPlayPending)
+            {
+                OMAF_LOG_D("Start audio playback");
+                mOverlayAudioPlayPending = false;
+                mAudioInputBuffer->startPlayback();
             }
         }
     }
@@ -314,7 +408,7 @@ void_t MP4VRProvider::doSeek()
         return;
     }
 
-    if (mSeekTargetUs > mMediaInformation.duration)
+    if (mSeekTargetUs > mMediaInformation.durationUs)
     {
         OMAF_LOG_W("Seek failed, trying to seek outside the clip");
         mSeekTargetUs = OMAF_UINT64_MAX;
@@ -332,12 +426,12 @@ void_t MP4VRProvider::doSeek()
     mSeekTargetFrame = OMAF_UINT64_MAX;
 
     uint64_t seekTimeUs = 0;
-    
+
     if (seekTargetUs >= 0)
     {
         seekTimeUs = seekTargetUs;
 
-        if (!mMediaStreamManager->seekToUs(seekTimeUs, SeekDirection::PREVIOUS, mSeekAccuracy))
+        if (!mMP4MediaStreamManager->seekToUs(seekTimeUs, SeekDirection::PREVIOUS, mSeekAccuracy))
         {
             // seek failed, do not touch stream positions
             OMAF_LOG_W("Seeking failed");
@@ -347,14 +441,14 @@ void_t MP4VRProvider::doSeek()
         }
 
         OMAF_LOG_D("seek to I frame at %lld, target was: %lld", seekTimeUs, seekTargetUs);
-        mAudioSyncPending = true;
+        mSynchronizer.reset(mAudioUsed);
     }
     else
     {
         // seek by frame number
         seekTimeUs = OMAF_UINT64_MAX;
 
-        if (!mMediaStreamManager->seekToFrame(seekTargetFrame, seekTimeUs))
+        if (!mMP4MediaStreamManager->seekToFrame(seekTargetFrame, seekTimeUs))
         {
             // seek failed, do not touch stream positions
             OMAF_LOG_W("Seeking failed");
@@ -364,7 +458,7 @@ void_t MP4VRProvider::doSeek()
         }
 
         OMAF_LOG_D("seek to I frame at %lld", seekTimeUs);
-        mAudioSyncPending = true;
+        mSynchronizer.reset(mAudioUsed);
     }
 
     if (mAudioInputBuffer != OMAF_NULL)
@@ -401,13 +495,17 @@ void_t MP4VRProvider::doSeek()
         if (mMediaStreamManager->getAudioStreams().isEmpty())
         {
             // No audio so just set the sync point to the seek target
-            mSynchronizer.setSyncPoint(seekTimeUs);
+            mSynchronizer.setVideoSyncPoint(seekTimeUs);
+            OMAF_LOG_V("no audio");
         }
         else
         {
-            while (!mAudioFull)
+            if (mAudioUsed)
             {
-                processMP4Audio(*mMediaStreamManager, mAudioInputBuffer);
+                while (!mAudioFull)
+                {
+                    processMP4Audio(mAudioInputBuffer);
+                }
             }
         }
 
@@ -420,7 +518,8 @@ void_t MP4VRProvider::doSeek()
         for (MP4VideoStreams::ConstIterator it = videoStreams.begin(); it != videoStreams.end(); ++it)
         {
             MP4VideoStream* videoStream = *it;
-            MP4VRMediaPacket* videoPacket = mMediaStreamManager->getNextVideoFrame(*videoStream, mSynchronizer.getElapsedTimeUs());
+            MP4VRMediaPacket* videoPacket =
+                mMediaStreamManager->getNextVideoFrame(*videoStream, mSynchronizer.getElapsedTimeUs());
             streamid_t streamID = videoStream->getStreamId();
 
             if (videoPacket == OMAF_NULL)
@@ -453,6 +552,7 @@ void_t MP4VRProvider::doSeek()
                 }
             }
         }
+
         mVideoDecoder->preloadTexturesForPTS(streamIds, Streams(), Streams(), seekTargetUs);
 
         // All of the streams have reached the seek target so break
@@ -474,7 +574,7 @@ void_t MP4VRProvider::doSeek()
 // called in client thread
 uint64_t MP4VRProvider::durationMs() const
 {
-    return mMediaInformation.duration / 1000;
+    return mMediaInformation.durationUs / 1000;
 }
 
 void_t MP4VRProvider::handlePendingUserRequest()
@@ -497,11 +597,14 @@ void_t MP4VRProvider::handlePendingUserRequest()
     {
         setState(VideoProviderState::BUFFERING);
     }
+    else if (mPendingUserAction == PendingUserAction::CONTROL_OVERLAY)
+    {
+        handleOverlayControl(mPendingOverlayControl);
+    }
 
     mUserActionSync.signal();
     mPendingUserAction = PendingUserAction::INVALID;
 }
-
 
 
 OMAF_NS_END

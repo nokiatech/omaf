@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,7 +16,6 @@
 
 #include "NVRAndroidHttpConnection.h"
 #include "Foundation/NVRLogger.h"
-#include "Foundation/NVRBandwidthMonitor.h"
 #include "Foundation/NVRTime.h"
 
 OMAF_NS_BEGIN
@@ -115,7 +114,6 @@ OMAF_NS_BEGIN
 
     void_t AndroidHttpConnection::waitForCompletion()
     {
-        //TODO: there must be a better way!
         //wait for it...
         for (;;)
         {
@@ -170,6 +168,7 @@ OMAF_NS_BEGIN
         Spinlock::ScopeLock lock(mMutex);
         mInternalHttpRequestState.connectionState = state;
         mStateChangeEvent.signal();
+        return state;
     }
 
     void_t AndroidHttpConnection::checkRequestState()
@@ -401,7 +400,6 @@ OMAF_NS_BEGIN
 
             if (result && mInternalHttpRequestState.connectionState == HttpConnectionState::IN_PROGRESS)
             {
-                BandwidthMonitor::notifyDownloadCompleted((Time::getClockTimeUs() - mRequestStartTime) / 1000, mInternalHttpRequestState.bytesDownloaded);
                 if (mHttpDataProcessor != OMAF_NULL)
                 {
                     mMutex.unlock();

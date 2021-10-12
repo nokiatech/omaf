@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,63 +16,60 @@
 
 OMAF_NS_BEGIN
 
-    HeifFileStreamer::HeifFileStreamer()
-      : mFileStream(OMAF_NULL)
+HeifFileStreamer::HeifFileStreamer()
+    : mFileStream(OMAF_NULL)
+{
+}
+
+HeifFileStreamer::~HeifFileStreamer()
+{
+    if (mFileStream != OMAF_NULL)
     {
+        FileSystem::close(mFileStream);
+    }
+}
+
+Error::Enum HeifFileStreamer::open(const PathName &mediaUri)
+{
+    mFileStream = FileSystem::open(mediaUri.getData(), FileSystem::AccessMode::READ);
+    if (mFileStream == OMAF_NULL)
+    {
+        return Error::FILE_NOT_FOUND;
     }
 
-    HeifFileStreamer::~HeifFileStreamer()
+    return Error::OK;
+}
+
+void_t HeifFileStreamer::close()
+{
+    if (mFileStream != OMAF_NULL)
     {
-        if (mFileStream != OMAF_NULL)
-        {
-            FileSystem::close(mFileStream);
-        }
-
+        FileSystem::close(mFileStream);
+        mFileStream = OMAF_NULL;
     }
+}
 
-    Error::Enum HeifFileStreamer::open(const PathName &mediaUri)
-    {
-        mFileStream = FileSystem::open(mediaUri.getData(), FileSystem::AccessMode::READ);
-        if (mFileStream == OMAF_NULL)
-        {
-            return Error::FILE_NOT_FOUND;
-        }
+HEIF::StreamInterface::offset_t HeifFileStreamer::read(char *buffer, HEIF::StreamInterface::offset_t size)
+{
+    return mFileStream->read(buffer, size);
+}
 
-        return Error::OK;
-    }
+bool HeifFileStreamer::absoluteSeek(offset_t offset)
+{
+    int64_t current = mFileStream->tell();
+    int64_t delta = offset - current;
+    return mFileStream->seek(delta);
+}
 
-    void_t HeifFileStreamer::close()
-    {
-        if (mFileStream != OMAF_NULL)
-        {
-            FileSystem::close(mFileStream);
-            mFileStream = OMAF_NULL;
-        }
-    }
+HEIF::StreamInterface::offset_t HeifFileStreamer::tell()
+{
+    HEIF::StreamInterface::offset_t tempoffset = mFileStream->tell();
+    return tempoffset;
+}
 
-    HEIF::StreamInterface::offset_t HeifFileStreamer::read(char *buffer, HEIF::StreamInterface::offset_t size)
-    {
-        return mFileStream->read(buffer, size);
-    }
-
-    bool HeifFileStreamer::absoluteSeek(offset_t offset)
-    {
-        int64_t current = mFileStream->tell();
-        int64_t delta = offset - current;
-        return mFileStream->seek(delta);
-    }
-
-    HEIF::StreamInterface::offset_t HeifFileStreamer::tell()
-    {
-        HEIF::StreamInterface::offset_t tempoffset = mFileStream->tell();
-        return tempoffset;
-    }
-
-    HEIF::StreamInterface::offset_t HeifFileStreamer::size()
-    {
-        HEIF::StreamInterface::offset_t tempsize = mFileStream->getSize();
-        return tempsize;
-    }
+HEIF::StreamInterface::offset_t HeifFileStreamer::size()
+{
+    HEIF::StreamInterface::offset_t tempsize = mFileStream->getSize();
+    return tempsize;
+}
 OMAF_NS_END
-
-

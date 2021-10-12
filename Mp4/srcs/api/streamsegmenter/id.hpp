@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -20,16 +20,16 @@
 namespace StreamSegmenter
 {
     template <typename T, typename Tag>
-    class IdBase
+    class ExplicitIdBase
     {
     public:
-        IdBase()
+        constexpr ExplicitIdBase()
             : mId()
         {
             // nothing
         }
-        // implicit in, but explicit out
-        IdBase(T id)
+        // explicit in, but explicit out
+        constexpr explicit ExplicitIdBase(T id)
             : mId(id)
         {
             // nothing
@@ -40,8 +40,32 @@ namespace StreamSegmenter
             return mId;
         }
 
+        // These are too useful for generation purposes, leave them in
+        ExplicitIdBase<T, Tag>& operator++();
+        ExplicitIdBase<T, Tag> operator++(int);
     protected:
         T mId;
+    };
+
+    template <typename T, typename Tag>
+    class IdBase: public ExplicitIdBase<T, Tag>
+    {
+    public:
+        constexpr IdBase()
+            : ExplicitIdBase<T, Tag>()
+        {
+            // nothing
+        }
+        // implicit in, but explicit out
+        constexpr IdBase(T id)
+            : ExplicitIdBase<T, Tag>(id)
+        {
+            // nothing
+        }
+
+        // These are too useful for generation purposes, leave them in
+        IdBase<T, Tag>& operator++();
+        IdBase<T, Tag> operator++(int);
     };
 
     // IdBaseWithAdditions is like IdBase but provides + - += -= as well
@@ -49,55 +73,88 @@ namespace StreamSegmenter
     class IdBaseWithAdditions : public IdBase<T, Tag>
     {
     public:
-        IdBaseWithAdditions()
+        constexpr IdBaseWithAdditions()
             : IdBase<T, Tag>()
         {
             // nothing
         }
         // implicit in, but explicit out
-        IdBaseWithAdditions(T id)
+        constexpr IdBaseWithAdditions(T id)
             : IdBase<T, Tag>(id)
         {
             // nothing
         }
 
+        IdBaseWithAdditions<T, Tag> operator++(int);
         IdBaseWithAdditions<T, Tag>& operator++();
-        ;
+        IdBaseWithAdditions<T, Tag> operator--(int);
         IdBaseWithAdditions<T, Tag>& operator--();
     };
 
     template <typename T, typename Tag>
-    bool operator<(IdBase<T, Tag> a, IdBase<T, Tag> b)
+    ExplicitIdBase<T, Tag>& ExplicitIdBase<T, Tag>::operator++()
+    {
+        ++ExplicitIdBase<T, Tag>::mId;
+        return *this;
+    }
+
+    template <typename T, typename Tag>
+    IdBase<T, Tag>& IdBase<T, Tag>::operator++()
+    {
+        ++ExplicitIdBase<T, Tag>::mId;
+        return *this;
+    }
+
+    template <typename T, typename Tag>
+    ExplicitIdBase<T, Tag> ExplicitIdBase<T, Tag>::operator++(int)
+    {
+        return ExplicitIdBase<T, Tag>(ExplicitIdBase<T, Tag>::mId++);
+    }
+
+    template <typename T, typename Tag>
+    IdBase<T, Tag> IdBase<T, Tag>::operator++(int)
+    {
+        return IdBase<T, Tag>(ExplicitIdBase<T, Tag>::mId++);
+    }
+
+    template <typename T, typename Tag>
+    IdBaseWithAdditions<T, Tag> IdBaseWithAdditions<T, Tag>::operator++(int)
+    {
+        return IdBaseWithAdditions<T, Tag>(ExplicitIdBase<T, Tag>::mId++);
+    }
+
+    template <typename T, typename Tag>
+    bool operator<(ExplicitIdBase<T, Tag> a, ExplicitIdBase<T, Tag> b)
     {
         return a.get() < b.get();
     }
 
     template <typename T, typename Tag>
-    bool operator==(IdBase<T, Tag> a, IdBase<T, Tag> b)
+    bool operator==(ExplicitIdBase<T, Tag> a, ExplicitIdBase<T, Tag> b)
     {
         return a.get() == b.get();
     }
 
     template <typename T, typename Tag>
-    bool operator!=(IdBase<T, Tag> a, IdBase<T, Tag> b)
+    bool operator!=(ExplicitIdBase<T, Tag> a, ExplicitIdBase<T, Tag> b)
     {
         return a.get() != b.get();
     }
 
     template <typename T, typename Tag>
-    bool operator>(IdBase<T, Tag> a, IdBase<T, Tag> b)
+    bool operator>(ExplicitIdBase<T, Tag> a, ExplicitIdBase<T, Tag> b)
     {
         return a.get() > b.get();
     }
 
     template <typename T, typename Tag>
-    bool operator<=(IdBase<T, Tag> a, IdBase<T, Tag> b)
+    bool operator<=(ExplicitIdBase<T, Tag> a, ExplicitIdBase<T, Tag> b)
     {
         return a.get() <= b.get();
     }
 
     template <typename T, typename Tag>
-    bool operator>=(IdBase<T, Tag> a, IdBase<T, Tag> b)
+    bool operator>=(ExplicitIdBase<T, Tag> a, ExplicitIdBase<T, Tag> b)
     {
         return a.get() >= b.get();
     }
@@ -111,14 +168,14 @@ namespace StreamSegmenter
     template <typename T, typename Tag>
     IdBaseWithAdditions<T, Tag>& IdBaseWithAdditions<T, Tag>::operator++()
     {
-        ++IdBase<T, Tag>::mId;
+        ++ExplicitIdBase<T, Tag>::mId;
         return *this;
     }
 
     template <typename T, typename Tag>
     IdBaseWithAdditions<T, Tag>& IdBaseWithAdditions<T, Tag>::operator--()
     {
-        --IdBase<T, Tag>::mId;
+        --ExplicitIdBase<T, Tag>::mId;
         return *this;
     }
 
@@ -159,7 +216,7 @@ namespace StreamSegmenter
     }
 
     template <typename T, typename Tag>
-    std::ostream& operator<<(std::ostream& stream, IdBase<T, Tag> value)
+    std::ostream& operator<<(std::ostream& stream, ExplicitIdBase<T, Tag> value)
     {
         stream << value.get();
         return stream;

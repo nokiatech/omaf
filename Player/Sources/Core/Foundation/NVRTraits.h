@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -31,7 +31,7 @@ namespace Traits
     // Determines if given data type is a POD-type during compile-time.
     // With POD-type information it's possible to implement low-level optimization.
     // E.g. construct / destruct calls can be skipped for POD-types in memory and container classes.
-    
+
     // Note: Template specialization can be used to declare user defined non-POD data types as POD-type.
     //       This kind of optimizations can improve performance significantly, but should be handled with care.
     template <typename T>
@@ -39,6 +39,6 @@ namespace Traits
     {
         static const bool Value = __is_pod(T);
     };
-}
+}  // namespace Traits
 
 OMAF_NS_END

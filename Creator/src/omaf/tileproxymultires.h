@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -31,8 +31,8 @@ namespace VDD {
         virtual ~TileProxyMultiRes() = default;
 
     protected:
-        virtual void processExtractors(std::vector<Views>& aTiles) override;
-        virtual void createEoS(std::vector<Views>& aTiles) override;
+        virtual void processExtractors(std::vector<Streams>& aTiles) override;
+        virtual void createEoS(std::vector<Streams>& aTiles) override;
 
     private:
         Data collectExtractors(TileDirectionConfig& aDirection, bool aFirstPacket);

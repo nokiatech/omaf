@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -23,16 +23,16 @@ namespace VDD {
 
     static const uint8_t NALHeaderLength = 2;
 
-    TileFilter::TileFilter(std::uint8_t aQualityRank, Projection& aProjection, bool aResetExtractorLevelIDCTo51)
+    TileFilter::TileFilter(std::uint8_t aQualityRank, Projection& aProjection, VideoInputMode aVideoMode, bool aResetExtractorLevelIDCTo51)
         : mQualityRank(aQualityRank)
         , mProjection(aProjection)
         , mResetExtractorLevelIDCTo51(aResetExtractorLevelIDCTo51)
+        , mVideoMode(aVideoMode)
     {
     }
 
     TileFilter::~TileFilter()
     {
-        // TODO these would be cleaner to handle as unique_ptr, but H265Parser should also return the lists in that form too, otherwise we have many types to convert between, and that is no longer clean
         while (mOriginalSpsData.size() > 0)
         {
             H265::SequenceParameterSet* sps = mOriginalSpsData.back();
@@ -99,7 +99,6 @@ namespace VDD {
         }
         if (mNonVclNals.mSpsNals.size() > 0 && mNonVclNals.mPpsNals.size() > 0)
         {
-            //TODO is not prepared to handle multiple parameter sets
             prepareParamSets(aTileConfig, aInputMeta);
         }
         return validAUFound;
@@ -121,7 +120,7 @@ namespace VDD {
         mH265Parser->getSliceHeaderOffset(mSlcHdrOset);
 
         // validate the number of tiles / NAL units
-        if (validAUFound && mAccessUnit->mNalUnits.size() != aExpectedTileCount)
+        if (validAUFound && mAccessUnit->mNalUnits.size() != static_cast<size_t>(aExpectedTileCount))
         {
             return false;
         }
@@ -135,7 +134,6 @@ namespace VDD {
         mCbsPpsData.reserve(aTileConfig.size());
         
         // store the original SPS/PPS
-        // TODO these would be cleaner to handle as unique_ptr, but H265Parser should also return the lists in that form too, otherwise we have many types to convert between, and that is no longer clean
         CbsSpsData spsList = mH265Parser->getSpsList();
         for (CbsSpsData::iterator it = spsList.begin(); it != spsList.end(); ++it)
         {
@@ -149,7 +147,7 @@ namespace VDD {
             H265::PictureParameterSet* pps = new H265::PictureParameterSet(**it);
             mOriginalPpsData.push_back(pps);
         }
-        uint64_t ctuSize = pow(2, (mOriginalSpsData.front()->mLog2MinLumaCodingBlockSizeMinus3 + 3) + (mOriginalSpsData.front()->mLog2DiffMaxMinLumaCodingBlockSize));
+        uint64_t ctuSize = (uint64_t)pow(2, (mOriginalSpsData.front()->mLog2MinLumaCodingBlockSizeMinus3 + 3) + (mOriginalSpsData.front()->mLog2DiffMaxMinLumaCodingBlockSize));
         unsigned int tileWidth = 0;
         unsigned int tileHeight = 0;
         if (mOriginalPpsData.front()->mUniformSpacingFlag)
@@ -157,9 +155,9 @@ namespace VDD {
             tileWidth = mOriginalSpsData.front()->mPicWidthInLumaSamples / (mOriginalPpsData.front()->mNumTileColumnsMinus1 + 1);
             tileHeight = mOriginalSpsData.front()->mPicHeightInLumaSamples / (mOriginalPpsData.front()->mNumTileRowsMinus1 + 1);
 
-            for (int y = 0; y <= mOriginalPpsData.front()->mNumTileRowsMinus1; y++)
+            for (size_t y = 0; y <= mOriginalPpsData.front()->mNumTileRowsMinus1; y++)
             {
-                for (int x = 0; x <= mOriginalPpsData.front()->mNumTileColumnsMinus1; x++)
+                for (size_t x = 0; x <= mOriginalPpsData.front()->mNumTileColumnsMinus1; x++)
                 {
                     TilePixelRegion tile;
                     tile.top = y * tileHeight;
@@ -177,12 +175,12 @@ namespace VDD {
             uint64_t left = 0;
             uint64_t lastColWidth = mOriginalSpsData.front()->mPicWidthInLumaSamples;
             uint64_t lastRowHeight = mOriginalSpsData.front()->mPicHeightInLumaSamples;
-            for (int y = 0; y < mOriginalPpsData.front()->mNumTileRowsMinus1; y++)
+            for (size_t y = 0; y < mOriginalPpsData.front()->mNumTileRowsMinus1; y++)
             {
                 left = 0;
                 uint64_t rowHeight = (mOriginalPpsData.front()->mRowHeightMinus1.at(y) + 1)*ctuSize;
                 lastColWidth = mOriginalSpsData.front()->mPicWidthInLumaSamples;
-                for (int x = 0; x < mOriginalPpsData.front()->mNumTileColumnsMinus1; x++)
+                for (size_t x = 0; x < mOriginalPpsData.front()->mNumTileColumnsMinus1; x++)
                 {
                     TilePixelRegion tile;
                     tile.top = top;
@@ -204,7 +202,7 @@ namespace VDD {
                 top += rowHeight;
             }
             left = 0;
-            for (int x = 0; x < mOriginalPpsData.front()->mNumTileColumnsMinus1; x++)
+            for (size_t x = 0; x < mOriginalPpsData.front()->mNumTileColumnsMinus1; x++)
             {
                 TilePixelRegion tile;
                 tile.top = top;
@@ -222,7 +220,7 @@ namespace VDD {
             mTileRegions.push_back(tile);
         }
 
-        for (int i = 0; i < aTileConfig.size(); i++)
+        for (size_t i = 0; i < aTileConfig.size(); i++)
         {
             H265::NalUnitHeader naluHeader;
             mH265Parser->parseNalUnit(mNonVclNals.mSpsNals, naluHeader);
@@ -234,10 +232,9 @@ namespace VDD {
                 H265::SequenceParameterSet* sps = new H265::SequenceParameterSet(**it);
                 spsListSubPicture.push_back(sps);
             }
-            // TODO we are kind of supporting many SPS but still only use the very first one
 
-            spsListSubPicture.front()->mPicWidthInLumaSamples = mTileRegions.at(aTileConfig.at(i).tileIndex).width;
-            spsListSubPicture.front()->mPicHeightInLumaSamples = mTileRegions.at(aTileConfig.at(i).tileIndex).height;
+            spsListSubPicture.front()->mPicWidthInLumaSamples = (unsigned int)mTileRegions.at(aTileConfig.at(i).tileIndex.get()).width;
+            spsListSubPicture.front()->mPicHeightInLumaSamples = (unsigned int)mTileRegions.at(aTileConfig.at(i).tileIndex.get()).height;
 
             mCbsSpsData.push_back(spsListSubPicture);
 
@@ -250,7 +247,6 @@ namespace VDD {
                 H265::PictureParameterSet* pps = new H265::PictureParameterSet(**it);
                 ppsListSubPicture.push_back(pps);
             }
-            // TODO we are kind of supporting many PPS but still only use the very first one
             ppsListSubPicture.front()->mNumTileColumnsMinus1 = 0;
             ppsListSubPicture.front()->mNumTileRowsMinus1 = 0;
             // we are using 1 tile per subpicture, hence tiles are not really enabled
@@ -259,15 +255,19 @@ namespace VDD {
             mCbsPpsData.push_back(ppsListSubPicture);
 
             // estimate also the bitrate per tile set
-            int bitrate = aInputMeta.bitrate.avgBitrate * mTileRegions[i].width*mTileRegions[i].height / fullVideoPixelArea;
+            uint32_t bitrate = (uint32_t)(((uint64_t)aInputMeta.bitrate.avgBitrate * spsListSubPicture.front()->mPicWidthInLumaSamples*spsListSubPicture.front()->mPicHeightInLumaSamples) / fullVideoPixelArea);
             mBitratePerSubpicture.push_back(bitrate);
         }
     }
 
     // rewrite slice headers, and output them in NAL Access Unit format (length + NAL in RBSP)
-    void TileFilter::convertToSubpicture(std::uint32_t aConfigIndex, const OmafTileSetConfiguration& aConfig, size_t aAUIndex, std::vector<Views>& aSubPictures, FrameTime aPresTime, int64_t aCodingIndex, FrameDuration aDuration, ExtractorMode aExtractorMode)
+    void TileFilter::convertToSubpicture(std::uint32_t aConfigIndex,
+                                         const OmafTileSetConfiguration& aConfig, size_t aAUIndex,
+                                         std::vector<Data>& aSubPictures, bool aInCodingOrder,
+                                         FrameTime aCodingTime, FrameTime aPresTime,
+                                         int64_t aCodingIndex, Index aPresIndex,
+                                         FrameDuration aDuration, ExtractorMode aExtractorMode)
     {
-
         CbsSpsData& sps = mCbsSpsData.at(aConfigIndex);
         CbsPpsData& pps = mCbsPpsData.at(aConfigIndex);
 
@@ -292,7 +292,7 @@ namespace VDD {
             Parser::BitStream bitstr(nalUnitRBSP);
             H265::NalUnitHeader naluHeader;
             H265Parser::parseNalUnitHeader(bitstr, naluHeader);
-            int temporalIdPlus1 = naluHeader.mNuhTemporalIdPlus1;
+            int temporalIdPlus1 = static_cast<int>(naluHeader.mNuhTemporalIdPlus1);
 
             Parser::BitStream seiNalStr;
             uint32_t length = OMAF::createProjectionSEI(seiNalStr, temporalIdPlus1);
@@ -302,7 +302,7 @@ namespace VDD {
             buffer.insert(buffer.end(), seiNalStr.getStorage().begin(), seiNalStr.getStorage().end());
 
             seiNalStr.clear();
-            length = OMAF::createRwpkSEI(seiNalStr, std::move(createRwpk(mTileRegions.at(aConfig.tileIndex))), temporalIdPlus1);
+            length = OMAF::createRwpkSEI(seiNalStr, std::move(createRwpk(mTileRegions.at(aConfig.tileIndex.get()))), temporalIdPlus1);
             seiLengthField.clear();
             seiLengthField.write32Bits(length);
             buffer.insert(buffer.end(), seiLengthField.getStorage().begin(), seiLengthField.getStorage().end());
@@ -311,7 +311,7 @@ namespace VDD {
         }
         
         nalPtr = mAccessUnit->mNalUnits.begin();
-        advance(nalPtr, aConfig.tileIndex);
+        advance(nalPtr, aConfig.tileIndex.get());
 
         size_t startCodeLength = 0;
         // skip start code; 3 or 4 bytes
@@ -329,7 +329,7 @@ namespace VDD {
         H265::SliceHeader oldHeaderParsed;
         createSubPictureSliceHeader(*nalPtr, startCodeLength, sliceHeader, mOriginalSpsData, mOriginalPpsData, mCbsSpsData.front().front(), mCbsPpsData.front().front(), oldHeaderParsed, nuhTemporalIdPlus1);
 
-        origSliceHeaderLen = mSlcHdrOset.at(aConfig.tileIndex)->byteOffset + 1; // There is always rbsp_trailing_bit of 1-8 bits, which is not included in the mSlcHdrOset; hence +1
+        origSliceHeaderLen = mSlcHdrOset.at(aConfig.tileIndex.get())->byteOffset + 1; // There is always rbsp_trailing_bit of 1-8 bits, which is not included in the mSlcHdrOset; hence +1
         origSliceHeaderLen += startCodeLength;
         // origSliceHeaderLen now includes start code
 
@@ -344,7 +344,7 @@ namespace VDD {
         buffer.insert(buffer.end(), sliceHeader.getStorage().begin(), sliceHeader.getStorage().end());
         payloadOffset = buffer.size();
         // add the payload (in bytestream format)
-        buffer.insert(buffer.end(), nalPtr->begin() + origSliceHeaderLen, nalPtr->end());
+        buffer.insert(buffer.end(), nalPtr->begin() + static_cast<std::ptrdiff_t>(origSliceHeaderLen), nalPtr->end());
         if (aExtractorMode != NO_EXTRACTOR)
         {
             // create constructors and save to the Extractor
@@ -354,22 +354,18 @@ namespace VDD {
             // add placeholder for NAL unit length field; reader is expected to rewrite it
             inlineCtor.inlineData.insert(inlineCtor.inlineData.begin(), 4, 0xff);
             // add the original header
-            inlineCtor.inlineData.insert(inlineCtor.inlineData.end(), nalPtr->begin() + startCodeLength, nalPtr->begin() + origSliceHeaderLen);//origSliceHeaderLen includes startCodeLength
+            inlineCtor.inlineData.insert(inlineCtor.inlineData.end(), nalPtr->begin() + static_cast<std::ptrdiff_t>(startCodeLength), nalPtr->begin() + static_cast<std::ptrdiff_t>(origSliceHeaderLen));//origSliceHeaderLen includes startCodeLength
 
             extractor.inlineConstruct.push_back(inlineCtor);
 
             Extractor::SampleConstruct sampleCtor;
             sampleCtor.idx = extractor.idx++;
             sampleCtor.dataOffset = payloadOffset;
-            if (aExtractorMode == DEDICATED_EXTRACTOR)
-            {
-                sampleCtor.dataLength = nalPtr->size() - origSliceHeaderLen;
-            }
-            else if (aExtractorMode == COMMON_EXTRACTOR)
-            {
-                // when datalength is larger than actual data, reader is expected to copy the full sample from offset to the end
-                sampleCtor.dataLength = UINT32_MAX;
-            }
+            // when datalength is larger than actual data, reader is expected to copy the full sample from offset to the end
+            // we can't use exact size in any cases, since encoder's rate control & ABR can result in video slice sizes to vary unexpectedly, 
+            // a lower bitrate stream can have a single slice/frame larger than in higher bitrate stream
+            sampleCtor.dataLength = UINT32_MAX;
+
             // When the dataLength == 0, reader is expected to copy a single full NAL unit; currently not useful for us 
 
             sampleCtor.trackId = aConfig.trackId;
@@ -378,7 +374,7 @@ namespace VDD {
             sampleCtor.sliceInfo.origSliceHeaderLength = origSliceHeaderLen;//including start code/length field
             // NAL length field included 
             sampleCtor.sliceInfo.payloadOffset = payloadOffset;
-            sampleCtor.sliceInfo.naluHeader.insert(sampleCtor.sliceInfo.naluHeader.end(), nalPtr->begin() + startCodeLength, nalPtr->begin() + startCodeLength + NALHeaderLength);
+            sampleCtor.sliceInfo.naluHeader.insert(sampleCtor.sliceInfo.naluHeader.end(), nalPtr->begin() + static_cast<std::ptrdiff_t>(startCodeLength), nalPtr->begin() + static_cast<std::ptrdiff_t>(startCodeLength + NALHeaderLength));
 
             extractor.sampleConstruct.push_back(sampleCtor);
         }
@@ -387,17 +383,20 @@ namespace VDD {
 
         // assign buffer to subPicture
         std::vector<std::vector<std::uint8_t>> matrix(1, std::move(buffer));
-        Meta meta(createMetadata(mTileRegions.at(aConfig.tileIndex), aConfig.trackId, aPresTime, aCodingIndex, aDuration, mAccessUnit->mIsIdr, aAUIndex, sps, pps, mBitratePerSubpicture.at(aConfigIndex)));
+        Meta meta(createMetadata(mTileRegions.at(aConfig.tileIndex.get()), aConfig.trackId, aCodingTime, aPresTime, aCodingIndex, aPresIndex, aDuration, mAccessUnit->mIsIdr, aAUIndex, sps, pps, mBitratePerSubpicture.at(aConfigIndex)));
         meta.attachTag<TrackIdTag>(aConfig.trackId);
-        aSubPictures.push_back({ Data(CPUDataVector(std::move(matrix)), 
-            meta, 
-            aConfig.streamId) });
+        aSubPictures.push_back(Data(CPUDataVector(std::move(matrix)), meta, aConfig.streamId));
 
         if (aExtractorMode != NO_EXTRACTOR)
         {
             extractor.nuhTemporalIdPlus1 = nuhTemporalIdPlus1;
             extractor.streamId = aConfig.streamId;
-            aSubPictures.push_back({ Data(createExtractorMetadata(mTileRegions.at(aConfig.tileIndex), aPresTime, aCodingIndex, aDuration, aAUIndex, mAccessUnit->mIsIdr), {extractor}, aConfig.streamId) });
+            aSubPictures.push_back(
+                Data(createExtractorMetadata(
+                         mTileRegions.at(aConfig.tileIndex.get()),
+                         aInCodingOrder, aCodingTime, aPresTime, aCodingIndex, aPresIndex,
+                         aDuration, aAUIndex, mAccessUnit->mIsIdr),
+                     {extractor}, aConfig.streamId));
         }
     }
 
@@ -412,7 +411,7 @@ namespace VDD {
         mH265Parser->convertToRBSP(aOldHeader, nalUnitRBSP, true);
         Parser::BitStream bitstr(nalUnitRBSP);
         mH265Parser->parseNalUnitHeader(bitstr, naluHeader);
-        aNuhTemporalIdPlus1 = naluHeader.mNuhTemporalIdPlus1;
+        aNuhTemporalIdPlus1 = (uint8_t)naluHeader.mNuhTemporalIdPlus1;
         mH265Parser->parseSliceHeader(bitstr, aOldHeaderParsed, naluHeader.mH265NalUnitType, aOldSpsList, aOldPpsList);
         // then copy the header
         for (uint8_t j = 0; j < NALHeaderLength; j++) 
@@ -431,17 +430,18 @@ namespace VDD {
 
 
     CodedFrameMeta TileFilter::createMetadata(const TilePixelRegion& aTile, TrackId aTrackId,
-                                              FrameTime aPresTime,
-                                              int64_t aCodingIndex,
+                                              FrameTime aCodingTime, FrameTime aPresTime,
+                                              int64_t aCodingIndex, Index aPresIndex,
                                               FrameDuration aDuration, bool aIsIDR, size_t aAUIndex,
                                               const CbsSpsData& aSps, const CbsPpsData& aPps,
                                               uint32_t aBitrate)
     {
         CodedFrameMeta codedMeta;
         codedMeta.inCodingOrder = true;
+        codedMeta.codingTime = aCodingTime;
         codedMeta.presTime = aPresTime;
         codedMeta.codingIndex = CodingIndex(aCodingIndex);
-        codedMeta.presIndex = CodingIndex(aCodingIndex);
+        codedMeta.presIndex = CodingIndex(aPresIndex);
         codedMeta.width = (std::uint32_t)aSps.front()->mPicWidthInLumaSamples;
         codedMeta.height = (std::uint32_t)aSps.front()->mPicHeightInLumaSamples;
         codedMeta.duration = aDuration;
@@ -454,7 +454,7 @@ namespace VDD {
         // needed only for the very first access unit for each subpicture
         if (aAUIndex == 0)
         {
-            codedMeta.regionPacking = std::move(createRwpk(aTile));
+            codedMeta.regionPacking = createRwpk(aTile);
 
             createSpherical(codedMeta);
 
@@ -502,13 +502,20 @@ namespace VDD {
         return codedMeta;
     }
 
-    CodedFrameMeta TileFilter::createExtractorMetadata(const TilePixelRegion& aTile, FrameTime aPts, int64_t aCodingIndex, FrameDuration aDuration, size_t aAUIndex, bool aIsIDR)
+    CodedFrameMeta TileFilter::createExtractorMetadata(const TilePixelRegion& aTile,
+                                                       bool aInCodingOrder,
+                                                       FrameTime aCodingTime, FrameTime aPresPts,
+                                                       int64_t aCodingIndex, Index aPresIndex,
+                                                       FrameDuration aDuration, size_t aAUIndex,
+                                                       bool aIsIDR)
     {
         CodedFrameMeta codedMeta;
+        codedMeta.inCodingOrder = aInCodingOrder;
         codedMeta.format = CodedFormat::H265Extractor;
-        codedMeta.presTime = aPts;
+        codedMeta.codingTime = aCodingTime;
+        codedMeta.presTime = aPresPts;
         codedMeta.codingIndex = CodingIndex(aCodingIndex);
-        codedMeta.presIndex = CodingIndex(aCodingIndex);
+        codedMeta.presIndex = CodingIndex(aPresIndex);
         codedMeta.width = mOriginalSpsData.front()->mPicWidthInLumaSamples;
         codedMeta.height = mOriginalSpsData.front()->mPicHeightInLumaSamples;
         codedMeta.duration = aDuration;
@@ -518,12 +525,7 @@ namespace VDD {
         // insert the original SPS/PPS/VPS. This works with single resolution VD case
         if (aAUIndex == 0)
         {
-            if (mProjection.projection ==
-                OmafProjectionType::EQUIRECTANGULAR)  // TODO as we support cubemap currently with
-                                                      // MultiQ option only and only OMAF cubemaps,
-                                                      // there is really no need to have RWPK for it,
-                                                      // but player can use defaults for face order &
-                                                      // transform
+            if (mProjection.projection == ISOBMFF::makeOptional(OmafProjectionType::Equirectangular))
             {
                 codedMeta.regionPacking = createRwpk(aTile);
             }
@@ -573,28 +575,18 @@ namespace VDD {
 
         Region region;
 
-        if (mProjection.projection == OmafProjectionType::CUBEMAP)
-        {
-            region.projTop = aTile.top;
-            region.packedTop = aTile.top;
-            region.projLeft = aTile.left;
-            region.packedLeft = aTile.left;
-            region.transform = 0; // no transform compared to OMAF cubemap definition
-        }
-        else
-        {
-            // equirect, projected as such without any moves
-            region.projTop = aTile.top;
-            region.packedTop = aTile.top;
-            region.projLeft = aTile.left;
-            region.packedLeft = aTile.left;
-            region.transform = 0;
-        }
+        // equirect, projected as such without any moves
+        region.projTop = (uint32_t)aTile.top;
+        region.packedTop = (uint16_t)aTile.top;
+        region.projLeft = (uint32_t)aTile.left;
+        region.packedLeft = (uint16_t)aTile.left;
+        region.transform = 0;
+
         // At this point packed and projected dimensions the same. They may be rewritten while repacking the tiles
         region.projWidth = aTile.width;
-        regionPacking.packedPictureWidth = region.packedWidth = aTile.width;
-        region.projHeight = aTile.height;
-        regionPacking.packedPictureHeight = region.packedHeight = aTile.height;
+        regionPacking.packedPictureWidth = region.packedWidth = (uint16_t)aTile.width;
+        region.projHeight = (uint32_t)aTile.height;
+        regionPacking.packedPictureHeight = region.packedHeight = (uint16_t)aTile.height;
 
         regionPacking.regions.push_back(std::move(region));
 
@@ -613,10 +605,36 @@ namespace VDD {
         Spherical sphericalCoverage;
         sphericalCoverage.cAzimuth = (std::int32_t)((((fullWidth / 2) - (float)(region.projLeft + region.projWidth / 2)) * 360 * 65536) / fullWidth);
         sphericalCoverage.cElevation = (std::int32_t)((((fullHeight / 2) - (float)(region.projTop + region.projHeight / 2)) * 180 * 65536) / fullHeight);
+        sphericalCoverage.rAzimuth =
+            (std::uint32_t)((region.projWidth * 360.f * 65536) / fullWidth);
+        sphericalCoverage.rElevation =
+            (std::uint32_t)((region.projHeight * 180.f * 65536) / fullHeight);
+        if (mVideoMode == VideoInputMode::TopBottom)
+        {
+            sphericalCoverage.rElevation *= 2;
+            if (sphericalCoverage.cElevation > 0)
+            {
+                sphericalCoverage.cElevation = (sphericalCoverage.cElevation * 2) - 90.f * 65536;
+            }
+            else
+            {
+                sphericalCoverage.cElevation = (sphericalCoverage.cElevation * 2) + 90.f * 65536;
+            }
+        }
+        else if (mVideoMode == VideoInputMode::LeftRight)
+        {
+            sphericalCoverage.rAzimuth *= 2;
+            if (sphericalCoverage.cAzimuth > 0)
+            {
+                sphericalCoverage.cAzimuth = (sphericalCoverage.cAzimuth * 2) - 180.f * 65536;
+            }
+            else
+            {
+                sphericalCoverage.cAzimuth = (sphericalCoverage.cAzimuth * 2) + 180.f * 65536;
+            }
+        }
         sphericalCoverage.cTilt = 0;
 
-        sphericalCoverage.rAzimuth = (std::uint32_t)((region.projWidth * 360.f * 65536) / fullWidth);
-        sphericalCoverage.rElevation = (std::uint32_t)((region.projHeight * 180.f * 65536) / fullHeight);
 
         aCodedMeta.sphericalCoverage = sphericalCoverage;
 

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,13 +19,12 @@ namespace VDD
     template <typename T, typename Map>
     auto mapFuture(const Future<T>& aFuture, Map aMap) -> Future<decltype(aMap(T()))>
     {
-        // Using shared ptr due to that the promise gets capture as const inside the lambda
-        std::shared_ptr<Promise<decltype(aMap(T()))>> promise(new Promise<decltype(aMap(T()))>);
+        Promise<decltype(aMap(T()))> promise;
         aFuture.then([=](const T& aValue)
                              {
-                                 promise->set(aMap(aValue));
+                                 promise.set(aMap(aValue));
                              });
-        return *promise;
+        return promise;
     }
 
     template <typename T>
@@ -50,6 +49,21 @@ namespace VDD
                   });
 
         return *value;
+    }
+
+    template <typename T>
+    T getFuture(const Future<T>& aFuture)
+    {
+        // Sort of quick and dirty and slow with minimal added new interface..
+        if (!aFuture.isSet())
+        {
+            if (aFuture.getId().size())
+            {
+                std::cerr << "getFuture: future is not set for " << aFuture.getId() << std::endl;
+            }
+            assert(false);
+        }
+        return waitFuture(aFuture);
     }
 
     namespace FutureTMP
@@ -201,6 +215,12 @@ namespace VDD
         }
 
         return state->promise;
+    }
+
+    template <typename T> Promise<T> makePromise(const T& aValue)
+    {
+        Promise<T> value(aValue);
+        return value;
     }
 }
 

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -45,6 +45,8 @@ public:
     /** @brief Parses an Track Group Type Box bitstream and fills in the necessary member variables
      *  @param [in]  bitstr Bitstream that contains the box data */
     void parseBox(ISOBMFF::BitStream& bitstr);
+
+    virtual TrackGroupTypeBox* clone() const;
 
 private:
     std::uint32_t mTrackGroupId;  // indicates the grouping type

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,27 +18,26 @@
 
 OMAF_NS_BEGIN
 
-    class DashRepresentationExtractor : public DashRepresentationTile
-    {
-    public:
-        
-        DashRepresentationExtractor();
-        virtual ~DashRepresentationExtractor();
+class DashRepresentationExtractor : public DashRepresentationTile
+{
+public:
+    DashRepresentationExtractor();
+    virtual ~DashRepresentationExtractor();
 
-        virtual void_t createVideoSource(sourceid_t& sourceId, SourceType::Enum sourceType, StereoRole::Enum channel);
+    virtual void_t createVideoSource(sourceid_t& sourceId, SourceType::Enum sourceType, StereoRole::Enum channel);
 
-        bool_t isDone(uint32_t& aSegmentId);
-        bool_t readyForSegment(uint32_t aId);
-        Error::Enum parseConcatenatedMediaSegment(DashSegment *aSegment);
+    bool_t isAtSegmentBoundary(uint32_t& aSegmentId, uint32_t& aNewestSegmentInParser);
+    bool_t readyForSegment(uint32_t aId);
+    Error::Enum parseConcatenatedMediaSegment(DashSegment* aSegment);
 
-        void_t setCoveredViewport(VASTileViewport* aCoveredViewport);
-        VASTileViewport* getCoveredViewport();
+    void_t setCoveredViewport(VASTileViewport* aCoveredViewport);
+    VASTileViewport* getCoveredViewport();
 
-    private:
-        sourceid_t mSourceId;
-        SourceType::Enum mSourceType;
-        StereoRole::Enum mRole;
+private:
+    sourceid_t mSourceId;
+    SourceType::Enum mSourceType;
+    StereoRole::Enum mRole;
 
-        VASTileViewport* mCoveredViewport;
-    };
+    VASTileViewport* mCoveredViewport;
+};
 OMAF_NS_END

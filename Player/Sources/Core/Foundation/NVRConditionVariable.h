@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,8 +14,8 @@
  */
 #pragma once
 
-#include "Platform/OMAFDataTypes.h"
 #include "Platform/OMAFCompiler.h"
+#include "Platform/OMAFDataTypes.h"
 #include "Platform/OMAFPlatformDetection.h"
 
 #include "Foundation/NVRCompatibility.h"
@@ -29,57 +29,55 @@ OMAF_NS_BEGIN
 // - OS condition variable: Windows family (Win32)
 // - POSIX condition variable: Linux family (Android, Linux), Apple family (iOS, macOS, tvOS)
 //
-// Note: Condition variable doesn't have internal state e.g. if signal() is called before wait() it will wait until event is signaled again.
+// Note: Condition variable doesn't have internal state e.g. if signal() is called before wait() it will wait until
+// event is signaled again.
 //
 
 class Mutex;
 
 class ConditionVariable
 {
-    public:
-    
+public:
 #if OMAF_PLATFORM_WINDOWS || OMAF_PLATFORM_UWP
-    
-        typedef CONDITION_VARIABLE Handle;
+
+    typedef CONDITION_VARIABLE Handle;
 
 #elif OMAF_PLATFORM_ANDROID
-    
-        typedef pthread_cond_t Handle;
-    
+
+    typedef pthread_cond_t Handle;
+
 #else
-    
-    #error Unsupported platform
-    
+
+#error Unsupported platform
+
 #endif
-    
-    public:
-    
-        // Creates OS condition variable.
-        ConditionVariable();
-    
-        // Destroys OS condition variable.
-        ~ConditionVariable();
-    
-        // Blocks the calling thread until the specified condition is signalled.
-        void_t wait(Mutex& mutex);
-    
-        // Blocks the calling thread until the specified condition is signalled or wait time has been passed.
-        void_t wait(Mutex& mutex, uint32_t timeoutMs);
 
-        // Signals to wake a waiting thread. It is a logical error to call signal before wait, check notes from class description.
-        void_t signal();
+public:
+    // Creates OS condition variable.
+    ConditionVariable();
 
-        // Signals to wake all waiting threads.
-        void_t broadcast();
-    
-    private:
+    // Destroys OS condition variable.
+    ~ConditionVariable();
 
-        OMAF_NO_COPY(ConditionVariable);
-        OMAF_NO_ASSIGN(ConditionVariable);
-    
-    private:
-    
-        Handle mHandle;
+    // Blocks the calling thread until the specified condition is signalled.
+    void_t wait(Mutex& mutex);
+
+    // Blocks the calling thread until the specified condition is signalled or wait time has been passed.
+    void_t wait(Mutex& mutex, uint32_t timeoutMs);
+
+    // Signals to wake a waiting thread. It is a logical error to call signal before wait, check notes from class
+    // description.
+    void_t signal();
+
+    // Signals to wake all waiting threads.
+    void_t broadcast();
+
+private:
+    OMAF_NO_COPY(ConditionVariable);
+    OMAF_NO_ASSIGN(ConditionVariable);
+
+private:
+    Handle mHandle;
 };
 
 OMAF_NS_END

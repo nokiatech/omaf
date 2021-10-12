@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,9 +14,9 @@
  */
 #pragma once
 
+#include <list>
 #include <memory>
 #include <string>
-#include <list>
 
 #include "videoinput.h"
 
@@ -26,17 +26,27 @@ namespace VDD
 {
     class Config;
 
+    struct H265InputConfig
+    {
+        int gopLength;
+    };
+
     /** Simple configuration that for generating a VDD::Config (basically JSON) */
     struct ConverterConfigTemplate
     {
-        std::string inputMP4;
+        // inputFile is MP4 if there is no h265Config; otherwise it's H265
+        std::string inputFile;
+        Optional<H265InputConfig> h265InputConfig;
         std::string outputMP4;
         std::string outputDASH;
         std::list<std::pair<std::string, std::string>> keyValues;
         Optional<std::string> dumpGraph;
-        bool dumpConfig;
+        std::list<std::string> jsonConfig;
+        bool dumpConfig = false;
+        bool disableAudio = false;
+        bool enableDummyMetadata = false;
     };
 
     std::shared_ptr<VDD::Config> createConvConfigJson(const ConverterConfigTemplate& aConvConfig);
 
-}
+}  // namespace VDD

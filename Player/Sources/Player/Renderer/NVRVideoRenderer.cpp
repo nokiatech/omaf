@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,7 +17,7 @@
 OMAF_NS_BEGIN
 
 VideoRenderer::VideoRenderer()
-: mValid(false)
+    : mValid(false)
 {
 }
 
@@ -28,7 +28,7 @@ VideoRenderer::~VideoRenderer()
 void_t VideoRenderer::create()
 {
     createImpl();
-    
+
     mValid = true;
 }
 
@@ -38,7 +38,7 @@ void_t VideoRenderer::destroy()
     {
         destroyImpl();
     }
-    
+
     mValid = false;
 }
 

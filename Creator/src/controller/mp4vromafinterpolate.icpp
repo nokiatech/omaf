@@ -1,0 +1,165 @@
+
+/**
+ * This file is part of Nokia OMAF implementation
+ *
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ *
+ * Contact: omaf@nokia.com
+ *
+ * This software, including documentation, is protected by copyright controlled by Nokia Corporation and/ or its
+ * subsidiaries. All rights are reserved.
+ *
+ * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
+ * written consent of Nokia.
+ */
+#include "controllerparsers.h"
+
+namespace VDD
+{
+    template <typename Sample>
+    std::function<InterpolatedSample<Sample>(const ConfigValue& aValue)> readInterpolatedSample(
+        std::function<Sample(const ConfigValue& aValue)> aReader)
+    {
+        return [aReader](const ConfigValue& aValue) {
+            InterpolatedSample<Sample> r;
+            r.configValue = aValue;
+            std::tie(r.time, r.duration) = readTimeDuration(aValue);
+            r.sample = aReader(aValue);
+
+            if (aValue["interpolate"])
+            {
+                r.interpolateToNext =
+                    readOptional(readParsedValue(readInterpolationInstructions))(aValue["interpolate"]);
+            }
+
+            return r;
+        };
+    }
+
+    template <typename Sample>
+    InterpolatedSample<Sample> interpolate(const InterpolationContext& aCtx,
+                                           const InterpolatedSample<Sample>& a,
+                                           const InterpolatedSample<Sample>& b)
+    {
+        // interpolation instructinos are discarded
+        InterpolatedSample<Sample> sample;
+        sample.configValue = a.configValue;
+        SampleTimeDuration<Sample>& base = sample;
+        const SampleTimeDuration<Sample>& baseA = a;
+        const SampleTimeDuration<Sample>& baseB = b;
+        base = interpolate(aCtx, baseA, baseB);
+        return sample;
+    }
+
+    template <typename Sample>
+    std::vector<InterpolatedSample<Sample>> performSampleInterpolation(
+        const std::vector<InterpolatedSample<Sample>>& aSamples,
+        Optional<StreamSegmenter::Segmenter::Duration> aForceFrameInterval)
+    {
+        std::vector<InterpolatedSample<Sample>> samples;
+        StreamSegmenter::Segmenter::Duration timeInSegment;
+
+        auto pushSplitSample = [&](FrameDuration aDurationLeft,
+                                   InterpolatedSample<Sample>& aSample) {
+            if (aForceFrameInterval && aDurationLeft.num)
+            {
+                while (aDurationLeft.num > 0)
+                {
+                    auto delta = std::min(aDurationLeft, *aForceFrameInterval - timeInSegment);
+                    aSample.duration = delta;
+                    samples.push_back(aSample);
+                    timeInSegment += delta;
+                    aSample.time += delta.template cast<FrameTime>();
+                    if (timeInSegment >= *aForceFrameInterval)
+                    {
+                        timeInSegment -= *aForceFrameInterval;
+                    }
+                    aDurationLeft -= delta;
+                }
+            }
+            else
+            {
+                aSample.duration = aDurationLeft;
+                samples.push_back(aSample);
+            }
+        };
+
+        for (size_t index = 0u; index < aSamples.size(); ++index)
+        {
+            auto& base = aSamples[index];
+            auto modified = base;
+            const InterpolatedSample<Sample>* next =
+                index + 1 < aSamples.size() ? &aSamples[index + 1] : nullptr;
+            if (base.interpolateToNext)
+            {
+                if (!next)
+                {
+                    throw ConfigValueInvalid("Last timed metadata sample cannot be interpolated",
+                                             base.interpolateToNext->getConfigValue());
+                }
+                modified.interpolateToNext = {};
+                FrameTime time = modified.time;
+                FrameTime interval =
+                    (*base.interpolateToNext)->frameInterval.template cast<FrameTime>();
+                while (time < next->time)
+                {
+                    modified.time = time;
+                    auto duration = std::min(next->time - modified.time, interval)
+                                        .template cast<FrameDuration>();
+                    if (time != base.time)
+                    {
+                        double relativeAt =
+                            ((modified.time - base.time) / (next->time - base.time)).asDouble();
+                        InterpolationContext ctx{relativeAt, base.configValue, next->configValue};
+                        modified.sample = interpolate(ctx, base.sample, next->sample);
+                    }
+                    pushSplitSample(duration, modified);
+                    time += duration.template cast<FrameTime>();
+                }
+            }
+            else
+            {
+                FrameDuration duration;
+                if (next)
+                {
+                    duration = (next->time - modified.time).template cast<FrameDuration>();
+                }
+                else
+                {
+                    duration = modified.duration;
+                }
+                assert(duration.num != 0);
+                pushSplitSample(duration, modified);
+            }
+        }
+        return samples;
+    }
+
+    template <typename AugmentedSample>
+    void validateTimedMetadata(const std::vector<AugmentedSample>& aSamples)
+    {
+        if (aSamples.size() && aSamples.back().duration.num == 0)
+        {
+            throw ConfigValueReadError("Last timed metadata sample must have \"duration\"");
+        }
+        for (size_t index = 0u; index + 1 < aSamples.size(); ++index)
+        {
+            if (aSamples[index].duration.num != 0)
+            {
+                throw ConfigValueReadError(
+                    "Only the last timed metadata sample may have \"duration\". Found: " +
+                    std::to_string(aSamples[index].duration.num) + " at index");
+            }
+            if (aSamples[index].time > aSamples[index + 1].time)
+            {
+                throw ConfigValueReadError(
+                    "Successive samples in timed metadata must be entirely increasing "
+                    "timestamps. "
+                    "Failed at index " +
+                    std::to_string(index));
+            }
+        }
+    }
+
+
+}  // namespace VDD

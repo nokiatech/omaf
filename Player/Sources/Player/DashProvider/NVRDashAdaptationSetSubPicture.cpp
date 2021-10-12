@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,67 +16,69 @@
 #include "DashProvider/NVRMPDAttributes.h"
 #include "DashProvider/NVRMPDExtension.h"
 #include "Foundation/NVRLogger.h"
-#include "Media/NVRMediaType.h"
 #include "Foundation/NVRTime.h"
+#include "Media/NVRMediaType.h"
 
 OMAF_NS_BEGIN
-    OMAF_LOG_ZONE(DashAdaptationSetSubPicture)
+OMAF_LOG_ZONE(DashAdaptationSetSubPicture)
 
-    DashAdaptationSetSubPicture::DashAdaptationSetSubPicture(DashAdaptationSetObserver& observer)
+DashAdaptationSetSubPicture::DashAdaptationSetSubPicture(DashAdaptationSetObserver& observer)
     : DashAdaptationSetViewportDep(observer)
-    {
+{
+}
 
-    }
+DashAdaptationSetSubPicture::~DashAdaptationSetSubPicture()
+{
+}
 
-    DashAdaptationSetSubPicture::~DashAdaptationSetSubPicture()
-    {
-    }
+bool_t DashAdaptationSetSubPicture::isSubPicture(DashComponents aDashComponents)
+{
+    // but there is a 360 video?
+    return false;
+}
 
-    bool_t DashAdaptationSetSubPicture::isSubPicture(DashComponents aDashComponents)
-    {
-        //TODO how to detect this in OMAF? has a coverage/quality indicating less than 360, but there are no extractors, but there is a 360 video?
-        return false;
-    }
-
-    AdaptationSetType::Enum DashAdaptationSetSubPicture::getType() const
-    {
-        return AdaptationSetType::SUBPICTURE;
-    }
-
-
-    DashRepresentation* DashAdaptationSetSubPicture::createRepresentation(DashComponents aDashComponents, uint32_t aInitializationSegmentId, uint32_t aBandwidth)
-    {
-        DashRepresentation* newrepresentation = DashAdaptationSet::createRepresentation(aDashComponents, aInitializationSegmentId, aBandwidth);
-
-        // set cache mode: "manual", i.e. monitor also other parameters than download cache
-        newrepresentation->setCacheFillMode(false);
-
-        return newrepresentation;
-    }
+AdaptationSetType::Enum DashAdaptationSetSubPicture::getType() const
+{
+    return AdaptationSetType::SUBPICTURE;
+}
 
 
-    bool_t DashAdaptationSetSubPicture::parseVideoProperties(DashComponents& aNextComponents)
-    {
-        //TODO 
-        return false;
-    }
+DashRepresentation* DashAdaptationSetSubPicture::createRepresentation(DashComponents aDashComponents,
+                                                                      uint32_t aInitializationSegmentId,
+                                                                      uint32_t aBandwidth)
+{
+    DashRepresentation* newrepresentation =
+        DashAdaptationSet::createRepresentation(aDashComponents, aInitializationSegmentId, aBandwidth);
 
-    void_t DashAdaptationSetSubPicture::parseVideoViewport(DashComponents& aNextComponents)
-    {
-        //TODO
+    // set cache mode: "manual", i.e. monitor also other parameters than download cache
+    newrepresentation->setCacheFillMode(false);
 
-        mContent.addType(MediaContent::Type::VIDEO_BASE);
-    }
+    return newrepresentation;
+}
 
-    void_t DashAdaptationSetSubPicture::doSwitchRepresentation()
-    {
+
+bool_t DashAdaptationSetSubPicture::parseVideoProperties(DashComponents& aNextComponents)
+{
+    return false;
+}
+
+void_t DashAdaptationSetSubPicture::parseVideoViewport(DashComponents& aNextComponents)
+{
+
+    mContent.addType(MediaContent::Type::VIDEO_BASE);
+}
+
+void_t DashAdaptationSetSubPicture::doSwitchRepresentation()
+{
 #ifdef OMAF_PLATFORM_ANDROID
-        OMAF_LOG_V("%d Switch done from %d to %d", Time::getClockTimeMs(), mCurrentRepresentation->getBitrate(), mNextRepresentation->getBitrate());
+    OMAF_LOG_V("%d Switch done from %d to %d", Time::getClockTimeMs(), mCurrentRepresentation->getBitrate(),
+               mNextRepresentation->getBitrate());
 #else
-        OMAF_LOG_V("%lld Switch done from %s (%d) to %s (%d)", Time::getClockTimeMs(), mCurrentRepresentation->getId(), mCurrentRepresentation->getBitrate(), mNextRepresentation->getId(), mNextRepresentation->getBitrate());
+    OMAF_LOG_V("%lld Switch done from %s (%d) to %s (%d)", Time::getClockTimeMs(), mCurrentRepresentation->getId(),
+               mCurrentRepresentation->getBitrate(), mNextRepresentation->getId(), mNextRepresentation->getBitrate());
 #endif
-        mCurrentRepresentation = mNextRepresentation;
-        mNextRepresentation = OMAF_NULL;
-    }
+    mCurrentRepresentation = mNextRepresentation;
+    mNextRepresentation = OMAF_NULL;
+}
 
 OMAF_NS_END

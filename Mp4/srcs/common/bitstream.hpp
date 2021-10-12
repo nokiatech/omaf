@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,6 +16,7 @@
 #define BITSTREAM_HPP
 
 #include <cstdint>
+#include <type_traits>
 #include "customallocator.hpp"
 
 #include "fourccint.hpp"
@@ -79,9 +80,18 @@ namespace ISOBMFF
          *  @param [in] len  number of bits to be written to the bitstream data storage */
         void writeBits(std::uint64_t bits, std::uint32_t len);
 
+        /** @brief Write one bit */
+        void writeBit(bool bit);
+
         /** @brief Writes 8 bits to the bitstream data storage
          *  @param [in] bits bits to be written to the bitstream data storage */
         void write8Bits(std::uint8_t bits);
+
+        /** @brief Inlined wrapper for writing signed integers */
+        void write8BitsSigned(const std::int8_t bits)
+        {
+            write8Bits(static_cast<uint8_t>(bits));
+        }
 
         /** @brief Writes the contents of another bitstream
          *  @param [in] bitstream to write */
@@ -91,6 +101,12 @@ namespace ISOBMFF
          *  @param [in] bits bits to be written to the bitstream data storage */
         void write16Bits(std::uint16_t bits);
 
+        /** @brief Inlined wrapper for writing signed integers */
+        void write16BitsSigned(const std::int16_t bits)
+        {
+            write16Bits(static_cast<uint16_t>(bits));
+        }
+
         /** @brief Writes 24 bits to the bitstream data storage
          *  @param [in] bits bits to be written to the bitstream data storage */
         void write24Bits(std::uint32_t bits);
@@ -99,18 +115,36 @@ namespace ISOBMFF
          *  @param [in] bits bits to be written to the bitstream data storage */
         void write32Bits(std::uint32_t bits);
 
+        /** @brief Inlined wrapper for writing signed integers */
+        void write32BitsSigned(const std::int32_t bits)
+        {
+            write32Bits(static_cast<uint32_t>(bits));
+        }
+
         /** @brief Writes 64 bits to the bitstream data storage
          *  @param [in] bits bits to be written to the bitstream data storage */
         void write64Bits(std::uint64_t bits);
 
-        /** @brief Writes an array of 8 bit values to the bitstream data storage
+        /** @brief Inlined wrapper for writing signed integers */
+        void write64BitsSigned(const std::int64_t bits) { write64Bits(static_cast<uint64_t>(bits)); }
+
+        /** @brief Writes an array of 8 bit values to the bitstream data storage.
+         *  Works with any container with elements that are implicitly convertible to std::uint8_t;
          *  @param [in] bits vector of bits to be written to the bitstream data storage
          *  @param [in] len number of 8 bit elements to be written to the bitstream data storage (if not given, use
          * vector length - srcOffset)
          *  @param [in] srcOffset offset location to start reading 8 bit elements in the bits vector */
-        void write8BitsArray(const Vector<std::uint8_t>& bits,
-                             std::uint64_t len       = UINT64_MAX,
-                             std::uint64_t srcOffset = 0);
+        template <typename Container>
+        typename std::enable_if<std::is_convertible<typename Container::value_type, std::uint8_t>::value, void>::type
+        write8BitsArray(const Container& bits, std::uint64_t len = UINT64_MAX, std::uint64_t srcOffset = 0)
+        {
+            // if len was not given, add everything until end of the vector
+            auto copyLen =
+                len == UINT64_MAX ? (static_cast<size_t>(std::distance(bits.begin(), bits.end())) - srcOffset) : len;
+
+            mStorage.insert(mStorage.end(), bits.begin() + static_cast<std::int64_t>(srcOffset),
+                            bits.begin() + static_cast<std::int64_t>(srcOffset + copyLen));
+        }
 
         ///@brief Writes a non-zero-terminated string to the bitstream data storage
         void writeString(const String& srcString);
@@ -132,20 +166,47 @@ namespace ISOBMFF
          *  @return value of bits read as an unsigned integer */
         std::uint32_t readBits(const std::uint32_t len);
 
-        /// @return read 8 bits as unigned uint8_t
+        /** @brief Reads one bit */
+        bool readBit();
+
+        /// @return read 8 bits as unsigned uint8_t
         std::uint8_t read8Bits();
 
-        /// @return read 16 bits as unigned uint16_t
+        /// @return read 8 bits as signed integer
+        std::int8_t read8BitsSigned()
+        {
+            return static_cast<std::int8_t>(read8Bits());
+        }
+
+        /// @return read 16 bits as unsigned uint16_t
         std::uint16_t read16Bits();
 
-        /// @return read 24 bits as unigned integer
+        /// @return read 16 bits as signed integer
+        std::int16_t read16BitsSigned()
+        {
+            return static_cast<std::int16_t>(read16Bits());
+        }
+
+        /// @return read 24 bits as unsigned integer
         std::uint32_t read24Bits();
 
-        /// @return read 32 bits as unigned integer
+        /// @return read 32 bits as unsigned integer
         std::uint32_t read32Bits();
 
-        /// @return read 64 bits as unigned long long
+        /// @return read 32 bits as signed integer
+        std::int32_t read32BitsSigned()
+        {
+            return static_cast<std::int32_t>(read32Bits());
+        }
+
+        /// @return read 64 bits as unsigned long long
         std::uint64_t read64Bits();
+
+        /// @return read 64 bits as signed integer
+        std::int64_t read64BitsSigned()
+        {
+            return static_cast<std::int64_t>(read64Bits());
+        }
 
         /** @brief Reads an array of 8 bit values from the bitstream data storage
          *  @param [in] len number of 8 bit elements to be read from the bitstream data storage

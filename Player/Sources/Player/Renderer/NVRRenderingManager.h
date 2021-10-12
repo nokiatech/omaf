@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,64 +14,68 @@
  */
 #pragma once
 
-#include "Renderer/NVRVideoRenderer.h"
-#include "Renderer/NVRRenderingManagerSettings.h"
 #include "Renderer/NVREquirectangularMask.h"
+#include "Renderer/NVRRenderingManagerSettings.h"
+#include "Renderer/NVRVideoRenderer.h"
 
 #include "Foundation/NVRHashMap.h"
 
 OMAF_NS_BEGIN
 
-    class RenderingManager
-    {
-    public:
+class RenderingManager
+{
+public:
+    RenderingManager();
+    virtual ~RenderingManager();
 
-        RenderingManager();
-        virtual ~RenderingManager();
+public:
+    virtual bool_t initialize(CoreProvider* provider);
+    virtual bool_t initialize(CoreProvider* provider, RenderingManagerSettings& settings);
 
-    public:
+    virtual void_t deinitialize();
 
-        virtual bool_t initialize(CoreProvider* provider);
-        virtual bool_t initialize(CoreProvider* provider, RenderingManagerSettings& settings);
+    virtual uint32_t createRenderTarget(const RenderTextureDesc* colorAttachment,
+                                        const RenderTextureDesc* depthStencilAttachment);
+    virtual void_t destroyRenderTarget(uint32_t handle);
 
-        virtual void_t deinitialize();
+    virtual void_t prepareRender(const HeadTransform& headTransform, const RenderingParameters& renderingParameters);
+    virtual void_t render(const HeadTransform& headTransform,
+                          const RenderSurface& renderSurface,
+                          const RenderingParameters& renderingParameters);
+    virtual void_t finishRender();
 
-        virtual uint32_t createRenderTarget(const RenderTextureDesc* colorAttachment, const RenderTextureDesc* depthStencilAttachment);
-        virtual void_t destroyRenderTarget(uint32_t handle);
+private:
+    void_t createRenderers();
+    void_t destroyRendererCollection();
 
-        virtual void_t prepareRender(const HeadTransform& headTransform, const RenderingParameters& renderingParameters);
-        virtual void_t render(const HeadTransform& headTransform, const RenderSurface& renderSurface, const RenderingParameters& renderingParameters);
-        virtual void_t finishRender();
+    VideoRenderer* createRenderer(SourceType::Enum sourceType) const;
 
-    private:
+    void_t clearFrame(const RenderSurface& surface, const Color4& clearColor);
 
-        void_t createRenderers();
-        void_t destroyRendererCollection();
+    void_t renderFrame(const HeadTransform& headTransform,
+                       const RenderSurface& renderSurface,
+                       const RenderingParameters& renderingParameters);
 
-        VideoRenderer* createRenderer(SourceType::Enum sourceType) const;
+    ProjectionType::Enum getProjectionType(const CoreProviderSource* videoSource) const;
+    const CoreProviderSource* findMetadata(uint8_t sourceId);
 
-        void_t clearFrame(const RenderSurface& surface, const Color4& clearColor);
+    void_t createDebugTexture(const char_t* filename);
 
-        void_t renderFrame(const HeadTransform& headTransform, const RenderSurface& renderSurface, const RenderingParameters& renderingParameters);
+private:
+    MemoryAllocator& mAllocator;
 
-        ProjectionType::Enum getProjectionType(const CoreProviderSource* videoSource) const;
-        const CoreProviderSource* findMetadata(uint8_t sourceId);
+    CoreProvider* mCoreProvider;
 
-        void_t createDebugTexture(const char_t* filename);
+    typedef HashMap<SourceType::Enum, VideoRenderer*> RendererCollection;
+    RendererCollection mRendererCollection;
 
-    private:
+    VideoFrameSource* mDebugSource;
+    float32_t mFovHorizontal;
+    float32_t mFovVertical;
 
-        MemoryAllocator& mAllocator;
+    EquirectangularMask mRenderMask;
 
-        CoreProvider* mCoreProvider;
-
-        typedef HashMap<SourceType::Enum, VideoRenderer*> RendererCollection;
-        RendererCollection mRendererCollection;
-
-        VideoFrameSource* mDebugSource;
-        float32_t mFovHorizontal;
-        float32_t mFovVertical;
-
-        EquirectangularMask mRenderMask;
-    };
+    TextureID mHiddenTextureHandle;
+    RenderTargetID mHiddenRenderTarget;
+};
 OMAF_NS_END

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,36 +14,36 @@
  */
 #pragma once
 
-#include "NVRNamespace.h"
 #include "Foundation/NVRFileStream.h"
 #include "Foundation/NVRPathName.h"
+#include "NVRNamespace.h"
 
-#include <mp4vrfilestreaminterface.h>
+#include <reader/mp4vrfilestreaminterface.h>
 
 #include "NVRErrorCodes.h"
 
 OMAF_NS_BEGIN
 
-    class MP4VRMediaPacket;
+class MP4VRMediaPacket;
 
-    class MP4FileStreamer : public MP4VR::StreamInterface
-    {
-    public:
-        MP4FileStreamer();
-        virtual ~MP4FileStreamer();
+class MP4FileStreamer : public MP4VR::StreamInterface
+{
+public:
+    MP4FileStreamer();
+    virtual ~MP4FileStreamer();
 
-        Error::Enum open(const PathName& mediaUri);
-        void_t close();
+    Error::Enum open(const PathName& mediaUri);
+    void_t close();
 
-        offset_t read(char* buffer, offset_t size);
+    offset_t read(char* buffer, offset_t size);
 
-        bool absoluteSeek(offset_t offset);
+    bool absoluteSeek(offset_t offset);
 
-        offset_t tell();
+    offset_t tell();
 
-        offset_t size();
+    offset_t size();
 
-    private:
-        FileStream* mFileStream;
-    };
+private:
+    FileStream* mFileStream;
+};
 OMAF_NS_END

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,11 +14,11 @@
  */
 #pragma once
 
-#include "NVRNamespace.h"
+#include "Media/NVRMediaInformation.h"
 #include "Media/NVRMediaPacket.h"
+#include "NVRNamespace.h"
 #include "VideoDecoder/NVRVideoDecoderConfig.h"
 #include "VideoDecoder/NVRVideoDecoderTypes.h"
-#include "Media/NVRMediaInformation.h"
 
 OMAF_NS_BEGIN
 
@@ -27,7 +27,7 @@ class FrameCache;
 
 struct DecoderState
 {
-    DecoderState() 
+    DecoderState()
     {
         decoderActive = false;
         frameCacheActive = false;
@@ -55,9 +55,7 @@ struct TextureLoadOutput
 
 class VideoDecoderManager
 {
-
-public: // Singleton
-
+public:  // Singleton
     static VideoDecoderManager* getInstance();
     static void_t destroyInstance();
 
@@ -70,33 +68,40 @@ public:
     virtual void_t shutdownStream(streamid_t stream);
 
     // Can be used to precreate video decoders as a performance optimization
-    virtual void_t createVideoDecoders(VideoCodec::Enum codec, uint32_t decoderCount) {};
+    virtual void_t createVideoDecoders(VideoCodec::Enum codec, uint32_t decoderCount){};
 
     virtual Error::Enum activateStream(streamid_t stream, uint64_t currentPTS);
     virtual void_t deactivateStream(streamid_t stream);
 
-    virtual Error::Enum preloadTexturesForPTS(
-        const Streams& baseStreams, const Streams& enhancementStreams, const Streams& skippedStreams,
-        uint64_t targetPTSUs, bool_t isAuxiliary = false);
+    virtual Error::Enum preloadTexturesForPTS(const Streams& baseStreams,
+                                              const Streams& additionalStreams,
+                                              const Streams& skippedStreams,
+                                              uint64_t targetPTSUs);
 
     // Called from the rendering thread
     virtual void_t activateDecoder(const streamid_t stream);
-    virtual Error::Enum uploadTexturesForPTS(
-        const Streams& baseStreams, const Streams& enhancementStreams,
-        uint64_t targetPTSUs, TextureLoadOutput& output, bool_t isAuxiliary = false);
+    virtual Error::Enum uploadTexturesForPTS(const Streams& baseStreams,
+                                             const Streams& additionalStreams,
+                                             uint64_t targetPTSUs,
+                                             TextureLoadOutput& output);
 
 public:
-
     // Called from the provider thread
-    streamid_t generateUniqueStreamID();
+    streamid_t generateUniqueStreamID(bool_t aMakeItShared = false);
     streamid_t getSharedStreamID();
+    void_t releaseSharedStreamID(streamid_t aStreamId);
+
     DecodeResult::Enum decodeMediaPacket(streamid_t stream, MP4VRMediaPacket* packet, bool_t seeking = false);
     void_t seekToPTS(const Streams& streams, uint64_t seekTargetPTS);
     bool_t isBuffering(const Streams& streams);
     void_t flushStream(streamid_t stream);
     bool_t isEOS(streamid_t stream);
     void_t setInputEOS(streamid_t stream);
-    bool_t isByteStreamHeadersMode() { return mByteStreamHeadersMode; };
+    bool_t isInputEOS(streamid_t stream) const;
+    bool_t isByteStreamHeadersMode()
+    {
+        return mByteStreamHeadersMode;
+    };
 
     bool_t isActive(const Streams& streams);
 
@@ -130,8 +135,8 @@ protected:
 
 private:
     static VideoDecoderManager* sInstance;
-    streamid_t mNextStreamID;
     streamid_t mSharedStreamID;
+    streamid_t mPrevSharedStreamID;
 };
 
 OMAF_NS_END

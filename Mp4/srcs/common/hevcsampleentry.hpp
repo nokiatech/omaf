@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -25,9 +25,7 @@
 /** @brief HEVC Sample Entry class. Extends from VisualSampleEntry.
  *  @details 'hvc1' box implementation as specified in the ISO/IEC 14496-15 specification
  *  @details HevcConfigurationBox is mandatory to be present
- *  @todo Implement other HevcSampleEntry internal boxes or extra boxes if needed:
- *  @todo MPEG4BitRateBox, MPEG4ExtensionDescriptorsBox, extra_boxes **/
-
+ */
 class HevcSampleEntry : public VisualSampleEntryBox
 {
 public:

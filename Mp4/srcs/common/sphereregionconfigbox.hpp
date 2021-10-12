@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,6 +15,7 @@
 #ifndef SPHEREREGIONCONFIGBOX_HPP
 #define SPHEREREGIONCONFIGBOX_HPP
 
+#include "api/isobmff/commontypes.h"
 #include "bitstream.hpp"
 #include "customallocator.hpp"
 #include "fullbox.hpp"
@@ -33,6 +34,9 @@ public:
 
     SphereRegionConfigBox();
     virtual ~SphereRegionConfigBox() = default;
+
+    void setFrom(const ISOBMFF::SphereRegionConfigStruct& rosc);
+    ISOBMFF::SphereRegionConfigStruct get() const;
 
     void setShapeType(ShapeType shapeType);
     ShapeType getShapeType();
@@ -56,11 +60,7 @@ public:
 
 
 private:
-    ShapeType mShapeType;
-    bool mDynamicRangeFlag;
-    std::uint32_t mStaticAzimuthRange;
-    std::uint32_t mStaticElevationRange;
-    std::uint8_t mNumRegions;  // always 1 by omaf spec
+    ISOBMFF::SphereRegionConfigStruct mSphereRegionConfig;
 };
 
 #endif  // SPHEREREGIONCONFIGBOX_HPP

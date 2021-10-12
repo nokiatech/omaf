@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -98,6 +98,51 @@ void DataEntryUrnBox::parseBox(ISOBMFF::BitStream& bitstr)
     setLocation(location);
 }
 
+DataEntryImdaBox::DataEntryImdaBox()
+    : DataEntryBox("imdt", 0, 0)
+    , mImdaRefIdentifier(0)
+{
+}
+
+void DataEntryImdaBox::setImdaRefIdentifier(std::uint32_t aImdaRefIdentifier)
+{
+    mImdaRefIdentifier = aImdaRefIdentifier;
+}
+
+std::uint32_t DataEntryImdaBox::getImdaRefIdentifier() const
+{
+    return mImdaRefIdentifier;
+}
+
+void DataEntryImdaBox::writeBox(ISOBMFF::BitStream& bitstr)
+{
+    writeFullBoxHeader(bitstr);
+    bitstr.write32Bits(mImdaRefIdentifier);
+    updateSize(bitstr);
+}
+
+void DataEntryImdaBox::parseBox(ISOBMFF::BitStream& bitstr)
+{
+    parseFullBoxHeader(bitstr);
+    mImdaRefIdentifier = bitstr.read32Bits();
+}
+
+DataEntrySeqNumImdaBox::DataEntrySeqNumImdaBox()
+    : DataEntryBox("snim" , 0, 0)
+{
+}
+
+void DataEntrySeqNumImdaBox::writeBox(ISOBMFF::BitStream& bitstr)
+{
+    writeFullBoxHeader(bitstr);
+    updateSize(bitstr);
+}
+
+void DataEntrySeqNumImdaBox::parseBox(ISOBMFF::BitStream& bitstr)
+{
+    parseFullBoxHeader(bitstr);
+}
+
 DataReferenceBox::DataReferenceBox()
     : FullBox("dref", 0, 0)
     , mDataEntries()
@@ -144,10 +189,30 @@ void DataReferenceBox::parseBox(ISOBMFF::BitStream& bitstr)
             dataEntryBox = makeCustomShared<DataEntryUrlBox>();
             dataEntryBox->parseBox(subBitStream);
         }
+        else if (boxType == "imdt")
+        {
+            dataEntryBox = makeCustomShared<DataEntryImdaBox>();
+            dataEntryBox->parseBox(subBitStream);
+        }
+        else if (boxType == "snim")
+        {
+            dataEntryBox = makeCustomShared<DataEntrySeqNumImdaBox>();
+            dataEntryBox->parseBox(subBitStream);
+        }
         else
         {
             throw RuntimeError("An unknown box inside dref");
         }
         mDataEntries.push_back(dataEntryBox);
     }
+}
+
+Vector<std::shared_ptr<const DataEntryBox>> DataReferenceBox::getDataEntries() const
+{
+    Vector<std::shared_ptr<const DataEntryBox>> r;
+    for (auto& box: mDataEntries)
+    {
+        r.push_back(std::const_pointer_cast<const DataEntryBox>(box));
+    }
+    return r;
 }

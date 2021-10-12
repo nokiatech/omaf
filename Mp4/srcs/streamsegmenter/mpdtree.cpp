@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -12,12 +12,14 @@
  * Copying, including reproducing, storing, adapting or translating, any or all of this material requires the prior
  * written consent of Nokia.
  */
+#include "api/streamsegmenter/mpdtree.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <ctime>
+#include <iterator>
 #include <map>
 
-#include "api/streamsegmenter/mpdtree.hpp"
 #include "utils.hpp"
 
 namespace StreamSegmenter
@@ -220,7 +222,7 @@ namespace StreamSegmenter
             }
 
             template <typename T>
-            std::string toXml(const SpaceSeparatedAttrList<T> x)
+            std::string toXml(const SpaceSeparatedAttrList<T>& x)
             {
                 std::stringstream ret;
 
@@ -235,7 +237,7 @@ namespace StreamSegmenter
             }
 
             template <typename T>
-            std::string toXml(const CommaSeparatedAttrList<T> x)
+            std::string toXml(const CommaSeparatedAttrList<T>& x)
             {
                 std::stringstream ret;
 
@@ -249,7 +251,6 @@ namespace StreamSegmenter
                 return ret.str();
             }
 
-            // TODO: broken regarding UTF8 encoding
             std::string quotedXML(std::string x)
             {
                 // https://en.wikipedia.org/wiki/List_of_XML_and_HTML_character_entity_references#Predefined_entities_in_XML
@@ -326,7 +327,13 @@ namespace StreamSegmenter
             };
 
             template <typename T>
-            void addAttrIfExist(AttributeList& attrList, std::string key, const Utils::Optional<T>& value)
+            void addAttrIfExist(AttributeList& attrList, std::string key, const T& value)
+            {
+                attrList.push_back({key, toXml(value)});
+            }
+
+            template <typename T>
+            void addAttrIfExist(AttributeList& attrList, std::string key, const ISOBMFF::Optional<T>& value)
             {
                 if (value)
                 {
@@ -361,10 +368,10 @@ namespace StreamSegmenter
                                                bool selfClosing = false)
             {
                 std::uint32_t attrLength = 0;
-                for (auto& attr : attributes)
+                for (auto& addAttrIfExist : attributes)
                 {
                     // length and quotes and trailing whitespace
-                    attrLength += attr.first.length() + attr.second.length() + 3;
+                    attrLength += addAttrIfExist.first.length() + addAttrIfExist.second.length() + 3;
                 }
 
                 if (attrLength > 200 && attributes.size() > 1)
@@ -387,15 +394,19 @@ namespace StreamSegmenter
                 {
                     // print everything on the same line
                     out << indent(indentLevel) << "<" << elementName;
-                    for (auto& attr : attributes)
+                    for (auto& addAttrIfExist : attributes)
                     {
-                        out << " " << xmlAttribute(attr.first, attr.second, 0);
+                        out << " " << xmlAttribute(addAttrIfExist.first, addAttrIfExist.second, 0);
                     }
                     out << (selfClosing ? "/>" : ">") << std::endl;
                 }
             }
-        }
+        }  // namespace
 
+        void MPDNode::writeInnerXMLStage1(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            // nothing
+        }
 
         //
         // Instantiate used template classes
@@ -430,7 +441,7 @@ namespace StreamSegmenter
         // OmafProjectionFormat
         //
 
-        void OmafProjectionFormat::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void OmafProjectionFormat::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
         {
         }
 
@@ -445,7 +456,7 @@ namespace StreamSegmenter
         // OmafQualityInfo
         //
 
-        void OmafQualityInfo::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void OmafQualityInfo::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
         {
         }
 
@@ -476,7 +487,7 @@ namespace StreamSegmenter
         // OmafSphereRegionWiseQuality
         //
 
-        void OmafSphereRegionWiseQuality::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void OmafSphereRegionWiseQuality::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
         {
             // omaf:sphRegionQuality
             AttributeList srqrAttrs = {{"shape_type", toXml(shapeType)},
@@ -503,7 +514,8 @@ namespace StreamSegmenter
         {
             AttributeList attrs = {{"schemeIdUri", "urn:mpeg:mpegI:omaf:2017:srqr"}};
             writeXMLElementWithAttributes(out, indentLevel, "SupplementalProperty", attrs);
-            writeInnerXML(out, indentLevel + 2);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
             out << indent(indentLevel) << "</SupplementalProperty>" << std::endl;
         }
 
@@ -511,7 +523,7 @@ namespace StreamSegmenter
         // OmafRegionWiseMapping
         //
 
-        void OmafRegionWisePacking::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void OmafRegionWisePacking::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
         {
         }
 
@@ -522,19 +534,20 @@ namespace StreamSegmenter
             writeXMLElementWithAttributes(out, indentLevel, "EssentialProperty", attrs, true);
         }
 
-        void VideoFramePacking::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void VideoFramePacking::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
         {
         }
 
         void VideoFramePacking::writeXML(std::ostream& out, std::uint16_t indentLevel) const
         {
-            AttributeList attrs = { { "schemeIdUri", "urn:mpeg:mpegB:cicp:VideoFramePackingType" } };
-            attrs.push_back({ "value", toXml(packingType) });
+            AttributeList attrs = {{"schemeIdUri", "urn:mpeg:mpegB:cicp:VideoFramePackingType"}};
+            attrs.push_back({"value", toXml(packingType)});
 
             writeXMLElementWithAttributes(out, indentLevel, "EssentialProperty", attrs, true);
         }
 
-        void BaseURL::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+
+        void BaseURL::writeInnerXMLStage2(std::ostream& out, std::uint16_t) const
         {
             out << quotedXML(url);
         }
@@ -542,8 +555,280 @@ namespace StreamSegmenter
         void BaseURL::writeXML(std::ostream& out, std::uint16_t indentLevel) const
         {
             out << indent(indentLevel) << "<BaseURL>";
-            writeInnerXML(out, indentLevel + 2);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
             out << "</BaseURL>" << std::endl;
+        }
+
+        void OverlayVideo::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
+        {
+        }
+
+        void OverlayVideo::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs = {{"schemeIdUri", "urn:mpeg:mpegI:omaf:2020:ovly"}};
+
+            SpaceSeparatedAttrList<std::uint8_t> overlayIds;
+            SpaceSeparatedAttrList<std::uint8_t> overlayIdPriorities;
+            bool hasPriorities = overlayInfo.size() ? !!overlayInfo.begin()->overlayPriority : false;
+
+            // Either none or all overlays have a priority
+            for (auto o : overlayInfo)
+            {
+                if (hasPriorities != !!o.overlayPriority)
+                {
+                    throw std::runtime_error(
+                        "OverlayVideo: Either one or all elements of OverlayVideoInfo must have a priority");
+                }
+            }
+
+            for (auto o : overlayInfo)
+            {
+                overlayIds.push_back(o.overlayId);
+                if (hasPriorities)
+                {
+                    overlayIdPriorities.push_back(*o.overlayPriority);
+                }
+            }
+
+            attrs.push_back({"omaf2:overlayIds", toXml(overlayIds)});
+            if (overlayIdPriorities.size())
+            {
+                attrs.push_back({"omaf2:priority", toXml(overlayIdPriorities)});
+            }
+
+            writeXMLElementWithAttributes(
+                out, indentLevel, isSupplementalProperty ? "SupplementalProperty" : "EssentialProperty", attrs, true);
+        }
+
+        void OverlayBackground::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            if (backgroundIds.size())
+            {
+                Association association;
+                association.associationKindList.push_back("ovbg");
+                {
+                    std::ostringstream st;
+                    st << "/Period/AdaptationSet[";
+                    bool first = true;
+                    for (auto id : backgroundIds)
+                    {
+                        if (!first)
+                        {
+                            st << " or ";
+                        }
+                        first = false;
+                        st << "@id='" << toXml(id) << "'";
+                    }
+                    st << "]";
+                    association.associations.push_back(st.str());
+                }
+                association.writeXML(out, indentLevel + 2);
+            }
+        }
+
+        void OverlayBackground::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs = {{"schemeIdUri", "urn:mpeg:mpegI:omaf:2020:assoc"}};
+            writeXMLElementWithAttributes(out, indentLevel, "SupplementalProperty", attrs, false);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
+            out << indent(indentLevel) << "</SupplementalProperty>" << std::endl;
+        }
+
+        //
+        // Viewpoints
+        //
+
+        void Omaf2ViewpointGeomagneticInfo::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
+        {
+            // nothing
+        }
+
+        void Omaf2ViewpointGeomagneticInfo::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+            addAttrIfExist(attrs, "yaw", yaw);
+            addAttrIfExist(attrs, "pitch", pitch);
+            addAttrIfExist(attrs, "roll", roll);
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:GeomagneticInfo", attrs, true);
+        }
+
+        void Omaf2ViewpointPosition::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
+        {
+            // nothing
+        }
+
+        void Omaf2ViewpointPosition::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+            addAttrIfExist(attrs, "x", x);
+            addAttrIfExist(attrs, "y", y);
+            addAttrIfExist(attrs, "z", z);
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:Position", attrs, true);
+        }
+
+        void Omaf2ViewpointGPSPosition::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
+        {
+            // nothing
+        }
+
+        void Omaf2ViewpointGPSPosition::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+            addAttrIfExist(attrs, "longitude", longitude);
+            addAttrIfExist(attrs, "latitude", latitude);
+            addAttrIfExist(attrs, "altitude", altitude);
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:GpsPosition", attrs, true);
+        }
+
+        void Omaf2ViewpointGroupInfo::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
+        {
+            // nothing
+        }
+
+        void Omaf2ViewpointGroupInfo::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+            addAttrIfExist(attrs, "groupId", groupId);
+            addAttrIfExist(attrs, "groupDescription", groupDescription);
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:GroupInfo", attrs, true);
+        }
+
+        void Omaf2ViewpointSwitchRegion::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+            addAttrIfExist(attrs, "regionType", regionType);
+            addAttrIfExist(attrs, "refOverlayId", refOverlayId);
+            addAttrIfExist(attrs, "id", id);
+            addAttrIfExist(attrs, "region", region);
+            addAttrIfExist(attrs, "period", period);
+            addAttrIfExist(attrs, "label", label);
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:SwitchRegion", attrs, regionType == 2);
+			
+			if (regionType != 2)
+            {
+                writeInnerXMLStage1(out, indentLevel + 2);
+                writeInnerXMLStage2(out, indentLevel + 2);
+                out << indent(indentLevel) << "</omaf2:SwitchRegion>" << std::endl;
+			}
+        }
+
+        void Omaf2ViewpointSwitchRegion::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            for (const auto& x : regions)
+            {
+                x.writeXML(out, indentLevel);
+            }
+        }
+
+        void Omaf2SphereRegion::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+            addAttrIfExist(attrs, "centreAzimuth", centreAzimuth);
+            addAttrIfExist(attrs, "centreElevation", centreElevation);
+            addAttrIfExist(attrs, "centreTilt", centreTilt);
+            addAttrIfExist(attrs, "azimuthRange", azimuthRange);
+            addAttrIfExist(attrs, "elevationRange", elevationRange);
+            addAttrIfExist(attrs, "shapeType", shapeType);
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:SphereRegion", attrs, true);
+        }
+
+        void Omaf2SphereRegion::writeInnerXMLStage2(std::ostream& /*out*/, std::uint16_t /*indentLevel*/) const
+        {
+            // nothing
+        }
+
+        void Omaf2ViewpointRelative::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+            addAttrIfExist(attrs, "rectLeftPct", rectLeftPct);
+            addAttrIfExist(attrs, "rectTopPct", rectTopPct);
+            addAttrIfExist(attrs, "rectWidthPct", rectWidthPct);
+            addAttrIfExist(attrs, "rectHeightPct", rectHeightPct);
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:VpRelative", attrs, true);
+        }
+
+        void Omaf2ViewpointRelative::writeInnerXMLStage2(std::ostream& /*out*/, std::uint16_t /*indentLevel*/) const
+        {
+            // nothing
+        }
+
+        void Omaf2OneViewpointSwitchRegion::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            if (vpRelative)
+            {
+                vpRelative->writeXML(out, indentLevel);
+            }
+            if (sphereRegion)
+            {
+                sphereRegion->writeXML(out, indentLevel);
+            }
+        }
+
+        void Omaf2OneViewpointSwitchRegion::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
+        {
+        }
+
+        void Omaf2ViewpointSwitchingInfo::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:SwitchingInfo", attrs, false);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
+            out << indent(indentLevel) << "</omaf2:SwitchingInfo>" << std::endl;
+        }
+
+        void Omaf2ViewpointSwitchingInfo::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            for (const auto& x : switchRegions)
+            {
+                x.writeXML(out, indentLevel);
+            }
+        }
+
+        void Omaf2ViewpointInfo::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            position.writeXML(out, indentLevel);
+            if (gpsPosition)
+            {
+                gpsPosition->writeXML(out, indentLevel);
+            }
+            if (geomagneticInfo)
+            {
+                geomagneticInfo->writeXML(out, indentLevel);
+            }
+            groupInfo.writeXML(out, indentLevel);
+            if (switchingInfo)
+            {
+                switchingInfo->writeXML(out, indentLevel);
+            }
+        }
+
+        void Omaf2ViewpointInfo::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+            addAttrIfExist(attrs, "label", label);
+            addAttrIfExist(attrs, "initialViewpoint", initialViewpoint.map([](bool x) { return int(x); }));
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:ViewpointInfo", attrs, false);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
+            out << indent(indentLevel) << "</omaf2:ViewpointInfo>" << std::endl;
+        }
+
+        void Omaf2Viewpoint::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            viewpointInfo.writeXML(out, indentLevel);
+        }
+
+		// actually viewpoint element was described in dash spec
+        void Omaf2Viewpoint::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs = {{"schemeIdUri", "urn:mpeg:mpegI:omaf:2020:vwpt"}, {"value", toXml(id)}};
+            writeXMLElementWithAttributes(out, indentLevel, "Viewpoint", attrs, false);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
+            out << indent(indentLevel) << "</Viewpoint>" << std::endl;
         }
 
         //
@@ -631,7 +916,7 @@ namespace StreamSegmenter
             out << indent(indentLevel) << "<SegmentListNotImplemented/>" << std::endl;
         }
 
-        void SegmentTimeline::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void SegmentTimeline::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
         {
             for (auto& s : ss)
             {
@@ -649,7 +934,8 @@ namespace StreamSegmenter
         void SegmentTimeline::writeXML(std::ostream& out, std::uint16_t indentLevel) const
         {
             out << indent(indentLevel) << "<SegmentTimeline>" << std::endl;
-            writeInnerXML(out, indentLevel + 2);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
             out << indent(indentLevel) << "</SegmentTimeline>" << std::endl;
         }
 
@@ -669,7 +955,7 @@ namespace StreamSegmenter
             return ret;
         }
 
-        void SegmentBaseInformation::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void SegmentBaseInformation::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
         {
             if (initElement)
             {
@@ -695,9 +981,9 @@ namespace StreamSegmenter
             return ret;
         }
 
-        void MultipleSegmentBaseInformation::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void MultipleSegmentBaseInformation::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
         {
-            SegmentBaseInformation::writeInnerXML(out, indentLevel);
+            SegmentBaseInformation::writeInnerXMLStage2(out, indentLevel);
 
             if (segmentTimeLine)
             {
@@ -723,7 +1009,8 @@ namespace StreamSegmenter
             attrs.insert(attrs.end(), parentAttrs.begin(), parentAttrs.end());
 
             std::stringstream innerXml;
-            writeInnerXML(innerXml, indentLevel + 2);
+            writeInnerXMLStage1(innerXml, indentLevel + 2);
+            writeInnerXMLStage2(innerXml, indentLevel + 2);
 
             auto hasInnerElements = innerXml.str().length() > 0;
 
@@ -738,29 +1025,83 @@ namespace StreamSegmenter
         }
 
         //
+        // Association
+        //
+
+        void Association::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            for (auto association : associations)
+            {
+                out << indent(indentLevel) << association << std::endl;
+            }
+        }
+
+        void Association::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+
+            addAttrIfExist(attrs, "associationKindList", associationKindList);
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:Association", attrs, false);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
+            out << indent(indentLevel) << "</omaf2:Association>" << std::endl;
+        }
+
+
+        //
         // Representation
         //
 
-        void Representation::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void ContentComponent::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
         {
-            if (segmentBase)
+            // nothing
+        }
+
+        void ContentComponent::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+
+            addAttrIfExist(attrs, "id", id);
+            addAttrIfExist(attrs, "contentType", contentType);
+            writeXMLElementWithAttributes(out, indentLevel, "ContentComponent", attrs, true);
+        }
+
+        void Representation::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            if (allMediaAssociationViewpoint)
             {
-                // @todo implement: segmentBase->writeXML(out, indentLevel);
+                Association association;
+                association.associationKindList.push_back("cdtg");
+                {
+                    std::ostringstream st;
+                    st << "//AdaptationSet/Viewpoint[@schemeIdUri=\"urn:mpeg:mpegI:omaf:2020:vwpt\"";
+                    st << " and @value=\"" << quotedXML(*allMediaAssociationViewpoint) << "\"]/..";
+                    association.associations.push_back(st.str());
+                }
+                association.writeXML(out, indentLevel);
+            }
+
+			if (segmentBase)
+            {
             }
 
             if (segmentList)
             {
-                // @todo implement: segmentList->writeXML(out, indentLevel);
             }
 
-            if (segmentTemplate)
+			for (auto& element : contentComponent)
             {
-                segmentTemplate->writeXML(out, indentLevel);
+                element.writeXML(out, indentLevel);
             }
 
             if (baseURL)
             {
                 baseURL->writeXML(out, indentLevel);
+            }
+
+			if (segmentTemplate)
+            {
+                segmentTemplate->writeXML(out, indentLevel);
             }
         }
 
@@ -779,7 +1120,8 @@ namespace StreamSegmenter
 
             writeXMLElementWithAttributes(out, indentLevel, "Representation", attrs);
 
-            writeInnerXML(out, indentLevel + 2);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
 
             out << indent(indentLevel) << "</Representation>" << std::endl;
         }
@@ -788,10 +1130,8 @@ namespace StreamSegmenter
         // OmafRepresentation
         //
 
-        void OmafRepresentation::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void OmafRepresentation::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
         {
-            Representation::writeInnerXML(out, indentLevel);
-
             if (regionWisePacking)
             {
                 regionWisePacking->writeXML(out, indentLevel);
@@ -806,6 +1146,8 @@ namespace StreamSegmenter
             {
                 srqr.writeXML(out, indentLevel);
             }
+
+			Representation::writeInnerXMLStage2(out, indentLevel);
         }
 
         void OmafRepresentation::writeXML(std::ostream& out, std::uint16_t indentLevel) const
@@ -836,8 +1178,8 @@ namespace StreamSegmenter
             addAttrIfExist(ret, "maxWidth", maxWidth);
             addAttrIfExist(ret, "minHeight", minHeight);
             addAttrIfExist(ret, "maxHeight", maxHeight);
-            addAttrIfExist(ret, "minFramerate", minFramerate);
-            addAttrIfExist(ret, "maxFramerate", maxFramerate);
+            addAttrIfExist(ret, "minFrameRate", minFramerate);
+            addAttrIfExist(ret, "maxFrameRate", maxFramerate);
 
             addAttrIfExist(ret, "segmentAlignment", segmentAlignment);
             addAttrIfExist(ret, "bitstreamSwitching", bitstreamSwitching);
@@ -848,23 +1190,41 @@ namespace StreamSegmenter
         }
 
         template <class RepresentationType>
-        void AdaptationSet<RepresentationType>::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void AdaptationSet<RepresentationType>::writeInnerXMLStage1(std::ostream& out, std::uint16_t indentLevel) const
         {
+            for (auto& x : preselection)
+            {
+                x.writeXML(out, indentLevel, false);
+            }
+        }
+
+        template <class RepresentationType>
+        void AdaptationSet<RepresentationType>::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            if (videoFramePacking)
+            {
+                videoFramePacking->writeXML(out, indentLevel);
+            }
+
+                        if (overlayVideo)
+            {
+                overlayVideo->writeXML(out, indentLevel);
+            }
+
+            if (overlayBackground)
+            {
+                overlayBackground->writeXML(out, indentLevel);
+            }
+
             for (auto& vp : viewpoints)
             {
                 AttributeList attrs = {{"schemeIdUri", "urn:mpeg:dash:viewpoint:2011"}, {"value", vp}};
                 writeXMLElementWithAttributes(out, indentLevel, "Viewpoint", attrs, true);
             }
 
-            if (preselection)
+			if (viewpoint)
             {
-                bool isSupplemental = !!id && preselection->components.front() == *id;
-                preselection->writeXML(out, indentLevel, isSupplemental);
-            }
-
-            if (videoFramePacking)
-            {
-                videoFramePacking->writeXML(out, indentLevel);
+                viewpoint->writeXML(out, indentLevel);
             }
 
             for (auto& representation : representations)
@@ -880,7 +1240,8 @@ namespace StreamSegmenter
 
             writeXMLElementWithAttributes(out, indentLevel, "AdaptationSet", attrs);
 
-            writeInnerXML(out, indentLevel + 2);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
 
             out << indent(indentLevel) << "</AdaptationSet>" << std::endl;
         }
@@ -889,7 +1250,7 @@ namespace StreamSegmenter
         // OmafCoverageInfo
         //
 
-        void OmafCoverageInfo::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void OmafCoverageInfo::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
         {
         }
 
@@ -912,7 +1273,7 @@ namespace StreamSegmenter
         // OmafContentCoverage
         //
 
-        void OmafContentCoverage::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void OmafContentCoverage::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
         {
             // omaf:cc
             AttributeList ccAttrs = {{"shape_type", toXml(shapeType)}};
@@ -936,7 +1297,8 @@ namespace StreamSegmenter
         {
             AttributeList attrs = {{"schemeIdUri", "urn:mpeg:mpegI:omaf:2017:cc"}};
             writeXMLElementWithAttributes(out, indentLevel, "SupplementalProperty", attrs);
-            writeInnerXML(out, indentLevel + 2);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
             out << indent(indentLevel) << "</SupplementalProperty>" << std::endl;
         }
 
@@ -944,7 +1306,7 @@ namespace StreamSegmenter
         // OmafAdaptationSet
         //
 
-        void OmafAdaptationSet::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void OmafAdaptationSet::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
         {
             if (projectionFormat)
             {
@@ -966,7 +1328,15 @@ namespace StreamSegmenter
                 srqr.writeXML(out, indentLevel);
             }
 
-            AdaptationSet<OmafRepresentation>::writeInnerXML(out, indentLevel);
+			if (stereoId)
+            {
+                AttributeList attrs = {{"schemeIdUri", "urn:mpeg:dash:stereoid:2011"}};
+                attrs.push_back({"value", toXml(*stereoId)});
+
+                writeXMLElementWithAttributes(out, indentLevel, "Role", attrs, true);
+            }
+
+            AdaptationSet<OmafRepresentation>::writeInnerXMLStage2(out, indentLevel);
         }
 
         void OmafAdaptationSet::writeXML(std::ostream& out, std::uint16_t indentLevel) const
@@ -975,9 +1345,55 @@ namespace StreamSegmenter
 
             writeXMLElementWithAttributes(out, indentLevel, "AdaptationSet", parentAttrs);
 
-            writeInnerXML(out, indentLevel + 2);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
 
             out << indent(indentLevel) << "</AdaptationSet>" << std::endl;
+        }
+
+        // EntityGroup
+
+        void EntityId::writeInnerXMLStage2(std::ostream&, std::uint16_t) const
+        {
+            // nothing
+        }
+
+        void EntityId::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+
+            addAttrIfExist(attrs, "asid", adaptationSetId);
+            addAttrIfExist(attrs, "rsid", representationId);
+
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:EntityIdList", attrs, true);
+        }
+
+        void EntityGroup::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs;
+
+            addAttrIfExist(attrs, "group_type", groupType);
+            addAttrIfExist(attrs, "group_id", groupId);
+            addAttrIfExist(attrs, "ref_overlay_id", refOverlayId);
+            std::copy(attributes.begin(), attributes.end(), std::back_inserter(attrs));
+
+            writeXMLElementWithAttributes(out, indentLevel, "omaf2:EntityGroup", attrs);
+
+			for (auto& entity : entities)
+            {
+                entity.writeXML(out, indentLevel+2);
+            }
+            
+            out << indent(indentLevel) << "</omaf2:EntityGroup>" << std::endl;
+        }
+
+        void EntityGroup::writeXML(std::ostream& out, std::uint16_t indentLevel) const
+        {
+            AttributeList attrs = {{"schemeIdUri", "urn:mpeg:mpegI:omaf:2020:etgb"}};
+            writeXMLElementWithAttributes(out, indentLevel, "SupplementalProperty", attrs);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
+            out << indent(indentLevel) << "</SupplementalProperty>" << std::endl;
         }
 
         //
@@ -985,11 +1401,15 @@ namespace StreamSegmenter
         //
 
         template <class AdaptationSetType>
-        void Period<AdaptationSetType>::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void Period<AdaptationSetType>::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
         {
             for (auto& adaptation : adaptationSets)
             {
                 adaptation.writeXML(out, indentLevel);
+            }
+            for (auto& entityGroup : entityGroups)
+            {
+                entityGroup.writeXML(out, indentLevel);
             }
         }
 
@@ -1003,7 +1423,8 @@ namespace StreamSegmenter
             addAttrIfExist(attrs, "id", id);
 
             writeXMLElementWithAttributes(out, indentLevel, "Period", attrs);
-            writeInnerXML(out, indentLevel + 2);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
 
             out << indent(indentLevel) << "</Period>" << std::endl;
         }
@@ -1018,10 +1439,6 @@ namespace StreamSegmenter
             AttributeList ret = {{"xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"},
                                  {"xmlns", "urn:mpeg:dash:schema:mpd:2011"},
                                  {"xmlns:xlink", "http://www.w3.org/1999/xlink"},
-                                 {"xsi:schemaLocation",
-                                  "urn:mpeg:dash:schema:mpd:2011 "
-                                  "http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/"
-                                  "DASH-MPD.xsd"},
                                  {"minBufferTime", toXml(minBufferTime)},
                                  {"type", toXml(type)}};
 
@@ -1048,13 +1465,16 @@ namespace StreamSegmenter
             case DashProfile::OnDemand:
                 ret.push_back({"profiles", "urn:mpeg:dash:profile:isoff-on-demand:2011"});
                 break;
+            case DashProfile::TiledLive:
+                ret.push_back({"profiles", "urn:mpeg:mpegI:omaf:dash:profile:indexed-isobmff:2020"});
+                break;
             }
 
             return ret;
         }
 
         template <class PeriodType>
-        void MPDRoot<PeriodType>::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void MPDRoot<PeriodType>::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
         {
             for (auto& period : periods)
             {
@@ -1073,8 +1493,10 @@ namespace StreamSegmenter
         // OmafMPDRoot
         //
 
-        void OmafMPDRoot::writeInnerXML(std::ostream& out, std::uint16_t indentLevel) const
+        void OmafMPDRoot::writeInnerXMLStage2(std::ostream& out, std::uint16_t indentLevel) const
         {
+            MPDRoot<OmafPeriod>::writeInnerXMLStage2(out, indentLevel);
+
             if (projectionFormat)
             {
                 projectionFormat->writeXML(out, indentLevel);
@@ -1084,8 +1506,6 @@ namespace StreamSegmenter
             {
                 regionWisePacking->writeXML(out, indentLevel);
             }
-
-            MPDRoot<OmafPeriod>::writeInnerXML(out, indentLevel);
         }
 
         void OmafMPDRoot::writeXML(std::ostream& out, std::uint16_t indentLevel) const
@@ -1093,16 +1513,18 @@ namespace StreamSegmenter
             out << indent(indentLevel) << "<?xml " << xmlAttribute("version", "1.0", ' ')
                 << xmlAttribute("encoding", "utf-8", 0) << "?>" << std::endl;
 
-            AttributeList attrs = {{"xmlns:omaf", "urn:mpeg:mpegI:omaf:2017"}};
+            AttributeList attrs = {{"xmlns:omaf", "urn:mpeg:mpegI:omaf:2017"},
+                                   {"xmlns:omaf2", "urn:mpeg:mpegI:omaf:2020"}};
             auto parentAttrs    = MPDRoot<OmafPeriod>::getXMLAttributes();
 
             attrs.insert(attrs.end(), parentAttrs.begin(), parentAttrs.end());
 
             writeXMLElementWithAttributes(out, indentLevel, "MPD", attrs);
 
-            writeInnerXML(out, indentLevel + 2);
+            writeInnerXMLStage1(out, indentLevel + 2);
+            writeInnerXMLStage2(out, indentLevel + 2);
 
             out << indent(indentLevel) << "</MPD>" << std::endl;
         }
-    }
-}
+    }  // namespace MPDTree
+}  // namespace StreamSegmenter

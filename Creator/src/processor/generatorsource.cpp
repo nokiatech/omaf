@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -30,29 +30,29 @@ namespace VDD
 
     GeneratorSource::~GeneratorSource() = default;
 
-    std::vector<Views> GeneratorSource::produce()
+    std::vector<Streams> GeneratorSource::produce()
     {
-        std::vector<Views> frames;
-        Views views(mConfig.viewCount);
+        std::vector<Streams> frames;
+        Streams streams;
         if (mFrameCount >= mConfig.frameCount || isAborted())
         {
             mData = Data(EndOfStream());
             for (size_t c = 0; c < mConfig.viewCount; ++c)
             {
-                views[c] = mData;
+                streams.add(mData);
             }
-            frames.push_back(views);
+            frames.push_back(streams);
         }
         else
         {
             size_t doFrames = std::min(mConfig.chunkCount, mConfig.frameCount - mFrameCount);
             for (size_t c = 0; c < mConfig.viewCount; ++c)
             {
-                views[c] = mData;
+                streams.add(mData);
             }
             for (size_t c = 0; c < doFrames; ++c)
             {
-                frames.push_back(views);
+                frames.push_back(streams);
             }
             mFrameCount += doFrames;
         }

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,62 +14,89 @@
  */
 #include <iostream>
 
-#include "commandline.h"
-
 #include "buildinfo.h"
+#include "commandline.h"
 #include "common/exceptions.h"
 #include "common/optional.h"
 #include "common/utils.h"
+#include "controller/omafviconfig.h"
 #include "controller/omafvicontroller.h"
 #include "controller/videoinput.h"
-#include "controller/omafviconfig.h"
 #include "log/consolelog.h"
 
 
 int main(int ac, char** av)
 {
-    std::cout << "mp4conv version " << BuildInfo::Version << " built at " << BuildInfo::Time << std::endl
+    std::cout << "omafvi version " << BuildInfo::Version << " built at " << BuildInfo::Time
+              << std::endl
               << "Convert legacy 360 mp4 video files to OMAF mp4 video files." << std::endl
-              << "Copyright (c) 2018 Nokia Corporation and/or its subsidiary(-ies). All rights reserved. " << std::endl << std::endl;
+              << "Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All "
+                 "rights reserved. "
+              << std::endl
+              << std::endl;
 
-    bool help {};
+    bool help{};
     std::string videoFilename;
     std::string outputFilename;
-    VDD::ConverterConfigTemplate configTemplate {};
-    bool verbose {};
+    VDD::ConverterConfigTemplate configTemplate{};
+    bool verbose{};
     {
         using namespace VDD::CommandLine;
         using namespace VDD::Utils;
         VDD::CommandLine::Parser parser("omafvi");
-        parser
-            .add(Arg({ 'h' }, { "help" },
-                     new Flag(help),
-                     "Provide usage information"))
+        bool isH265 = false;
+        VDD::Optional<int> gopLength;
+        parser.add(Arg({'h'}, {"help"}, new Flag(help), "Provide usage information"))
+            .add(Arg({}, {"h265"}, new Flag(isH265),
+                     "The input is H265. Provide also --gop-length in this case."))
+            .add(Arg({}, {"gop-length"}, new Integer("gop length", gopLength),
+                     "Set the Group Of Pictures length for H265 input"))
 #ifdef _DEBUG
-            .add(Arg({}, { "dump-config" },
-                     new Flag(configTemplate.dumpConfig),
+            .add(Arg({}, {"dump-config"}, new Flag(configTemplate.dumpConfig),
                      "DEVELOPMENT ONLY: Dump the JSON config used"))
-            .add(Arg({}, { "dump-graph" },
-                     new String("filename", configTemplate.dumpGraph),
+            .add(Arg({}, {"dump-graph"}, new String("graph-filename", configTemplate.dumpGraph),
                      "DEVELOPMENT ONLY: Dump the processing graph to this file"))
 #endif
-            .add(Arg({'v'}, { "verbose" },
-                     new Flag(verbose),
-                     "Be more verbose"))
-            .add(Arg({'i'}, { "video" },
-                     new InputFilename("filename", videoFilename),
-                     "Set the input MP4 file name for video"))
-            .add(Arg({ 'o' }, { "output" },
-                    new String("filename", outputFilename),
-                    "Set the output MP4/MPD file name for video"))
-            ;
+            .add(Arg({'v'}, {"verbose"}, new Flag(verbose), "Be more verbose"))
+            .add(Arg({'c'}, {"config"}, new AppendString("config-filename", configTemplate.jsonConfig),
+                     "Json configuration file"))
+            .add(Arg({'i'}, {"video"}, new InputFilename("input-filename", videoFilename),
+                     "Set the input MP4 file name for video and audio"))
+            .add(Arg({'A'}, {"no-audio"}, new Flag(configTemplate.disableAudio),
+                     "Disable audio (required if input file does not have audio)"))
+            .add(Arg({'T'}, {"timed-demo"}, new Flag(configTemplate.enableDummyMetadata),
+                     "Generate dummy timed metadata"))
+            .add(Arg({'o'}, {"output"}, new String("filename", outputFilename),
+                     "Set the output MP4/MPD file name for the result"));
 
-        const auto& result = parser.parse({ av + 1, av + ac });
+        const auto& result = parser.parse({av + 1, av + ac});
 
         if (help)
         {
             parser.usage(std::cout);
             return 0;
+        }
+
+        if (isH265 && !gopLength && outputFilename.find(".mpd") != std::string::npos)
+        {
+            std::cerr << "You must provide --gop-length for H265 input when creating "
+                         "DASH output"
+                      << std::endl;
+            return 1;
+        }
+
+        if (isH265)
+        {
+            VDD::H265InputConfig h265Config{};
+            if (gopLength)
+            {
+                h265Config.gopLength = *gopLength;
+            }
+            else
+            {
+                h265Config.gopLength = 0;
+            }
+            configTemplate.h265InputConfig = h265Config;
         }
 
         if (!result.isOK())
@@ -80,7 +107,7 @@ int main(int ac, char** av)
         }
     }
 
-    configTemplate.inputMP4 = videoFilename;
+    configTemplate.inputFile = videoFilename;
     if (outputFilename.find(".mpd") != std::string::npos)
     {
         configTemplate.outputDASH = outputFilename;
@@ -92,7 +119,7 @@ int main(int ac, char** av)
         configTemplate.outputDASH = "";
     }
 
-    VDD::ControllerBase::Config config {};
+    VDD::ControllerBase::Config config{};
     config.config = VDD::createConvConfigJson(configTemplate);
     config.log = std::shared_ptr<VDD::Log>(new VDD::ConsoleLog());
     if (verbose)
@@ -106,14 +133,22 @@ int main(int ac, char** av)
 
     int rc = 0;
 
-    enum { Initializing, Running } state = Initializing;
+    enum
+    {
+        Initializing,
+        Running
+    } state = Initializing;
     try
     {
         VDD::OmafVIController controller(config);
+        for (auto& warning : config.config->warnings())
+        {
+            std::cerr << "Notice: " << warning << std::endl;
+        }
         state = Running;
         controller.run();
         VDD::GraphErrors errors = controller.moveErrors();
-        for (auto error: errors)
+        for (auto error : errors)
         {
             if (!error.exception)
             {
@@ -121,7 +156,7 @@ int main(int ac, char** av)
             }
         }
         // actually only the first error is thrown
-        for (auto error: errors)
+        for (auto error : errors)
         {
             if (error.exception)
             {

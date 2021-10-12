@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -15,54 +15,59 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
 #include <deque>
+#include <vector>
 
-#include "Platform/OMAFDataTypes.h"
 #include "NVRNamespace.h"
+#include "Platform/OMAFDataTypes.h"
 
 #include <mfidl.h>
 
 OMAF_NS_BEGIN
 
-namespace WMFDecoder {
-
-    enum class DecoderInputType {
+namespace WMFDecoder
+{
+    enum class DecoderInputType
+    {
         ADTS,
         AAC_LC
     };
 
-    class AACDecoder {
-
+    class AACDecoder
+    {
     public:
-
-        AACDecoder(DecoderInputType inputStreamType, uint32_t inputSampleRate, uint32_t inputChannels, uint32_t outputChannels);
+        AACDecoder(DecoderInputType inputStreamType,
+                   uint32_t inputSampleRate,
+                   uint32_t inputChannels,
+                   uint32_t outputChannels);
         ~AACDecoder();
 
         /**
          * Add AAC/ADTS frame to decoder and decode it to output buffer.
-         * 
-         * @return number of bytes in output buffer after decoding AAC. 
+         *
+         * @return number of bytes in output buffer after decoding AAC.
          */
         size_t feedFrame(std::vector<uint8_t> &aacOrAdts);
 
         /**
-         * Try to read number of bytes requested from output buffer. 
+         * Try to read number of bytes requested from output buffer.
          *
          * If there is not enough data in output, return all the data from the buffer.
-         * 
+         *
          * @param bytesToRead Number of bytes that should be read from the buffer. If 0 then return all
          *                    data that is available.
          */
         std::vector<uint8_t> readOutputBuffer(size_t bytesToRead);
 
+        size_t getNrAvailablePCMBytes() const;
+
         uint32_t getAACSampleRate() const;
         uint32_t getAACChannels() const;
 
     private:
-
         /**
-         * Returns true if adding frame was ok, false if decoder is full and cannot accept data until some of it has been consumed first.
+         * Returns true if adding frame was ok, false if decoder is full and cannot accept data until some of it has
+         * been consumed first.
          * Throws an error on any other failure.
          */
         bool tryToPushFrameToDecoder(std::vector<uint8_t> &aacOrAdts);
@@ -83,11 +88,10 @@ namespace WMFDecoder {
 
         IMFMediaType *mInputType = NULL;
         IMFMediaType *mOutputType = NULL;
-        MFT_OUTPUT_STREAM_INFO mOutStreamInfo = { 0 };
-        MFT_OUTPUT_DATA_BUFFER mOutputSample = { 0 };
+        MFT_OUTPUT_STREAM_INFO mOutStreamInfo = {0};
+        MFT_OUTPUT_DATA_BUFFER mOutputSample = {0};
         IMFTransform *mAACTransformer = NULL;
     };
-}
+}  // namespace WMFDecoder
 
 OMAF_NS_END
-

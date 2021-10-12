@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -16,7 +16,7 @@
 
 #include "Foundation/NVRLogger.h"
 
-#if 0 //TODO enable only when needed as can cause frame drops
+#if 0
 OMAF_NS_BEGIN
     namespace DASH_LOG
     {
@@ -42,8 +42,8 @@ OMAF_NS_BEGIN
         }
 }
 
-#define DASH_LOG_D(...) DASH_LOG::logDebug("DASH", ## __VA_ARGS__)
-#define DASH_LOG_SUM_D(...) DASH_LOG::logDebugSum("DASH", ## __VA_ARGS__)
+#define DASH_LOG_D(...) DASH_LOG::logDebug("DASH", ##__VA_ARGS__)
+#define DASH_LOG_SUM_D(...) DASH_LOG::logDebugSum("DASH", ##__VA_ARGS__)
 
 
 

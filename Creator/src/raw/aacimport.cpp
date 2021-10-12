@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -241,14 +241,14 @@ namespace VDD
 
     AACImport::~AACImport() = default;
 
-    std::vector<Views> AACImport::produce()
+    std::vector<Streams> AACImport::produce()
     {
         if (isAborted())
         {
             return {{ Data(EndOfStream()) }};
         }
 
-        std::vector<Views> frames;
+        std::vector<Streams> frames;
         char adtsBuf[7];
         bool ok = true;
         mInput.read(adtsBuf, sizeof(adtsBuf));

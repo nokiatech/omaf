@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,13 +14,13 @@
  */
 #pragma once
 
-#include "NVRNamespace.h"
-#include "Platform/OMAFDataTypes.h"
 #include "Media/NVRMediaFormat.h"
 #include "Media/NVRMediaPacket.h"
+#include "NVRNamespace.h"
+#include "Platform/OMAFDataTypes.h"
+#include "VideoDecoder/NVRFrameCache.h"
 #include "VideoDecoder/NVRVideoDecoderConfig.h"
 #include "VideoDecoder/NVRVideoDecoderTypes.h"
-#include "VideoDecoder/NVRFrameCache.h"
 
 OMAF_NS_BEGIN
 
@@ -46,10 +46,8 @@ namespace DecoderHWState
 
 class VideoDecoderHW
 {
-
 public:
-
-    virtual ~VideoDecoderHW() {};
+    virtual ~VideoDecoderHW(){};
 
     // Creates the HW instance
     virtual Error::Enum createInstance(const MimeType& mimeType) = 0;
@@ -69,6 +67,9 @@ public:
     // Tells the decoder to not expect more packets (unless flushed)
     virtual void setInputEOS() = 0;
 
+    // Check if EOS was already set
+    virtual bool_t isInputEOS() const = 0;
+
     // Returns if the decoder has reached end of stream
     virtual bool_t isEOS() = 0;
 
@@ -76,8 +77,7 @@ public:
     virtual DecodeResult::Enum decodeFrame(streamid_t stream, MP4VRMediaPacket* packet, bool_t seeking) = 0;
 
     // Called when a decoded frame has been consumed, needed mainly for Android
-    virtual void_t consumedFrame(DecoderFrame* frame) {};
-
+    virtual void_t consumedFrame(DecoderFrame* frame){};
 };
 
 OMAF_NS_END

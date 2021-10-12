@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,8 +17,8 @@
 #include "Platform/OMAFDataTypes.h"
 
 #include "Foundation/NVRBuild.h"
-#include "Foundation/NVRNonCopyable.h"
 #include "Foundation/NVRMemoryAllocator.h"
+#include "Foundation/NVRNonCopyable.h"
 
 OMAF_NS_BEGIN
 
@@ -26,13 +26,14 @@ namespace MemorySystem
 {
     extern const uint32_t DEFAULT_SCRATCH_ALLOCATOR_SIZE;
 
-    void_t Create(MemoryAllocator* clientHeapAllocator = OMAF_NULL, size_t scratchAllocatorSize = DEFAULT_SCRATCH_ALLOCATOR_SIZE);
+    void_t Create(MemoryAllocator* clientHeapAllocator = OMAF_NULL,
+                  size_t scratchAllocatorSize = DEFAULT_SCRATCH_ALLOCATOR_SIZE);
     void_t Destroy();
 
     MemoryAllocator* DefaultHeapAllocator();
     MemoryAllocator* DefaultScratchAllocator();
 
     MemoryAllocator* DebugHeapAllocator();
-}
+}  // namespace MemorySystem
 
 OMAF_NS_END

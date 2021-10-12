@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -26,21 +26,31 @@ namespace VDD
 {
     ParallelGraph::ParallelGraph(const Config& aConfig)
         : mConfig(aConfig)
+        , mThreadsExitedCount(0)
     {
         // nothing
     }
 
-    ParallelGraph::~ParallelGraph()
+    void ParallelGraph::stop()
     {
         std::unique_lock<std::mutex> lock(mWorkMutex);
-        mQuit = true;
-        mWorkAvailable.notify_all();
-        lock.unlock();
-
-        for (auto& thread: mThreads)
+        if (!mStopped)
         {
-            thread.join();
+            mQuit = true;
+            mWorkAvailable.notify_all();
+            lock.unlock();
+
+            for (auto& thread : mThreads)
+            {
+                thread.join();
+            }
+            mStopped = true;
         }
+    }
+
+    ParallelGraph::~ParallelGraph()
+    {
+        stop();
     }
 
     void ParallelGraph::workerThread(unsigned aThreadId)
@@ -66,49 +76,66 @@ namespace VDD
                     auto node = *nodeIt;
                     auto& nodeInfo = *mNodeInfo[node];
 
-                    // and remove it from the age list (so we won't end up picking next time a node
-                    // that doesn't have work waiting activation)
-                    nodeAgeIt->second.erase(nodeIt);
-                    if (nodeAgeIt->second.size() == 0)
-                    {
-                        mNodeAge.erase(nodeAgeIt);
-                    }
+                    // we need to acquire nodeInfoMutex, but it cannot be acquired while workMutex is locked, so..
                     workLock.unlock();
-
                     std::unique_lock<std::mutex> nodeInfoLock(nodeInfo.nodeInfoMutex);
+                    workLock.lock();
 
-                    // if it is running or its outputs are blocked, we cannot do a thing. but what
-                    // happens to the activation? we need to ensure that whomever unblocks the
-                    // nodeinfo will also add the nodeinfo to mNodeAges
-                    if (!nodeInfo.areOutputsBlocked() &&
-                        !nodeInfo.running &&
-                        nodeInfo.nodeHasWork())
+                    bool valid;
+
+                    // retrieve iterators again, they might have changed during the unlock
+                    if (mNodeAge.size())
                     {
-                        nodeInfo.running = true;
-                        double t0 = Utils::getSeconds();
-                        std::exception_ptr exception;
+                        nodeAgeIt = mNodeAge.begin();
+                        nodeIt = nodeAgeIt->second.begin();
+                        valid = (*nodeIt)->getId() == node->getId();
+                    }
+                    else
+                    {
+                        valid = false;
+                    }
 
-                        // remove all work submitted to a terminated node
-                        if (nodeInfo.terminated)
+                    // If the iterators indeed did change, then just give up, we'll try later again
+                    // No changes were actually done, so no need to undo anything.
+                    if (valid)
+                    {
+                        // and remove it from the age list (so we won't end up picking next time a node
+                        // that doesn't have work waiting activation)
+                        nodeAgeIt->second.erase(nodeIt);
+                        if (nodeAgeIt->second.size() == 0)
                         {
-                            nodeInfo.enqueued.clear();
+                            mNodeAge.erase(nodeAgeIt);
                         }
-                        else
+
+                        workLock.unlock();
+
+                        // if it is running or its outputs are blocked, we cannot do a thing. but what
+                        // happens to the activation? we need to ensure that whomever unblocks the
+                        // nodeinfo will also add the nodeinfo to mNodeAges
+                        if (!nodeInfo.areOutputsBlocked() && nodeInfo.state == NodeInfo::WAITING)
                         {
+                            assert(nodeInfo.nodeHasWork());
+                            // if node doesn't have work, it's still ok to enter this loop
+                            nodeInfo.state = NodeInfo::RUNNING;
+                            double t0 = Utils::getSeconds();
+                            std::exception_ptr exception;
+
                             // do a complete flush to enqueued items in one go (this is a part that can
                             // result in more than 1 elements being in queue of nodes). to ensure that the
                             // node is never running when it has no enqueued items, the queued element is
                             // removed only after running the node.
 
-                            while (nodeInfo.enqueued.size() > 0 && !nodeInfo.terminated)
+                            bool terminated = false;
+
+                            while (nodeInfo.enqueued.size() > 0 && !terminated)
                             {
-                                auto& views = nodeInfo.enqueued.front();
+                                auto& streams = nodeInfo.enqueued.front();
 
                                 nodeInfoLock.unlock();
 
                                 try
                                 {
-                                    nodeInfo.processor->hasInput(views);
+                                    nodeInfo.processor->hasInput(streams);
                                 }
                                 // other exceptions are just passed forward (and they indicate a
                                 // bug) resulting likely in a crash to debug
@@ -120,58 +147,78 @@ namespace VDD
 
                                 if (exception)
                                 {
-                                    nodeInfo.terminated = true;
+                                    terminated = true;
                                 }
 
                                 nodeInfo.enqueued.pop_front();
                             }
 
-                            if (nodeInfo.terminated)
+                            double t1 = Utils::getSeconds();
+
+                            nodeInfo.runtime += t1 - t0;
+
+                            // we don't update oldestEnqueuedData, because its value is not used until
+                            // the node is added back to mNodeAge.
+
+                            std::list<AsyncNode*> wake = checkAndDecrementParentBlockedOutputs(nodeInfo);
+
+                            switch (nodeInfo.state)
                             {
-                                nodeInfo.enqueued.clear();
+                            case NodeInfo::IDLE:
+                            case NodeInfo::WAITING:
+                                {
+                                    // impossible
+                                    assert(false);
+                                } break;
+                            case NodeInfo::RUNNING:
+                                {
+                                    if (terminated)
+                                    {
+                                        nodeInfo.enqueued.clear();
+                                        nodeInfo.state = NodeInfo::TERMINATED;
+                                    }
+                                    else
+                                    {
+                                        nodeInfo.state = NodeInfo::IDLE;
+                                    }
+                                } break;
+                            case NodeInfo::TERMINATED:
+                                {
+                                    assert(false); // impossible
+                                } break;
                             }
+
+                            // note: locking workLock before releasing nodeInfoLock. this is safe
+                            // because there are only two places it's done at and it is always done in
+                            // this order
+                            workLock.lock();
+                            // mNumWaiting needs to be decremented and checked here, as its state
+                            // depends on nodeInfo
+                            --mNumWaiting;
+
+
+                            assert(mNumWaiting >= 0);
+                            nodeInfoLock.unlock();
+
+                            if (exception)
+                            {
+                                mExceptions.push_back({node, std::move(exception)});
+                            }
+
+                            // suspicious to do this always, but ultimately harmless?
+                            wakeWithWorkMutexHeld(wake);
+
+                            ++mReadySequence;
+                            mWorkReady.notify_one();
                         }
-
-                        double t1 = Utils::getSeconds();
-
-                        nodeInfo.runtime += t1 - t0;
-
-                        // we don't update oldestEnqueuedData, because its value is not used until
-                        // the node is added back to mNodeAge.
-
-                        std::list<AsyncNode*> wake = checkAndDecrementParentBlockedOutputs(nodeInfo);
-
-                        nodeInfo.running = false;
-                        // note: locking workLock before releasing nodeInfoLock. this is safe
-                        // because there are only two places it's done at and it is always done in
-                        // this order
-                        workLock.lock();
-                        // mNumWaiting needs to be decremented and checked here, as its state
-                        // depends on nodeInfo
-                        --mNumWaiting;
-
-                        // this replaces assert(!nodeInfo.nodeHasWork());
-                        if (nodeInfo.nodeHasWork() && !nodeInfo.terminated)
+                        else
                         {
-                            std::cerr << "ParallelGraph: Interesting." << std::endl;
+
+                            workLock.lock();
                         }
-
-                        assert(mNumWaiting >= 0);
-                        nodeInfoLock.unlock();
-
-                        if (exception)
-                        {
-                            mExceptions.push_back({node, std::move(exception)});
-                        }
-
-                        wakeWithWorkMutexHeld(wake);
-
-                        ++mReadySequence;
-                        mWorkReady.notify_one();
                     }
                     else
                     {
-                        workLock.lock();
                     }
                 }
             } while (!quit);
@@ -179,25 +226,30 @@ namespace VDD
         catch (std::runtime_error& exn)
         {
             std::cerr << "Thread received an unhandled exception: " << exn.what() << std::endl;
+            ++mThreadsExitedCount;
+        }
+        catch (...)
+        {
+            std::cerr << "Thread received an unknown exception" << std::endl;
+            ++mThreadsExitedCount;
+            throw;
         }
     }
 
-    void ParallelGraph::nodeHasInput(AsyncProcessor* aNode, const Views& aViews)
+    void ParallelGraph::nodeHasInput(AsyncProcessor* aNode, const Streams& aStreams)
     {
         auto& nodeInfo = *mNodeInfo[aNode];
         std::unique_lock<std::mutex> nodeInfoLock(nodeInfo.nodeInfoMutex);
 
         ++nodeInfo.numInputs;
-        if (nodeInfo.terminated)
+        if (nodeInfo.state == NodeInfo::TERMINATED)
         {
             // ignore this work
             return;
         }
+        assert(aStreams.begin() != aStreams.end());
 
-        assert(aViews.size() > 0);
-
-        bool nodeHadWork = nodeInfo.nodeHasWork();
-        nodeInfo.enqueued.push_back(aViews);
+        nodeInfo.enqueued.push_back(aStreams);
 
         // NOTE! To avoid deadlock, the locking of multiple nodes must always happen child node first!
         if (nodeInfo.isNodeOverEmployed() && !nodeInfo.setParentBlocked)
@@ -212,23 +264,36 @@ namespace VDD
             nodeInfo.setParentBlocked = true;
         }
 
-        // node was previously unemployed, but now it has work
-        if (!nodeHadWork && nodeInfo.nodeHasWork())
+        switch (nodeInfo.state)
         {
-            // note: locking mWorkReady while nodeInfoLock is already locked. This should not result
-            // in deadlock as we do it only in two places, always in this order, and while the lock
-            // is being held we don't perform any kind of waiting
-            std::unique_lock<std::mutex> workLock(mWorkMutex);
-            // mNumWaiting needs to be checked and incremented here, as its state depends on
-            // nodeInfo. moreover, it is decremented elsewhere and asserted to be positive, so
-            // this must be in sync with that.
-            assert(mNumWaiting >= 0);
-            ++mNumWaiting;
-            nodeInfoLock.unlock();
+        case NodeInfo::IDLE:
+            {
+                // node was previously unemployed, but now it has work
+                nodeInfo.state = NodeInfo::WAITING;
+                // note: locking mWorkReady while nodeInfoLock is already locked. This should not result
+                // in deadlock as we do it only in two places, always in this order, and while the lock
+                // is being held we don't perform any kind of waiting
+                std::unique_lock<std::mutex> workLock(mWorkMutex);
+                // mNumWaiting needs to be checked and incremented here, as its state depends on
+                // nodeInfo. moreover, it is decremented elsewhere and asserted to be positive, so
+                // this must be in sync with that.
+                assert(mNumWaiting >= 0);
+                ++mNumWaiting;
 
-            // needs to be called because
-            updateNodeAgeWithWorkMutexHeld(aNode, aViews[0].getCommonFrameMeta().presIndex);
-            wakeWithWorkMutexHeld(aNode);
+                // needs to be called because
+                updateNodeAgeWithWorkMutexHeld(aNode, aStreams.front().getCommonFrameMeta().presIndex);
+                nodeInfoLock.unlock();
+                wakeWithWorkMutexHeld(aNode);
+            } break;
+        case NodeInfo::WAITING:
+        case NodeInfo::RUNNING:
+            {
+                // skip
+            } break;
+        case NodeInfo::TERMINATED:
+            {
+                assert(false); // impossible
+            } break;
         }
     }
 
@@ -259,30 +324,29 @@ namespace VDD
         }
     }
 
-    void ParallelGraph::nodeHasOutput(AsyncNode* aNode, const Views& aViews)
+    void ParallelGraph::nodeHasOutput(AsyncNode* aNode, const Streams& aStreams)
     {
         ++mNodeInfo[aNode]->numOutputs;
         for (auto& callback: getNodeCallbacks(aNode))
         {
-            if (callback.viewMask == allViews)
+            if (callback.streamFilter.allStreams())
             {
-                nodeHasInput(callback.processor, aViews);
+                nodeHasInput(callback.processor, aStreams);
             }
             else
             {
-                Views callbackViews;
-                size_t viewIndex = 0;
-                size_t mask = callback.viewMask;
-                while (mask)
+                Streams callbackViews;
+                auto set = callback.streamFilter.asSet();
+                for (const auto& view: aStreams)
                 {
-                    if (mask & 1)
-                    {
-                        callbackViews.push_back(aViews[viewIndex]);
+                    if (set.count(view.getStreamId())) {
+                        callbackViews.add(view);
                     }
-                    mask >>= 1;
-                    ++viewIndex;
                 }
-                nodeHasInput(callback.processor, callbackViews);
+                if (callbackViews.begin() != callbackViews.end())
+                {
+                    nodeHasInput(callback.processor, callbackViews);
+                }
             }
         }
     }
@@ -352,7 +416,10 @@ namespace VDD
 
     const ParallelGraph::NodeInfo& ParallelGraph::nodeInfoFor(int aId) const
     {
-        return *mById.at(aId);
+        auto& nodeInfo = *mById.at(aId);
+        // ensure the .at method is available for debugger in Linux
+        (void) (nodeInfo.parents.size() && nodeInfo.parents.at(0));
+        return nodeInfo;
     }
 
     bool ParallelGraph::step(GraphErrors& aErrors)
@@ -371,24 +438,31 @@ namespace VDD
 
         if (!mThreads.size())
         {
-            unsigned numberOfThreads = std::max(1u, std::thread::hardware_concurrency());
+            unsigned numberOfThreads = mConfig.singleThread ? 1u : std::max(1u, std::thread::hardware_concurrency());
             for (unsigned threadId = 0; threadId < numberOfThreads; ++threadId)
             {
                 mThreads.emplace_back([this, threadId]{ workerThread(threadId); });
             }
         }
 
+        assert(mThreadsExitedCount.load() == 0u);
+
         for (AsyncNode* node : getNodes())
         {
             auto& nodeInfo = *mNodeInfo[node];
             std::unique_lock<std::mutex> nodeInfoLock(nodeInfo.nodeInfoMutex);
-            if (!nodeInfo.running)
+            switch (nodeInfo.state)
             {
-                nodeInfo.isInternallyBlocked = node->isBlocked();
-            }
-            else
-            {
-                nodeInfo.isInternallyBlocked = false;
+            case NodeInfo::IDLE:
+                {
+                    nodeInfo.isInternallyBlocked = node->isBlocked();
+                } break;
+            case NodeInfo::WAITING:
+            case NodeInfo::RUNNING:
+            case NodeInfo::TERMINATED:
+                {
+                    nodeInfo.isInternallyBlocked = false;
+                } break;
             }
 
             auto parentsToWake = checkAndDecrementParentBlockedOutputs(nodeInfo);
@@ -401,35 +475,42 @@ namespace VDD
         }
 
         bool anyActive = false;
-        // TODO: still all the source nodes are run in sequence. This probably doesn't matter too
-        // much.
+
+        for (AsyncNode* node: getNodes())
+        {
+            if (node->isActive())
+            {
+                anyActive = true;
+                break;
+            }
+        }
+
+        // first find out which nodes are unblocked
+        std::set<AsyncSource*> unblockedSources;
         for (AsyncSource* source : getSources())
         {
             if (source->isActive())
             {
-                anyActive = true;
-
                 auto& nodeInfo = *mNodeInfo[source];
 
-                bool unblocked;
+                std::unique_lock<std::mutex> nodeInfoLock(nodeInfo.nodeInfoMutex);
+                if (!nodeInfo.areOutputsBlocked())
                 {
-                    std::unique_lock<std::mutex> nodeInfoLock(nodeInfo.nodeInfoMutex);
-                    unblocked = !nodeInfo.areOutputsBlocked();
-
-                    assert(nodeInfo.numBlockedOutputs >= 0);
-
-                    // is here a small window where numBlockedOutputs could get increased? regardless it
-                    // doesn't matter, as we are able to queue any number of data.
-                }
-
-                if (unblocked)
-                {
-                    double t0 = Utils::getSeconds();
-                    source->produce();
-                    double t1 = Utils::getSeconds();
-                    nodeInfo.runtime += t1 - t0;
+                    unblockedSources.insert(source);
                 }
             }
+        }
+
+        // Then just run those sources. This allows running sources where running them would result in blocking other
+        // sources. There is a small window where we first determined these nodes are unblocked but they are no longer,
+        // but it doesn't matter really (the output is still buffered).
+        for (AsyncSource* source : unblockedSources)
+        {
+            auto& nodeInfo = *mNodeInfo[source];
+            double t0 = Utils::getSeconds();
+            source->produce();
+            double t1 = Utils::getSeconds();
+            nodeInfo.runtime += t1 - t0;
         }
 
         // wait for at least one job to unblock since the before issuing the work, or
@@ -614,6 +695,12 @@ namespace VDD
             st << "runtime:" << nodeInfo.runtime;
             st << "\n" << "inputs:" << nodeInfo.numInputs;
             st << "\n" << "outputs:" << nodeInfo.numOutputs;
+            st << "\n"
+               << "state:" << NodeInfo::stringOfState(nodeInfo.state) << "\n"
+               << "flags:" << (nodeInfo.isInternallyBlocked ? "B" : "b")
+               << (nodeInfo.areOutputsBlocked() ? "O" : "o") << (nodeInfo.nodeHasWork() ? "W" : "w")
+               << (nodeInfo.isNodeOverEmployed() ? "E" : "e")
+               << (nodeInfo.setParentBlocked ? "P" : "p");
         }
 
         return st.str();
@@ -630,7 +717,7 @@ namespace VDD
             std::unique_lock<std::mutex> nodeInfoLock(nodeInfo.nodeInfoMutex);
             info.runtime = nodeInfo.runtime;
             info.queueLength = nodeInfo.enqueued.size();
-            info.running = nodeInfo.running;
+            info.running = nodeInfo.state == NodeInfo::RUNNING;
             info.numBlockedOutputs = nodeInfo.numBlockedOutputs;
             info.cachedOldestEnqueuedData = nodeInfo.oldestEnqueuedData.load();
             info.setParentBlocked = nodeInfo.setParentBlocked;
@@ -679,7 +766,7 @@ namespace VDD
                            << ":" << nodeInfo.oldestEnqueuedData.load()
                            << ":" << isActive
                            << ":B" << nodeInfo.areOutputsBlocked()
-                           << ":R" << nodeInfo.running
+                           << ":R" << (nodeInfo.state == NodeInfo::RUNNING)
                            << ":W" << nodeInfo.nodeHasWork()
                             ;
 

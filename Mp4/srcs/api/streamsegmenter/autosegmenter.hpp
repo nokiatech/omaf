@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,10 +17,11 @@
 
 #include <list>
 #include <map>
+#include <functional>
 
-#include "optional.hpp"
 #include "segmenterapi.hpp"
 #include "track.hpp"
+#include "optional.hpp"
 
 namespace StreamSegmenter
 {
@@ -46,8 +47,9 @@ namespace StreamSegmenter
     {
         bool checkIDR = false;  // check that the first frame is an IDR frame
         Segmenter::Duration segmentDuration;
-        Utils::Optional<Segmenter::Duration> subsegmentDuration;
+        ISOBMFF::Optional<Segmenter::Duration> subsegmentDuration;
         size_t skipSubsegments = 0;  // number of subsegments to skip from saving
+        Utils::Optional<std::function<uint32_t(void)>> nextFragmentSequenceNumber;
     };
 
     class AutoSegmenter

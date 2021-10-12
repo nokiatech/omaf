@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -41,6 +41,25 @@ namespace VDD
     {
         return StreamSegmenter::Utils::coalesce(value, rest...);
     }
-}
+
+    /** Generic "find value from associative container, or don't" function to use with maps.
+     *
+     * findOptional(key, map) returns map[key] if it exists, otherwise it returns a None
+     */
+    template <typename Container, typename Key>
+    auto findOptional(const Key& aKey, const Container& aContainer)
+        -> Optional<typename Container::mapped_type>
+    {
+        auto value = aContainer.find(aKey);
+        if (value != aContainer.end())
+        {
+            return {value->second};
+        }
+        else
+        {
+            return {};
+        }
+    }
+}  // namespace VDD
 
 #endif  // OPTIONAL_H

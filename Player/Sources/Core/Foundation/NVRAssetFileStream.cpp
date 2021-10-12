@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,70 +17,70 @@
 #include "Foundation/NVRAssert.h"
 
 OMAF_NS_BEGIN
-    AssetFileStream::AssetFileStream()
+AssetFileStream::AssetFileStream()
     : mFileHandle(AssetManager::InvalidFileHandle)
+{
+}
+
+AssetFileStream::~AssetFileStream()
+{
+    OMAF_ASSERT(mFileHandle == AssetManager::InvalidFileHandle, "");
+}
+
+bool_t AssetFileStream::openImpl(const char_t* filename, FileSystem::AccessMode::Enum mode)
+{
+    mFileHandle = AssetManager::Open(filename, mode);
+
+    if (mFileHandle == AssetManager::InvalidFileHandle)
     {
-    }
-    
-    AssetFileStream::~AssetFileStream()
-    {
-        OMAF_ASSERT(mFileHandle == AssetManager::InvalidFileHandle, "");
-    }
-    
-    bool_t AssetFileStream::openImpl(const char_t* filename, FileSystem::AccessMode::Enum mode)
-    {
-        mFileHandle = AssetManager::Open(filename, mode);
-        
-        if (mFileHandle == AssetManager::InvalidFileHandle)
-        {
-            return false;
-        }
-        
-        return true;
-    }
-    
-    void_t AssetFileStream::closeImpl()
-    {
-        AssetManager::Close(mFileHandle);
-        mFileHandle = AssetManager::InvalidFileHandle;
+        return false;
     }
 
-    int64_t AssetFileStream::readImpl(void_t* destination, int64_t bytes)
-    {
-        return AssetManager::Read(mFileHandle, destination, bytes);
-    }
+    return true;
+}
 
-    int64_t AssetFileStream::writeImpl(const void_t* source, int64_t bytes)
-    {
-        OMAF_UNUSED_VARIABLE(source);
-        OMAF_UNUSED_VARIABLE(bytes);
-        OMAF_ASSERT_NOT_IMPLEMENTED();
+void_t AssetFileStream::closeImpl()
+{
+    AssetManager::Close(mFileHandle);
+    mFileHandle = AssetManager::InvalidFileHandle;
+}
 
-        return 0;
-    }
+int64_t AssetFileStream::readImpl(void_t* destination, int64_t bytes)
+{
+    return AssetManager::Read(mFileHandle, destination, bytes);
+}
 
-    bool_t AssetFileStream::seekImpl(int64_t offset)
-    {
-        return AssetManager::Seek(mFileHandle, offset);
-    }
+int64_t AssetFileStream::writeImpl(const void_t* source, int64_t bytes)
+{
+    OMAF_UNUSED_VARIABLE(source);
+    OMAF_UNUSED_VARIABLE(bytes);
+    OMAF_ASSERT_NOT_IMPLEMENTED();
 
-    int64_t AssetFileStream::tellImpl() const
-    {
-        return AssetManager::Tell(mFileHandle);
-    }
-    
-    bool_t AssetFileStream::isOpenImpl() const
-    {
-        return AssetManager::IsOpen(mFileHandle);
-    }
-    
-    int64_t AssetFileStream::getSizeImpl() const
-    {
-        return AssetManager::GetSize(mFileHandle);
-    }
-    
-    FileSystem::StreamType::Enum AssetFileStream::getTypeImpl() const
-    {
-        return FileSystem::StreamType::ASSET;
-    }
+    return 0;
+}
+
+bool_t AssetFileStream::seekImpl(int64_t offset)
+{
+    return AssetManager::Seek(mFileHandle, offset);
+}
+
+int64_t AssetFileStream::tellImpl() const
+{
+    return AssetManager::Tell(mFileHandle);
+}
+
+bool_t AssetFileStream::isOpenImpl() const
+{
+    return AssetManager::IsOpen(mFileHandle);
+}
+
+int64_t AssetFileStream::getSizeImpl() const
+{
+    return AssetManager::GetSize(mFileHandle);
+}
+
+FileSystem::StreamType::Enum AssetFileStream::getTypeImpl() const
+{
+    return FileSystem::StreamType::ASSET;
+}
 OMAF_NS_END

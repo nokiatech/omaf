@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,10 +14,10 @@
  */
 #include "Graphics/OpenGL/NVRVertexBufferGL.h"
 
+#include "Graphics/OpenGL/NVRGLCompatibility.h"
+#include "Graphics/OpenGL/NVRGLError.h"
 #include "Graphics/OpenGL/NVRGLExtensions.h"
 #include "Graphics/OpenGL/NVRGLUtilities.h"
-#include "Graphics/OpenGL/NVRGLError.h"
-#include "Graphics/OpenGL/NVRGLCompatibility.h"
 
 #include "Foundation/NVRLogger.h"
 
@@ -26,9 +26,9 @@ OMAF_NS_BEGIN
 OMAF_LOG_ZONE(VertexBufferGL);
 
 VertexBufferGL::VertexBufferGL()
-: mHandle(0)
-, mBytes(0)
-, mComputeAccess(ComputeBufferAccess::INVALID)
+    : mHandle(0)
+    , mBytes(0)
+    , mComputeAccess(ComputeBufferAccess::INVALID)
 {
 }
 
@@ -48,23 +48,24 @@ bool_t VertexBufferGL::create(const VertexDeclaration& declaration,
                               size_t bytes)
 {
     OMAF_GL_CHECK(glGenBuffers(1, &mHandle));
-    
+
     if (mHandle != 0)
     {
         MemoryCopy(&mVertexDeclaration, &declaration, OMAF_SIZE_OF(declaration));
-        mBytes = (GLsizei)bytes;
-        
+        mBytes = (GLsizei) bytes;
+
         GLint currentVertexBuffer = 0;
         OMAF_GL_CHECK(glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &currentVertexBuffer));
-        
+
         OMAF_GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, mHandle));
-        OMAF_GL_CHECK(glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)mBytes, (const GLvoid*)data, getBufferUsageGL(access)));
-        
-        OMAF_GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, (GLuint)currentVertexBuffer));
-        
+        OMAF_GL_CHECK(
+            glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) mBytes, (const GLvoid*) data, getBufferUsageGL(access)));
+
+        OMAF_GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, (GLuint) currentVertexBuffer));
+
         return true;
     }
-    
+
     return false;
 }
 
@@ -97,7 +98,7 @@ void_t VertexBufferGL::destroy()
 void_t VertexBufferGL::bind()
 {
     OMAF_ASSERT(mHandle != 0, "");
-    
+
     OMAF_GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, mHandle));
 }
 
@@ -109,30 +110,30 @@ void_t VertexBufferGL::unbind()
 void_t VertexBufferGL::bindCompute(uint16_t stage, ComputeBufferAccess::Enum computeAccess)
 {
 #if (OMAF_GRAPHICS_API_OPENGL_ES >= 31) || (OMAF_GRAPHICS_API_OPENGL >= 43) || GL_ARB_compute_shader
-    
+
     OMAF_ASSERT(mHandle != 0, "");
 
     OMAF_ASSERT(mComputeAccess == computeAccess, "Compute buffer access doesn't match to resource description");
 
     OMAF_GL_CHECK(glBindBufferBase(GL_SHADER_STORAGE_BUFFER, stage, mHandle));
-    
+
 #else
 
     OMAF_ASSERT(false, "Render backend doesn't support compute shaders");
-    
+
 #endif
 }
 
 void_t VertexBufferGL::unbindCompute(uint16_t stage)
 {
 #if (OMAF_GRAPHICS_API_OPENGL_ES >= 31) || (OMAF_GRAPHICS_API_OPENGL >= 43) || GL_ARB_compute_shader
-    
+
     OMAF_GL_CHECK(glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0));
-    
+
 #else
-    
+
     OMAF_ASSERT(false, "Render backend doesn't support compute shaders");
-    
+
 #endif
 }
 

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -14,38 +14,37 @@
  */
 #pragma once
 
-#include "NVRNamespace.h"
 #include "NVRErrorCodes.h"
+#include "NVRNamespace.h"
 #include "Platform/OMAFDataTypes.h"
 
 #include "DashProvider/NVRDashSegmentStream.h"
 
 OMAF_NS_BEGIN
-    class DashTemplateStreamStatic : public DashSegmentStream
-    {
-    public:
+class DashTemplateStreamStatic : public DashSegmentStream
+{
+public:
+    DashTemplateStreamStatic(uint32_t bandwidth,
+                             DashComponents dashComponents,
+                             uint32_t aInitializationSegmentId,
+                             DashSegmentStreamObserver* observer);
 
-        DashTemplateStreamStatic(
-                uint32_t bandwidth,
-                DashComponents dashComponents,
-                uint32_t aInitializationSegmentId,
-                DashSegmentStreamObserver *observer);
+    virtual ~DashTemplateStreamStatic();
 
-        virtual ~DashTemplateStreamStatic();
+    virtual Error::Enum seekToMs(uint64_t& aSeekToTargetMs, uint64_t& aSeekToResultMs, uint32_t& aSeekSegmentIndex);
+    virtual uint32_t calculateSegmentId(uint64_t& ptsUs);
+    virtual bool_t hasFixedSegmentSize() const;
 
-        virtual Error::Enum seekToMs(uint64_t& aSeekToTargetMs, uint64_t& aSeekToResultMs);
-        virtual uint32_t calculateSegmentId(uint64_t ptsUs);
-        virtual bool_t hasFixedSegmentSize() const;
-    protected:
-        virtual dash::mpd::ISegment* getNextSegment(uint32_t &segmentId);
-        virtual void_t downloadAborted();
-        virtual bool_t isLastSegment() const;
+protected:
+    virtual dash::mpd::ISegment* getNextSegment(uint32_t& segmentId);
+    virtual void_t downloadAborted();
+    virtual bool_t isLastSegment() const;
 
 
-    private:
-        uint32_t mStartIndex;
-        uint32_t mCurrentSegmentIndex;
-        uint32_t mIndexForSeek;
-        uint32_t mSegmentCount;
-    };
+private:
+    uint32_t mStartIndex;
+    uint32_t mCurrentSegmentIndex;
+    uint32_t mIndexForSeek;
+    uint32_t mSegmentCount;
+};
 OMAF_NS_END

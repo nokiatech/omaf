@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -35,7 +35,7 @@ namespace VDD
             return StorageType::CPU;
         }
 
-        std::vector<Views> process(const Views& data) override;
+        std::vector<Streams> process(const Streams& data) override;
 
     private:
         Config mConfig;

@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -30,6 +30,58 @@ namespace
     {
         std::cout << "Usage: ./omafvd config.json" << std::endl;
     }
+
+    class MergeViewJsonStrategy : public VDD::DefaultJsonMergeStrategy
+    {
+    public:
+        void array(Json::Value& aLeft, const Json::Value& aRight,
+                   const VDD::ConfigPath& aConfigPath) const
+        {
+            using namespace VDD;
+            // Combine views together by their id; if no matching id, append
+            if (aConfigPath == ConfigPath{ConfigTraverse("views")})
+            {
+                std::map<std::string, std::pair<size_t, Json::Value*>> lefts;
+                std::map<std::string, const Json::Value*> rights;
+
+                size_t indexLeft = 0;
+                for (Json::Value& left : aLeft)
+                {
+                    auto id = left["id"].asString();
+                    lefts[id] = {indexLeft, &left};
+                    ++indexLeft;
+                }
+
+                std::list<const Json::Value*> toAppend;
+
+                size_t indexRight = 0;
+                for (const Json::Value& right : aRight)
+                {
+                    auto id = right["id"].asString();
+                    if (lefts.count(id) == 0)
+                    {
+                        toAppend.push_back(&right);
+                    }
+                    else
+                    {
+                        auto left = lefts.at(id);
+                        merge(*left.second, right, Utils::append(aConfigPath, ConfigTraverse(left.first)));
+                    }
+                    ++indexRight;
+                }
+
+                for (auto append: toAppend)
+                {
+                    aLeft.append(*append);
+                }
+            }
+            else
+            {
+                DefaultJsonMergeStrategy::array(aLeft, aRight, aConfigPath);
+            }
+        }
+    };
+
 }  // anonymous namespace
 
 int main(int ac, char** av)
@@ -51,7 +103,7 @@ int main(int ac, char** av)
 
     try
     {
-        config.config->commandline({ av, av + ac });
+        config.config->commandline({ av, av + ac }, MergeViewJsonStrategy());
     }
     catch (VDD::ConfigError& exn)
     {
@@ -77,6 +129,10 @@ int main(int ac, char** av)
         }
         state = Running;
         controller.run();
+        for (auto& error : controller.moveErrors())
+        {
+            std::cerr << error.message << std::endl;
+        }
     }
     catch (VDD::ConfigError& exn)
     {

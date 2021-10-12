@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,14 +19,20 @@ TrackGroupBox::TrackGroupBox()
 {
 }
 
-const Vector<TrackGroupTypeBox>& TrackGroupBox::getTrackGroupTypeBoxes() const
+const Vector<std::reference_wrapper<const TrackGroupTypeBox>> TrackGroupBox::getTrackGroupTypeBoxes() const
 {
-    return mTrackGroupTypeBoxes;
+    Vector<std::reference_wrapper<const TrackGroupTypeBox>> result;
+    for (auto& x : mTrackGroupTypeBoxes)
+    {
+        result.push_back(std::cref(*x));
+    }
+    return result;
 }
 
 void TrackGroupBox::addTrackGroupTypeBox(const TrackGroupTypeBox& trackGroupTypeBox)
 {
-    mTrackGroupTypeBoxes.push_back(trackGroupTypeBox);
+    mTrackGroupTypeBoxes.push_back(
+        std::shared_ptr<TrackGroupTypeBox>(trackGroupTypeBox.clone(), CustomDelete<TrackGroupTypeBox>()));
 }
 
 void TrackGroupBox::writeBox(BitStream& bitstr)
@@ -35,7 +41,7 @@ void TrackGroupBox::writeBox(BitStream& bitstr)
 
     for (unsigned int i = 0; i < mTrackGroupTypeBoxes.size(); i++)
     {
-        mTrackGroupTypeBoxes.at(i).writeBox(bitstr);
+        mTrackGroupTypeBoxes.at(i)->writeBox(bitstr);
     }
 
     // Update the size of the movie box
@@ -50,8 +56,11 @@ void TrackGroupBox::parseBox(BitStream& bitstr)
         FourCCInt boxType;
         BitStream subBitstr = bitstr.readSubBoxBitStream(boxType);
 
-        TrackGroupTypeBox tracktypebox = TrackGroupTypeBox(boxType);
-        tracktypebox.parseBox(subBitstr);
-        mTrackGroupTypeBoxes.push_back(tracktypebox);
+        if (boxType == "obsp" || boxType == "alte")
+        {
+            TrackGroupTypeBox tracktypebox = TrackGroupTypeBox(boxType);
+            tracktypebox.parseBox(subBitstr);
+            addTrackGroupTypeBox(tracktypebox);
+        }
     }
 }

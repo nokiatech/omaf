@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -18,35 +18,11 @@
 #include "controllerconfigure.h"
 #include "controllerops.h"
 
-#include "mp4loader/mp4loader.h"
+#include "medialoader/mp4loader.h"
 
 
 namespace VDD
 {
-    namespace
-    {
-        VideoInputMode videoInputOfStereoScopic3DProperty(MP4VR::StereoScopic3DProperty aStereoscopic)
-        {
-            switch (aStereoscopic)
-            {
-            case MP4VR::StereoScopic3DProperty::MONOSCOPIC:
-            {
-                return VideoInputMode::Mono;
-            }
-            case MP4VR::StereoScopic3DProperty::STEREOSCOPIC_TOP_BOTTOM:
-            {
-                return VideoInputMode::TopBottom;
-            }
-            case MP4VR::StereoScopic3DProperty::STEREOSCOPIC_LEFT_RIGHT:
-            {
-                return VideoInputMode::LeftRight;
-            }
-            default: // MP4VR::StereoScopic3DProperty::STEREOSCOPIC_STEREOMESH:
-                throw UnsupportedStereoscopicLayout("Stereo mesh not supported");
-            }
-        }
-    } // anonymous namespace
-
     ExpectedExactlyOneVRTrack::ExpectedExactlyOneVRTrack()
         : Exception("ExpectedExactlyOneVRTrack")
     {
@@ -68,7 +44,7 @@ namespace VDD
     /** @brief Given an MP4Loader, retrieve its Google VR Video Metadata, if any */
     Optional<GoogleVRVideoMetadata> loadGoogleVRVideoMetadata(MP4Loader& aMP4Loader)
     {
-        auto trackIds = aMP4Loader.getTracksBy([](MP4LoaderSource& aSource)
+        auto trackIds = aMP4Loader.getTracksBy([](MediaSource& aSource)
                                                {
                                                    return (!!aSource.getStereoScopic3D()
                                                            || !!aSource.getSphericalVideoV1()
@@ -88,7 +64,7 @@ namespace VDD
 
             if (auto stereoscopic = source->getStereoScopic3D())
             {
-                metadata.mode = videoInputOfStereoScopic3DProperty(*stereoscopic);
+                metadata.mode = videoInputOfProperty(*stereoscopic);
             }
             else
             {

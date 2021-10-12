@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,28 +19,17 @@
 
 OMAF_NS_BEGIN
 
-    // this class is not meant to be instantiated, it is just a base class for viewport dependent adaptation sets
-    class DashAdaptationSetViewportDep : public DashAdaptationSet
-    {
-    public:
+// this class is not meant to be instantiated, it is just a base class for viewport dependent adaptation sets
+class DashAdaptationSetViewportDep : public DashAdaptationSet
+{
+public:
+    virtual ~DashAdaptationSetViewportDep();
 
-        virtual ~DashAdaptationSetViewportDep();
+public:  // new
+    virtual uint32_t estimateSegmentIdForSwitch(uint32_t aNextSegmentToProcess, uint32_t aNextSegmentNotDownloaded);
+    virtual bool_t readyToSwitch(DashRepresentation* aRepresentation, uint32_t aNextNeededSegment);
 
-    public: // new
-
-        virtual uint32_t estimateSegmentIdForSwitch(uint32_t aNextSegmentNotDownloaded);
-        virtual bool_t readyToSwitch(DashRepresentation* aRepresentation, uint32_t aNextNeededSegment);
-        
-        void_t startedDownloadFromSegment(uint32_t aTargetDownloadSegmentId);
-        void_t switchSegmentDownloaded(uint32_t aSwitchedSegment);
-
-    protected:
-        DashAdaptationSetViewportDep(DashAdaptationSetObserver& observer);
-
-    private:
-        typedef FixedArray<uint32_t, 5> SwitchTimes;
-        SwitchTimes mSwitchTimesMs;
-        uint32_t mStartTimeMs;
-        uint32_t mStartSegment;
-    };
+protected:
+    DashAdaptationSetViewportDep(DashAdaptationSetObserver& observer);
+};
 OMAF_NS_END

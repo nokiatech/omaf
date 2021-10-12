@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -17,7 +17,7 @@
 #include "./tileproducer.h"
 #include "processor/data.h"
 #include "log/logstream.h"
-#include "mp4loader/mp4loader.h"
+#include "medialoader/h265memoryinputstream.h"
 
 namespace VDD {
 
@@ -33,94 +33,31 @@ namespace VDD {
         return mMessage;
     }
 
-    /** 
-     *  Read interface to the NAL data stream
-     */
-    class NalInputStream : public H265InputStream
-    {
-    public:
-        NalInputStream(uint8_t* aData, size_t aDataSize);
-        ~NalInputStream();
-
-        uint8_t getNextByte();
-        bool eof();
-        void rewind(size_t aNrBytes);
-    private:
-        uint8_t* mDataPtr;
-        size_t mIndex;
-        size_t mSize;
-    };
-
-    NalInputStream::NalInputStream(uint8_t* aData, size_t aDataSize)
-        : H265InputStream()
-        , mDataPtr(aData)
-        , mIndex(0)
-        , mSize(aDataSize)
-    {
-    }
-    NalInputStream::~NalInputStream()
-    {
-    }
-    uint8_t NalInputStream::getNextByte()
-    {
-        return mDataPtr[mIndex++];
-    }
-    bool NalInputStream::eof()
-    {
-        return mIndex == mSize;
-    }
-    void NalInputStream::rewind(size_t aNrBytes)
-    {
-        assert(mIndex - aNrBytes >= 0);
-        mIndex -= aNrBytes;
-    }
-
-
-
     TileProducer::TileProducer(Config& config)
-        : mTileFilter(config.quality, config.projection, config.resetExtractorLevelIDCTo51)
+        : mTileFilter(config.quality, config.projection, config.videoMode, config.resetExtractorLevelIDCTo51)
         , mTileConfig(config.tileConfig)
         , mExtractorMode(config.extractorMode)
         , mAUIndex(0)
         , mTileCount(0)
-        , mFrameCountLimit(config.frameCount)
     {
-        MP4Loader::Config mp4LoaderConfig = { config.inputFileName };
-        MP4Loader mp4Loader(mp4LoaderConfig, true); // bytestream format, as h265parser expects it
-        std::set<VDD::CodedFormat> setOfFormats;
-        setOfFormats.insert(setOfFormats.end(), CodedFormat::H265);
-        auto videoTracks = mp4Loader.getTracksByFormat(setOfFormats);
-        if (!videoTracks.size())
-        {
-            throw UnsupportedVideoInput(config.inputFileName + " does not contain H.265 video.");
-        }
-
-        // as the mp4 is expected to be a plain mp4, it doesn't contain any info about e.g. framepacking. That should come via json, and we should be able to trust on it
-        // currently only mono input (and output) is supported, framepacked is not supported
-
-        // takes the first track only
-        MP4Loader::SourceConfig sourceConfig{};
-        mMp4Source = mp4Loader.sourceForTrack(*videoTracks.begin(), sourceConfig);
         mTileCount = config.tileCount;
     }
 
-    std::vector<Views> TileProducer::produce()
+    std::vector<Streams> TileProducer::process(const Streams& aStreams)
     {
-        std::vector<Views> views = mMp4Source->produce();
-        Views& data = views[0];
-        std::vector<Views> subPictures;
-        if (data[0].isEndOfStream() || (mFrameCountLimit > 0 && (uint32_t)mAUIndex > mFrameCountLimit))
+        std::vector<Streams> streams;
+        if (aStreams.isEndOfStream())
         {
             for (size_t i = 0; i < mTileConfig.size(); i++)
             {
                 Meta meta = defaultMeta;
                 meta.attachTag<TrackIdTag>(mTileConfig.at(i).trackId);
-                subPictures.push_back({ Data(EndOfStream(), mTileConfig.at(i).streamId, meta) });
+                streams.push_back({Data(EndOfStream(), mTileConfig.at(i).streamId, meta)});
             }
         }
         else
         {
-            CodedFrameMeta inputMeta = data[0].getCodedFrameMeta();
+            CodedFrameMeta inputMeta = aStreams.front().getCodedFrameMeta();
             if (!inputMeta.decoderConfig.empty())
             {
                 const auto& cfg = inputMeta.decoderConfig;
@@ -129,7 +66,7 @@ namespace VDD {
                     if (cfg.count(configType))
                     {
                         auto copy = cfg.at(configType);
-                        NalInputStream input(&copy[0], copy.size());
+                        H265MemoryInputStream input(&copy[0], copy.size());
 
                         if (!mTileFilter.parseParamSet(input, mTileConfig, inputMeta))
                         {
@@ -139,14 +76,19 @@ namespace VDD {
                     }
                 }
             }
-            NalInputStream input((uint8_t*)(data[0].getCPUDataReference().address[0]), data[0].getCPUDataReference().size[0]);
+            H265MemoryInputStream input(reinterpret_cast<const uint8_t*>(aStreams.front().getCPUDataReference().address[0]), aStreams.front().getCPUDataReference().size[0]);
 
             if (mTileFilter.parseAU(input, mTileCount))
             {
+                std::vector<Data> subPictures;
                 for (size_t i = 0; i < mTileConfig.size(); i++)
                 {
-                    mTileFilter.convertToSubpicture(i, mTileConfig.at(i), mAUIndex, subPictures, inputMeta.presTime, inputMeta.codingIndex, inputMeta.duration, mExtractorMode);
+                    mTileFilter.convertToSubpicture(
+                        i, mTileConfig.at(i), mAUIndex, subPictures, inputMeta.inCodingOrder,
+                        inputMeta.codingTime, inputMeta.presTime, inputMeta.codingIndex,
+                        inputMeta.presIndex, inputMeta.duration, mExtractorMode);
                 }
+                streams.push_back(Streams{subPictures.begin(), subPictures.end()});
 
                 mAUIndex++;
             }
@@ -155,12 +97,7 @@ namespace VDD {
                 throw UnsupportedVideoInput("The input mp4 file does not seem to contain expected type of H.265 video.");
             }
         }
-        return subPictures;
-    }
-
-    void TileProducer::abort()
-    {
-
+        return streams;
     }
 
 }  // namespace VDD

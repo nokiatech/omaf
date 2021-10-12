@@ -2,7 +2,7 @@
 /**
  * This file is part of Nokia OMAF implementation
  *
- * Copyright (c) 2018-2019 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
+ * Copyright (c) 2018-2021 Nokia Corporation and/or its subsidiary(-ies). All rights reserved.
  *
  * Contact: omaf@nokia.com
  *
@@ -19,42 +19,50 @@
 
 OMAF_NS_BEGIN
 
-    class DashAdaptationSetExtractorDepId : public DashAdaptationSetExtractor
-    {
-    public:
-        DashAdaptationSetExtractorDepId(DashAdaptationSetObserver& observer);
+class DashAdaptationSetExtractorDepId : public DashAdaptationSetExtractor
+{
+public:
+    DashAdaptationSetExtractorDepId(DashAdaptationSetObserver& observer);
 
-        virtual ~DashAdaptationSetExtractorDepId();
+    virtual ~DashAdaptationSetExtractorDepId();
 
-    public: // from DashAdaptationSet
-        virtual AdaptationSetType::Enum getType() const;
-    
-        virtual Error::Enum initialize(DashComponents aDashComponents, uint32_t& aInitializationSegmentId);
+public:  // from DashAdaptationSet
+    virtual AdaptationSetType::Enum getType() const;
 
-        virtual const FixedArray<VASTileViewport*, 32> getCoveredViewports() const;
+    virtual Error::Enum initialize(DashComponents aDashComponents, uint32_t& aInitializationSegmentId);
 
-        virtual uint32_t peekNextSegmentId() const;
-        virtual bool_t processSegmentDownload();
+    virtual const FixedArray<VASTileViewport*, 32> getCoveredViewports() const;
 
-    public: // from DashAdaptationSetViewportDep
-        virtual bool_t readyToSwitch(DashRepresentation* aRepresentation, uint32_t aNextNeededSegment);
+    virtual uint32_t peekNextSegmentId() const;
+    virtual bool_t processSegmentDownload();
 
-    public: // new
-        virtual const RepresentationDependencies& getDependingRepresentations() const;
-        virtual bool_t selectRepresentation(const VASTileViewport* aTile, uint32_t aNextNeededSegment);
+public:  // from DashAdaptationSetViewportDep
+    virtual bool_t readyToSwitch(DashRepresentation* aRepresentation, uint32_t aNextNeededSegment);
 
+public:  // from DashAdaptationSetTile
+    virtual bool_t prepareForSwitch(uint32_t aNextProcessedSegment, bool_t aAggressiveSwitch);
 
-    protected: // from DashAdaptationSet
-        virtual Error::Enum doInitialize(DashComponents aDashComponents, uint32_t& aInitializationSegmentId);
-        virtual DashRepresentation* createRepresentation(DashComponents aDashComponents, uint32_t aInitializationSegmentId, uint32_t aBandwidth);
-        virtual void_t doSwitchRepresentation();
-        virtual bool_t parseVideoQuality(DashComponents& aNextComponents, uint8_t& aQualityIndex, bool_t& aGlobal, DashRepresentation* aLatestRepresentation);
+public:  // from DashAdaptationSetExtractor
+    virtual size_t getNrForegroundTiles();
 
-    protected: // new member variables
-
-        // relevant with extractor types only; collects the adaptation sets that this set depends on
-        RepresentationDependencies mDependingRepresentationIds;
+public:  // new
+    virtual const RepresentationDependencies& getDependingRepresentations() const;
+    virtual bool_t selectRepresentation(const VASTileViewport* aTile, uint32_t aNextNeededSegment);
 
 
-    };
+protected:  // from DashAdaptationSet
+    virtual Error::Enum doInitialize(DashComponents aDashComponents, uint32_t& aInitializationSegmentId);
+    virtual DashRepresentation* createRepresentation(DashComponents aDashComponents,
+                                                     uint32_t aInitializationSegmentId,
+                                                     uint32_t aBandwidth);
+    virtual void_t doSwitchRepresentation();
+    virtual bool_t parseVideoQuality(DashComponents& aNextComponents,
+                                     uint8_t& aQualityIndex,
+                                     bool_t& aGlobal,
+                                     DashRepresentation* aLatestRepresentation);
+
+protected:  // new member variables
+    // relevant with extractor types only; collects the adaptation sets that this set depends on
+    RepresentationDependencies mDependingRepresentationIds;
+};
 OMAF_NS_END
