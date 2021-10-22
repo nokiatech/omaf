@@ -6,6 +6,9 @@ OMAF is a systems standard developed by the Moving Picture Experts Group (MPEG) 
 ## News:
 12-Oct-2021: Version 2.2.0 released! Main changes include:
 * Support for OMAFv2 specification
+* Multiple viewpoints and dynamic viewpoint information
+* Overlays and dynamic overlay information
+* Simple tiling profile
 
 16-Jan-2019: Version 2.1.0 released! Main changes include:
 * Windows sample application for OMAF Player supports Direct3D rendering providing improved playback performance (e.g. 6K@60 fps).
@@ -22,6 +25,12 @@ OMAF is a systems standard developed by the Moving Picture Experts Group (MPEG) 
 
 ## Features:
 Nokia OMAF Creator/Player implements a subset of current OMAF version 2 standard, including the following main features:
+
+### Multiple viewpoints
+* Each viewpoint may have any type of tiling scheme / projection.
+
+### Overlays
+* All features except for 3D mesh overlays and externally specified overlay information.
 
 ### Convert 360-degree HEVC videos in equirectangular projection stored in conventional mp4 files to OMAF HEVC viewport independent profile files or DASH streams.
 * Input can be identified with filename suffix (_M for mono, _TB for top-bottom framepacked, and _LR for side-by-side framepacked; if no suffix mono is assumed). 
