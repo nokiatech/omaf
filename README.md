@@ -105,7 +105,7 @@ For example:
     `git clone --single-branch -b OMAF https://github.com/nokiatech/heif.git`
     `git clone https://github.com/nokiatech/omaf.git`
 
-Go to `OMAF/Build` and execute `build-visualstudio.bat` or some other build script depending on your platform. It will echo the detailed usage allowing to select which parts to compile. 
+Go to `omaf/build` and execute `build-visualstudio.bat` or some other build script depending on your platform. It will echo the detailed usage allowing to select which parts to compile. 
 
 The Creator binary should appear in `/Creator/bin/{OS}/{Debug/Release}/`
 
